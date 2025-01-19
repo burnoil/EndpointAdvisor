@@ -1,8 +1,9 @@
-﻿###############################################################################
+###############################################################################
 # SystemMonitor.ps1
-# Final Corrected Version
+# Final Corrected Version - COM-based BitLocker detection for non-admin
 # - No toast notifications
 # - Clean dispatcher shutdown
+# - Added IP address display
 ###############################################################################
 
 # ========================
@@ -100,6 +101,9 @@ function Show-Notification {
                             <TextBlock x:Name="OSVersionText"     FontSize="12" Margin="5" TextWrapping="Wrap"/>
                             <TextBlock x:Name="SystemUptimeText"  FontSize="12" Margin="5" TextWrapping="Wrap"/>
                             <TextBlock x:Name="UsedDiskSpaceText" FontSize="12" Margin="5" TextWrapping="Wrap"/>
+
+                            <!-- Added IP Address TextBlock -->
+                            <TextBlock x:Name="IpAddressText" FontSize="12" Margin="5" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                 </Expander>
@@ -209,6 +213,7 @@ $MachineTypeText        = $window.FindName("MachineTypeText")
 $OSVersionText          = $window.FindName("OSVersionText")
 $SystemUptimeText       = $window.FindName("SystemUptimeText")
 $UsedDiskSpaceText      = $window.FindName("UsedDiskSpaceText")
+$IpAddressText          = $window.FindName("IpAddressText")  # Newly added IP text block
 $AntivirusStatusText    = $window.FindName("AntivirusStatusText")
 $BitLockerStatusText    = $window.FindName("BitLockerStatusText")
 $YubiKeyStatusText      = $window.FindName("YubiKeyStatusText")
@@ -228,50 +233,77 @@ $YubiKeyBorder     = $window.FindName("YubiKeyBorder")
 # ========================
 function Update-SystemInfo {
     try {
+        # Logged-on user
         $user = [System.Environment]::UserName
         $LoggedOnUserText.Text = "Logged-in User: $user"
         Write-Log "Logged-in User: $user"
 
+        # Machine info
         $machine = Get-CimInstance -ClassName Win32_ComputerSystem
         $machineType = "$($machine.Manufacturer) $($machine.Model)"
         $MachineTypeText.Text = "Machine Type: $machineType"
         Write-Log "Machine Type: $machineType"
 
+        # OS version
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
         $osVersion = "$($os.Caption) (Build $($os.BuildNumber))"
         $OSVersionText.Text = "OS Version: $osVersion"
         Write-Log "OS Version: $osVersion"
 
+        # Uptime
         $uptime = (Get-Date) - $os.LastBootUpTime
         $systemUptime = "$([math]::Floor($uptime.TotalDays)) days $($uptime.Hours) hours"
         $SystemUptimeText.Text = "System Uptime: $systemUptime"
         Write-Log "System Uptime: $systemUptime"
 
+        # Disk usage
         $drive = Get-PSDrive -Name C
         $usedDiskSpace = "$([math]::Round(($drive.Used / 1GB), 2)) GB of $([math]::Round(($drive.Free + $drive.Used) / 1GB, 2)) GB"
         $UsedDiskSpaceText.Text = "Used Disk Space: $usedDiskSpace"
         Write-Log "Used Disk Space: $usedDiskSpace"
+
+        # Retrieve IPv4 addresses (excluding loopback 127.* and APIPA 169.254.*)
+        $ipv4s = Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
+            $_.IPAddress -notlike "127.*" -and
+            $_.IPAddress -notlike "169.254.*" -and
+            $_.IPAddress -notin @("0.0.0.0","255.255.255.255") -and
+            $_.PrefixOrigin -ne "WellKnown"
+        } | Select-Object -ExpandProperty IPAddress -ErrorAction SilentlyContinue
+
+        if ($ipv4s) {
+            # Join multiple addresses with comma + space if you have multiple NICs
+            $ipList = $ipv4s -join ", "
+            $IpAddressText.Text = "IPv4 Address(es): $ipList"
+            Write-Log "IP Address(es): $ipList"
+        }
+        else {
+            $IpAddressText.Text = "IPv4 Address(es): None detected"
+            Write-Log "No valid IPv4 addresses found."
+        }
+
     }
     catch {
         Write-Log "Error updating system information: $_"
     }
 }
 
+# COM-based BitLocker check
 function Get-BitLockerStatus {
     try {
-        $bitlocker = Get-BitLockerVolume -MountPoint "C:"
-        if ($bitlocker.ProtectionStatus -eq 'On') {
-            return $true, "BitLocker is Enabled on Drive C:"
-        }
-        elseif ($bitlocker.ProtectionStatus -eq 'Off') {
-            return $false, "BitLocker is NOT Enabled on Drive C:"
-        }
-        else {
-            return $false, "Unable to determine BitLocker status. Status: $($bitlocker.ProtectionStatus)"
+        $shell = New-Object -ComObject Shell.Application
+        $bitlockerValue = $shell.NameSpace("C:").Self.ExtendedProperty("System.Volume.BitLockerProtection")
+
+        switch ($bitlockerValue) {
+            0 { return $false, "BitLocker is NOT Enabled on Drive C:" }
+            1 { return $true,  "BitLocker is Enabled (Locked) on Drive C:" }
+            2 { return $true,  "BitLocker is Enabled (Unlocked) on Drive C:" }
+            3 { return $true,  "BitLocker is Enabled (Unknown State) on Drive C:" }
+            6 { return $true,  "BitLocker is Fully Encrypted (Unlocked) on Drive C:" }
+            default { return $false, "BitLocker code: $bitlockerValue (Unmapped status)" }
         }
     }
     catch {
-        return $false, "Error retrieving BitLocker information: $_"
+        return $false, "Error retrieving BitLocker info via Shell.Application: $_"
     }
 }
 
@@ -603,7 +635,6 @@ function Handle-DispatcherUnhandledException {
     $args.Handled = $true
 }
 
-# Attach the handler to DispatcherUnhandledException
 Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledException -Action {
     param($sender, $args)
     Handle-DispatcherUnhandledException -sender $sender -args $args
@@ -642,8 +673,5 @@ $window.Add_Closing({
 # ========================
 # 20) Start the Application Dispatcher
 # ========================
-# We do NOT wrap this in a try/catch. If the user calls Exit,
-# the dispatcher is gracefully shut down, and Run() simply returns.
 [System.Windows.Threading.Dispatcher]::Run()
-
 Write-Log "Dispatcher ended; script exiting."
