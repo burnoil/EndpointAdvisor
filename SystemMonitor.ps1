@@ -1,18 +1,9 @@
-﻿###############################################################################
-# SystemMonitor.ps1
-# - COM-based BitLocker detection for non-admin
-# - No toast notifications
-# - Clean dispatcher shutdown
-# - IP address display
-# - BigFix (BESClient) in its own Expander
-# - Condensed UI (smaller margins, no settings expander)
-# - Fixed 30s refresh interval
-# - OS DisplayVersion detection (e.g. 22H2) appended to OS
-# - Icon files loaded from the same folder as this script
+###############################################################################
+# SystemMonitor.ps1 - Revised Version with Advanced Logging, External Config,
+# DispatcherTimer, Enhanced Log Viewer, and Code42 Service Check
 ###############################################################################
 
-# Ensure we can reference $PSScriptRoot in older PS versions if needed
-# (In PowerShell 3+, $PSScriptRoot works automatically when script is saved as .ps1)
+# Ensure $PSScriptRoot is defined for older versions.
 if (-not $PSScriptRoot) {
     $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 } else {
@@ -20,49 +11,104 @@ if (-not $PSScriptRoot) {
 }
 
 # ========================
-# 1) Import Required Assemblies
+# A) External Configuration
 # ========================
-Add-Type -AssemblyName PresentationFramework
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+$configPath = Join-Path $ScriptDir "SystemMonitor.config.json"
+if (Test-Path $configPath) {
+    try {
+        $config = Get-Content $configPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        Write-Host "Error reading configuration file. Using default settings."
+        $config = $null
+    }
+}
+if (-not $config) {
+    # Default settings
+    $config = @{
+        RefreshInterval    = 30         # in seconds
+        LogRotationSizeMB  = 5          # Maximum log file size in MB
+        DefaultLogLevel    = "INFO"
+        IconPaths          = @{
+            Healthy = (Join-Path $ScriptDir "healthy.ico")
+            Warning = (Join-Path $ScriptDir "warning.ico")
+        }
+    }
+    $config | ConvertTo-Json | Out-File $configPath -Force
+}
 
 # ========================
-# 2) Configuration Variables
+# B) Log File Setup & Rotation
 # ========================
-$GreenIconPath = Join-Path $ScriptDir "healthy.ico"    # Green icon for healthy status
-$RedIconPath   = Join-Path $ScriptDir "warning.ico"    # Red icon for warning status
-$LogoImagePath = Join-Path $ScriptDir "icon.png"       # Optional: Logo/Icon for the dashboard
-
-# Log file (same folder or specify another path if needed)
-$LogFilePath   = Join-Path $ScriptDir "SystemMonitor.log"
-
-# Ensure the log directory exists
-$LogDirectory = Split-Path $LogFilePath
+$LogFilePath = Join-Path $ScriptDir "SystemMonitor.log"
+$LogDirectory  = Split-Path $LogFilePath
 if (-not (Test-Path $LogDirectory)) {
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
 }
 
+function Rotate-LogFile {
+    try {
+        if (Test-Path $LogFilePath) {
+            $fileInfo = Get-Item $LogFilePath
+            $maxSizeBytes = $config.LogRotationSizeMB * 1MB
+            if ($fileInfo.Length -gt $maxSizeBytes) {
+                $archivePath = "$LogFilePath.$(Get-Date -Format 'yyyyMMddHHmmss').archive"
+                Rename-Item -Path $LogFilePath -NewName $archivePath
+                Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
+            }
+        }
+    }
+    catch {
+        Write-Log "Failed to rotate log file: $_" -Level "ERROR"
+    }
+}
+Rotate-LogFile
+
 # ========================
-# 3) Logging & No-Op Notification
+# C) Advanced Logging & Error Handling
 # ========================
 function Write-Log {
-    param([string]$Message)
+    param(
+        [string]$Message,
+        [ValidateSet("INFO", "WARNING", "ERROR")]
+        [string]$Level = $config.DefaultLogLevel
+    )
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    Add-Content -Path $LogFilePath -Value "[$timestamp] $Message"
+    $logEntry = "[$timestamp] [$Level] $Message"
+    Add-Content -Path $LogFilePath -Value $logEntry
 }
 
-# Stubbed out: no toast or balloon tips.
+function Handle-Error {
+    param(
+        [string]$ErrorMessage,
+        [string]$Source = ""
+    )
+    if ($Source) {
+        $ErrorMessage = "[$Source] $ErrorMessage"
+    }
+    Write-Log $ErrorMessage -Level "ERROR"
+    # Additional error handling (e.g., user notifications) can be added here.
+}
+
+# Stubbed out: no toast notifications.
 function Show-Notification {
     param(
         [string]$Title,
         [string]$Message,
         [System.Drawing.Icon]$Icon = [System.Drawing.SystemIcons]::Information
     )
-    Write-Log "Notification suppressed: $Title - $Message"
+    Write-Log "Notification suppressed: $Title - $Message" -Level "INFO"
 }
 
 # ========================
-# 4) XAML Layout Definition (Condensed, no Settings)
+# D) Import Required Assemblies
+# ========================
+Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# ========================
+# E) XAML Layout Definition (with Enhanced Log Viewer and Code42 Section)
 # ========================
 [xml]$xaml = @"
 <Window
@@ -87,11 +133,9 @@ function Show-Notification {
         <!-- Title Section -->
         <Border Grid.Row="0" Background="#0078D7" Padding="8" CornerRadius="3" Margin="0,0,0,5">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                <!-- Replace with a dynamic binding to $LogoImagePath if needed,
-                     but typically you can reference the absolute path or just omit the image. -->
-                <Image Source="$LogoImagePath" Width="24" Height="24" Margin="0,0,8,0"/>
-                <TextBlock Text="System Monitoring Dashboard"
-                           FontSize="16" FontWeight="Bold" Foreground="White"
+                <Image Source="$($config.IconPaths.Healthy)" Width="24" Height="24" Margin="0,0,8,0"/>
+                <TextBlock Text="MITLL System Monitoring Dashboard"
+                           FontSize="14" FontWeight="Bold" Foreground="White"
                            VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
@@ -101,28 +145,22 @@ function Show-Notification {
             <StackPanel VerticalAlignment="Top">
 
                 <!-- System Information Section -->
-                <Expander Header="System Information"
-                          FontSize="13" Foreground="#0078D7"
-                          IsExpanded="True" Margin="0,0,0,5">
-                    <Border BorderBrush="#0078D7" BorderThickness="1"
-                            Padding="5" CornerRadius="3" Background="White" Margin="3">
+                <Expander Header="System Information" FontSize="13" Foreground="#0078D7" IsExpanded="True" Margin="0,0,0,5">
+                    <Border BorderBrush="#0078D7" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
                         <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LoggedOnUserText"  FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="MachineTypeText"   FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="OSVersionText"     FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="SystemUptimeText"  FontSize="12" Margin="3" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="LoggedOnUserText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="MachineTypeText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="OSVersionText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="SystemUptimeText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
                             <TextBlock x:Name="UsedDiskSpaceText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="IpAddressText"     FontSize="12" Margin="3" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="IpAddressText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                 </Expander>
 
                 <!-- Antivirus Section -->
-                <Expander Header="Antivirus Information"
-                          FontSize="13" Foreground="#28a745"
-                          IsExpanded="True" Margin="0,0,0,5">
-                    <Border BorderBrush="#28a745" BorderThickness="1"
-                            Padding="5" CornerRadius="3" Background="White" Margin="3">
+                <Expander Header="Antivirus Information" FontSize="13" Foreground="#28a745" IsExpanded="True" Margin="0,0,0,5">
+                    <Border BorderBrush="#28a745" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
                         <StackPanel Orientation="Vertical">
                             <TextBlock x:Name="AntivirusStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
                         </StackPanel>
@@ -130,11 +168,8 @@ function Show-Notification {
                 </Expander>
 
                 <!-- BitLocker Section -->
-                <Expander x:Name="BitLockerExpander" Header="BitLocker Information"
-                          FontSize="13" Foreground="#6c757d"
-                          IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1"
-                            Padding="5" CornerRadius="3" Background="White" Margin="3">
+                <Expander x:Name="BitLockerExpander" Header="BitLocker Information" FontSize="13" Foreground="#6c757d" IsExpanded="True" Margin="0,0,0,5">
+                    <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
                         <StackPanel Orientation="Vertical">
                             <TextBlock x:Name="BitLockerStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
                         </StackPanel>
@@ -142,11 +177,8 @@ function Show-Notification {
                 </Expander>
 
                 <!-- YubiKey Section -->
-                <Expander x:Name="YubiKeyExpander" Header="YubiKey Information"
-                          FontSize="13" Foreground="#FF69B4"
-                          IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="YubiKeyBorder" BorderBrush="#FF69B4" BorderThickness="1"
-                            Padding="5" CornerRadius="3" Background="White" Margin="3">
+                <Expander x:Name="YubiKeyExpander" Header="YubiKey Information" FontSize="13" Foreground="#FF69B4" IsExpanded="True" Margin="0,0,0,5">
+                    <Border x:Name="YubiKeyBorder" BorderBrush="#FF69B4" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
                         <StackPanel Orientation="Vertical">
                             <TextBlock x:Name="YubiKeyStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
                         </StackPanel>
@@ -154,29 +186,36 @@ function Show-Notification {
                 </Expander>
 
                 <!-- BigFix Section -->
-                <Expander x:Name="BigFixExpander" Header="BigFix (BESClient)"
-                          FontSize="13" Foreground="#4b0082"
-                          IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="BigFixBorder" BorderBrush="#4b0082" BorderThickness="1"
-                            Padding="5" CornerRadius="3" Background="White" Margin="3">
+                <Expander x:Name="BigFixExpander" Header="BigFix (BESClient)" FontSize="13" Foreground="#4b0082" IsExpanded="True" Margin="0,0,0,5">
+                    <Border x:Name="BigFixBorder" BorderBrush="#4b0082" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
                         <StackPanel Orientation="Vertical">
                             <TextBlock x:Name="BigFixStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
                 </Expander>
 
-                <!-- Logs Section -->
-                <Expander Header="Logs"
-                          FontSize="13" Foreground="#ff8c00"
-                          IsExpanded="False" Margin="0,0,0,5">
-                    <Border BorderBrush="#ff8c00" BorderThickness="1"
-                            Padding="5" CornerRadius="3" Background="White" Margin="3">
+                <!-- Code42 Service Section -->
+                <Expander x:Name="Code42Expander" Header="Code42 Service" FontSize="13" Foreground="#800080" IsExpanded="True" Margin="0,0,0,5">
+                    <Border x:Name="Code42Border" BorderBrush="#800080" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
                         <StackPanel Orientation="Vertical">
-                            <TextBox x:Name="LogTextBox" FontSize="10" Margin="3"
-                                     Height="150" IsReadOnly="True" TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto"/>
-                            <Button x:Name="ExportLogsButton" Content="Export Logs"
-                                    Width="90" Margin="3" HorizontalAlignment="Right"/>
+                            <TextBlock x:Name="Code42StatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </Expander>
+
+                <!-- Logs Section (Enhanced Log Viewer) -->
+                <Expander Header="Logs" FontSize="13" Foreground="#ff8c00" IsExpanded="False" Margin="0,0,0,5">
+                    <Border BorderBrush="#ff8c00" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
+                        <StackPanel Orientation="Vertical">
+                            <ListView x:Name="LogListView" FontSize="10" Margin="3" Height="150">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Timestamp" Width="120" DisplayMemberBinding="{Binding Timestamp}" />
+                                        <GridViewColumn Header="Message" Width="200" DisplayMemberBinding="{Binding Message}" />
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                            <Button x:Name="ExportLogsButton" Content="Export Logs" Width="90" Margin="3" HorizontalAlignment="Right"/>
                         </StackPanel>
                     </Border>
                 </Expander>
@@ -185,33 +224,29 @@ function Show-Notification {
         </ScrollViewer>
 
         <!-- Footer Section -->
-        <TextBlock Grid.Row="2"
-                   Text="© 2025 System Monitor"
-                   FontSize="10" Foreground="Gray"
-                   HorizontalAlignment="Center"
-                   Margin="0,5,0,0"/>
+        <TextBlock Grid.Row="2" Text="© 2025 System Monitor" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,5,0,0"/>
     </Grid>
 </Window>
 "@
 
 # ========================
-# 5) Load and Verify XAML
+# F) Load and Verify XAML
 # ========================
 $reader = New-Object System.Xml.XmlNodeReader($xaml)
 try {
     $window = [Windows.Markup.XamlReader]::Load($reader)
 }
 catch {
-    Write-Log "Failed to load the XAML layout. Error: $_"
+    Handle-Error "Failed to load the XAML layout. Error: $_" -Source "XAML"
     return
 }
 if ($window -eq $null) {
-    Write-Log "Failed to load the XAML layout. Check the XAML syntax for errors."
+    Handle-Error "Failed to load the XAML layout. Check the XAML syntax for errors." -Source "XAML"
     return
 }
 
 # ========================
-# 6) Access UI Elements
+# G) Access UI Elements
 # ========================
 $LoggedOnUserText    = $window.FindName("LoggedOnUserText")
 $MachineTypeText     = $window.FindName("MachineTypeText")
@@ -224,83 +259,73 @@ $AntivirusStatusText = $window.FindName("AntivirusStatusText")
 $BitLockerStatusText = $window.FindName("BitLockerStatusText")
 $YubiKeyStatusText   = $window.FindName("YubiKeyStatusText")
 $BigFixStatusText    = $window.FindName("BigFixStatusText")
+$Code42StatusText    = $window.FindName("Code42StatusText")
 
-$LogTextBox          = $window.FindName("LogTextBox")
+$LogListView         = $window.FindName("LogListView")
 $ExportLogsButton    = $window.FindName("ExportLogsButton")
 
-$BitLockerExpander = $window.FindName("BitLockerExpander")
-$BitLockerBorder   = $window.FindName("BitLockerBorder")
-$YubiKeyExpander   = $window.FindName("YubiKeyExpander")
-$YubiKeyBorder     = $window.FindName("YubiKeyBorder")
-$BigFixExpander    = $window.FindName("BigFixExpander")
-$BigFixBorder      = $window.FindName("BigFixBorder")
+$BitLockerExpander   = $window.FindName("BitLockerExpander")
+$BitLockerBorder     = $window.FindName("BitLockerBorder")
+$YubiKeyExpander     = $window.FindName("YubiKeyExpander")
+$YubiKeyBorder       = $window.FindName("YubiKeyBorder")
+$BigFixExpander      = $window.FindName("BigFixExpander")
+$BigFixBorder        = $window.FindName("BigFixBorder")
+$Code42Expander      = $window.FindName("Code42Expander")
+$Code42Border        = $window.FindName("Code42Border")
 
 # ========================
-# 7) System Information Functions
+# H) Modularized System Information Functions
 # ========================
 function Update-SystemInfo {
     try {
-        # Logged-on user
         $user = [System.Environment]::UserName
         $LoggedOnUserText.Text = "Logged-in User: $user"
-        Write-Log "Logged-in User: $user"
+        Write-Log "Logged-in User: $user" -Level "INFO"
 
-        # Machine info
         $machine = Get-CimInstance -ClassName Win32_ComputerSystem
         $machineType = "$($machine.Manufacturer) $($machine.Model)"
         $MachineTypeText.Text = "Machine Type: $machineType"
-        Write-Log "Machine Type: $machineType"
+        Write-Log "Machine Type: $machineType" -Level "INFO"
 
-        # OS version (with DisplayVersion e.g. "22H2")
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
         $osVersion = "$($os.Caption) (Build $($os.BuildNumber))"
-
         try {
-            # Attempt to read 'DisplayVersion' e.g. "22H2"
             $displayVersion = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'DisplayVersion' -ErrorAction SilentlyContinue).DisplayVersion
-            if ($displayVersion) {
-                $osVersion += " $displayVersion"
-            }
+            if ($displayVersion) { $osVersion += " $displayVersion" }
         }
         catch {
-            Write-Log "Could not retrieve DisplayVersion from registry: $_"
+            Handle-Error "Could not retrieve DisplayVersion from registry: $_" -Source "OSVersion"
         }
-
         $OSVersionText.Text = "OS Version: $osVersion"
-        Write-Log "OS Version: $osVersion"
+        Write-Log "OS Version: $osVersion" -Level "INFO"
 
-        # Uptime
         $uptime = (Get-Date) - $os.LastBootUpTime
         $systemUptime = "$([math]::Floor($uptime.TotalDays)) days $($uptime.Hours) hours"
         $SystemUptimeText.Text = "System Uptime: $systemUptime"
-        Write-Log "System Uptime: $systemUptime"
+        Write-Log "System Uptime: $systemUptime" -Level "INFO"
 
-        # Disk usage
         $drive = Get-PSDrive -Name C
-        $usedDiskSpace = "$([math]::Round(($drive.Used / 1GB), 2)) GB of $([math]::Round(($drive.Free + $drive.Used) / 1GB, 2)) GB"
+        $usedDiskSpace = "$([math]::Round(($drive.Used / 1GB), 2)) GB of $([math]::Round((($drive.Free + $drive.Used) / 1GB), 2)) GB"
         $UsedDiskSpaceText.Text = "Used Disk Space: $usedDiskSpace"
-        Write-Log "Used Disk Space: $usedDiskSpace"
+        Write-Log "Used Disk Space: $usedDiskSpace" -Level "INFO"
 
-        # IP addresses
         $ipv4s = Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
-            $_.IPAddress -notlike "127.*" -and
-            $_.IPAddress -notlike "169.254.*" -and
-            $_.IPAddress -notin @("0.0.0.0","255.255.255.255") -and
-            $_.PrefixOrigin -ne "WellKnown"
+            $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" -and
+            $_.IPAddress -notin @("0.0.0.0","255.255.255.255") -and $_.PrefixOrigin -ne "WellKnown"
         } | Select-Object -ExpandProperty IPAddress -ErrorAction SilentlyContinue
 
         if ($ipv4s) {
             $ipList = $ipv4s -join ", "
             $IpAddressText.Text = "IPv4 Address(es): $ipList"
-            Write-Log "IP Address(es): $ipList"
+            Write-Log "IP Address(es): $ipList" -Level "INFO"
         }
         else {
             $IpAddressText.Text = "IPv4 Address(es): None detected"
-            Write-Log "No valid IPv4 addresses found."
+            Write-Log "No valid IPv4 addresses found." -Level "WARNING"
         }
     }
     catch {
-        Write-Log "Error updating system information: $_"
+        Handle-Error "Error updating system information: $_" -Source "Update-SystemInfo"
     }
 }
 
@@ -309,7 +334,7 @@ function Get-BigFixStatus {
         $besService = Get-Service -Name BESClient -ErrorAction SilentlyContinue
         if ($besService) {
             if ($besService.Status -eq 'Running') {
-                return $true,  "BigFix (BESClient) Service: Running"
+                return $true, "BigFix (BESClient) Service: Running"
             }
             else {
                 return $false, "BigFix (BESClient) is Installed but NOT Running (Status: $($besService.Status))"
@@ -328,7 +353,6 @@ function Get-BitLockerStatus {
     try {
         $shell = New-Object -ComObject Shell.Application
         $bitlockerValue = $shell.NameSpace("C:").Self.ExtendedProperty("System.Volume.BitLockerProtection")
-
         switch ($bitlockerValue) {
             0 { return $false, "BitLocker is NOT Enabled on Drive C:" }
             1 { return $true,  "BitLocker is Enabled (Locked) on Drive C:" }
@@ -360,48 +384,67 @@ function Get-AntivirusStatus {
 }
 
 function Get-YubiKeyStatus {
-    Write-Log "Starting YubiKey detection..."
+    Write-Log "Starting YubiKey detection..." -Level "INFO"
     $yubicoVendorID = "1050"
     $yubikeyProductIDs = @("0407","0408","0409","040A","040B","040C","040D","040E")
     try {
         $allYubicoDevices = Get-PnpDevice -Class USB | Where-Object {
             ($_.InstanceId -match "VID_$yubicoVendorID") -and ($_.Status -eq "OK")
         }
-
-        Write-Log "Found $($allYubicoDevices.Count) Yubico USB device(s) with Status='OK'."
+        Write-Log "Found $($allYubicoDevices.Count) Yubico USB device(s) with Status='OK'." -Level "INFO"
         foreach ($device in $allYubicoDevices) {
-            Write-Log "Detected Device: $($device.FriendlyName) - InstanceId: $($device.InstanceId)"
+            Write-Log "Detected Device: $($device.FriendlyName) - InstanceId: $($device.InstanceId)" -Level "INFO"
         }
-
         $detectedYubiKeys = $allYubicoDevices | Where-Object {
             foreach ($productId in $yubikeyProductIDs) {
-                if ($_.InstanceId -match "PID_$productId") {
-                    return $true
-                }
+                if ($_.InstanceId -match "PID_$productId") { return $true }
             }
             return $false
         }
-
         if ($detectedYubiKeys) {
             $friendlyNames = $detectedYubiKeys | ForEach-Object { $_.FriendlyName } | Sort-Object -Unique
             $statusMessage = "YubiKey Detected: $($friendlyNames -join ', ')"
-            Write-Log $statusMessage
+            Write-Log $statusMessage -Level "INFO"
             return $true, $statusMessage
         }
         else {
             $statusMessage = "No YubiKey Detected."
-            Write-Log $statusMessage
+            Write-Log $statusMessage -Level "INFO"
             return $false, $statusMessage
         }
     }
     catch {
-        Write-Log "Error during YubiKey detection: $_"
+        Write-Log "Error during YubiKey detection: $_" -Level "ERROR"
         return $false, "Error detecting YubiKey."
     }
 }
 
+# New function: Get-Code42Status
+function Get-Code42Status {
+    try {
+        # Attempt to retrieve the Code42 process (process name without .exe)
+        $code42Process = Get-Process -Name "Code42Service" -ErrorAction SilentlyContinue
+        if ($code42Process) {
+            return $true, "Code42 Service: Running (PID: $($code42Process.Id))"
+        }
+        else {
+            # Check if the executable exists for installation verification
+            $servicePath = "C:\Program Files\Code42\Code42Service.exe"
+            if (Test-Path $servicePath) {
+                return $false, "Code42 Service: Installed but NOT running."
+            }
+            else {
+                return $false, "Code42 Service: Not installed."
+            }
+        }
+    }
+    catch {
+        return $false, "Error checking Code42 Service: $_"
+    }
+}
+
 # ========================
-# 8) Tray Icon Management
+# I) Tray Icon Management
 # ========================
 function Get-Icon {
     param(
@@ -409,17 +452,17 @@ function Get-Icon {
         [System.Drawing.Icon]$DefaultIcon
     )
     if (-not (Test-Path $Path)) {
-        Write-Log "$Path not found. Using default icon."
+        Write-Log "$Path not found. Using default icon." -Level "WARNING"
         return $DefaultIcon
     }
     else {
         try {
             $icon = New-Object System.Drawing.Icon($Path)
-            Write-Log "Custom icon loaded from $($Path)."
+            Write-Log "Custom icon loaded from ${Path}." -Level "INFO"
             return $icon
         }
         catch {
-            Write-Log "Error loading icon from $($Path): $($_). Using default icon."
+            Handle-Error "Error loading icon from ${Path}: $_. Using default icon." -Source "Get-Icon"
             return $DefaultIcon
         }
     }
@@ -431,23 +474,25 @@ function Update-TrayIcon {
         $bitlockerStatus, $bitlockerMessage = Get-BitLockerStatus
         $yubikeyStatus,  $yubikeyMessage   = Get-YubiKeyStatus
         $bigfixStatus,   $bigfixMessage    = Get-BigFixStatus
+        $code42Status,   $code42Message    = Get-Code42Status
 
-        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus) {
-            $TrayIcon.Icon = Get-Icon -Path $GreenIconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
+        # Decide on tray icon based on overall health (including Code42)
+        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status) {
+            $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Healthy -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             $TrayIcon.Text = "System Monitor - Healthy"
         }
         else {
-            $TrayIcon.Icon = Get-Icon -Path $RedIconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
+            $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             $TrayIcon.Text = "System Monitor - Warning"
         }
 
-        # Update text blocks
         $AntivirusStatusText.Text = $antivirusMessage
         $BitLockerStatusText.Text = $bitlockerMessage
         $YubiKeyStatusText.Text   = $yubikeyMessage
         $BigFixStatusText.Text    = $bigfixMessage
+        $Code42StatusText.Text    = $code42Message
 
-        # BitLocker color
+        # Update border colors based on individual statuses
         if ($bitlockerStatus) {
             $BitLockerExpander.Foreground = 'Green'
             $BitLockerBorder.BorderBrush = 'Green'
@@ -457,7 +502,6 @@ function Update-TrayIcon {
             $BitLockerBorder.BorderBrush = 'Red'
         }
 
-        # YubiKey color
         if ($yubikeyStatus) {
             $YubiKeyExpander.Foreground = 'Green'
             $YubiKeyBorder.BorderBrush = 'Green'
@@ -467,7 +511,6 @@ function Update-TrayIcon {
             $YubiKeyBorder.BorderBrush = 'Red'
         }
 
-        # BigFix color
         if ($bigfixStatus) {
             $BigFixExpander.Foreground = 'Green'
             $BigFixBorder.BorderBrush  = 'Green'
@@ -477,30 +520,47 @@ function Update-TrayIcon {
             $BigFixBorder.BorderBrush  = 'Red'
         }
 
-        Write-Log "Tray icon and status updated."
+        if ($code42Status) {
+            $Code42Expander.Foreground = 'Green'
+            $Code42Border.BorderBrush  = 'Green'
+        }
+        else {
+            $Code42Expander.Foreground = 'Red'
+            $Code42Border.BorderBrush  = 'Red'
+        }
+
+        Write-Log "Tray icon and status updated." -Level "INFO"
     }
     catch {
-        Write-Log "Error updating tray icon: $_"
+        Handle-Error "Error updating tray icon: $_" -Source "Update-TrayIcon"
     }
 }
 
 # ========================
-# 9) Logs Management
+# J) Enhanced Logs Management (ListView)
 # ========================
 function Update-Logs {
     try {
         if (Test-Path $LogFilePath) {
-            $LogContent = Get-Content -Path $LogFilePath -Tail 100 -ErrorAction SilentlyContinue
-            $LogTextBox.Text = $LogContent -join "`n"
+            $logContent = Get-Content -Path $LogFilePath -Tail 100 -ErrorAction SilentlyContinue
+            $logEntries = @()
+            foreach ($line in $logContent) {
+                if ($line -match "^\[(?<timestamp>[^\]]+)\]\s\[(?<level>[^\]]+)\]\s(?<message>.*)$") {
+                    $logEntries += [PSCustomObject]@{
+                        Timestamp = $matches['timestamp']
+                        Message   = $matches['message']
+                    }
+                }
+            }
+            $LogListView.ItemsSource = $logEntries
         }
         else {
-            $LogTextBox.Text = "Log file not found."
+            $LogListView.ItemsSource = @([PSCustomObject]@{Timestamp="N/A"; Message="Log file not found."})
         }
-        Write-Log "Logs updated in GUI."
+        Write-Log "Logs updated in GUI." -Level "INFO"
     }
     catch {
-        $LogTextBox.Text = "Error loading logs: $_"
-        Write-Log "Error loading logs: $_"
+        Handle-Error "Error loading logs: $_" -Source "Update-Logs"
     }
 }
 
@@ -511,51 +571,51 @@ function Export-Logs {
         $saveFileDialog.FileName = "SystemMonitor.log"
         if ($saveFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             Copy-Item -Path $LogFilePath -Destination $saveFileDialog.FileName -Force
-            Write-Log "Logs exported to $($saveFileDialog.FileName)"
+            Write-Log "Logs exported to $($saveFileDialog.FileName)" -Level "INFO"
         }
     }
     catch {
-        Write-Log "Error exporting logs: $_"
+        Handle-Error "Error exporting logs: $_" -Source "Export-Logs"
     }
 }
 
 # ========================
-# 10) Window Visibility Management
+# K) Window Visibility Management
 # ========================
 function Toggle-WindowVisibility {
     try {
         if ($window.Visibility -eq 'Visible') {
             $window.Hide()
-            Write-Log "Dashboard hidden via Toggle-WindowVisibility."
+            Write-Log "Dashboard hidden via Toggle-WindowVisibility." -Level "INFO"
         }
         else {
             $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
             $window.Left = $screen.Width - $window.Width - 10
             $window.Top  = $screen.Height - $window.Height - 50
             $window.Show()
-            Write-Log "Dashboard shown via Toggle-WindowVisibility."
+            Write-Log "Dashboard shown via Toggle-WindowVisibility." -Level "INFO"
         }
     }
     catch {
-        Write-Log "Error toggling window visibility: $_"
+        Handle-Error "Error toggling window visibility: $_" -Source "Toggle-WindowVisibility"
     }
 }
 
 # ========================
-# 11) Button Event Handlers
+# L) Button Event Handlers
 # ========================
 $ExportLogsButton.Add_Click({ Export-Logs })
 
 # ========================
-# 12) Create & Configure Tray Icon
+# M) Create & Configure Tray Icon
 # ========================
 $TrayIcon = New-Object System.Windows.Forms.NotifyIcon
-$TrayIcon.Icon = Get-Icon -Path $GreenIconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
+$TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Healthy -DefaultIcon ([System.Drawing.SystemIcons]::Application)
 $TrayIcon.Visible = $true
 $TrayIcon.Text = "System Monitor"
 
 # ========================
-# 13) Tray Icon Context Menu
+# N) Tray Icon Context Menu
 # ========================
 $ContextMenu    = New-Object System.Windows.Forms.ContextMenu
 $MenuItemShow   = New-Object System.Windows.Forms.MenuItem("Show Dashboard")
@@ -564,7 +624,6 @@ $ContextMenu.MenuItems.Add($MenuItemShow)
 $ContextMenu.MenuItems.Add($MenuItemExit)
 $TrayIcon.ContextMenu = $ContextMenu
 
-# Toggle GUI on tray left-click
 $TrayIcon.add_MouseClick({
     param($sender,$e)
     try {
@@ -573,81 +632,70 @@ $TrayIcon.add_MouseClick({
         }
     }
     catch {
-        Write-Log "Error handling tray icon mouse click: $_"
+        Handle-Error "Error handling tray icon mouse click: $_" -Source "TrayIcon"
     }
 })
 
-$MenuItemShow.add_Click({
-    Toggle-WindowVisibility
-})
-
+$MenuItemShow.add_Click({ Toggle-WindowVisibility })
 $MenuItemExit.add_Click({
     try {
-        Write-Log "Exit clicked by user."
-        $timer.Stop()
-        Write-Log "Timer stopped."
+        Write-Log "Exit clicked by user." -Level "INFO"
+        $dispatcherTimer.Stop()
+        Write-Log "DispatcherTimer stopped." -Level "INFO"
         $TrayIcon.Dispose()
-        Write-Log "Tray icon disposed."
+        Write-Log "Tray icon disposed." -Level "INFO"
         $window.Dispatcher.InvokeShutdown()
-        Write-Log "Application exited via tray menu."
+        Write-Log "Application exited via tray menu." -Level "INFO"
     }
     catch {
-        Write-Log "Error during application exit: $_"
+        Handle-Error "Error during application exit: $_" -Source "Exit"
     }
 })
 
 # ========================
-# 14) Timer for Periodic Updates (Fixed Interval 30s)
+# O) DispatcherTimer for Periodic Updates
 # ========================
-$timer = New-Object System.Windows.Forms.Timer
-$defaultInterval = 30
-$timer.Interval = $defaultInterval * 1000  # 30s
-$timer.Add_Tick({
+$dispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
+$dispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterval)
+$dispatcherTimer.add_Tick({
     try {
-        $window.Dispatcher.Invoke([Action]{
-            Update-TrayIcon
-            Update-SystemInfo
-            Update-Logs
-            Update-YubiKeyStatus
-        })
+        Update-TrayIcon
+        Update-SystemInfo
+        Update-Logs
+        Update-YubiKeyStatus
     }
     catch {
-        Write-Log "Error during timer tick: $_"
+        Handle-Error "Error during timer tick: $_" -Source "DispatcherTimer"
     }
 })
-$timer.Start()
+$dispatcherTimer.Start()
 
-# ========================
-# 15) YubiKey Update Function
-# ========================
 function Update-YubiKeyStatus {
     try {
         $yubikeyPresent, $yubikeyMessage = Get-YubiKeyStatus
         $YubiKeyStatusText.Text = $yubikeyMessage
-
         if ($yubikeyPresent) {
-            Write-Log "YubiKey is present."
+            Write-Log "YubiKey is present." -Level "INFO"
         }
         else {
-            Write-Log "YubiKey is not present."
+            Write-Log "YubiKey is not present." -Level "INFO"
         }
     }
     catch {
         $YubiKeyStatusText.Text = "Error detecting YubiKey."
-        Write-Log "Error updating YubiKey status: $_"
+        Handle-Error "Error updating YubiKey status: $_" -Source "Update-YubiKeyStatus"
     }
 }
 
 # ========================
-# 16) Dispatcher Exception Handling
+# P) Dispatcher Exception Handling
 # ========================
 function Handle-DispatcherUnhandledException {
     param(
         [object]$sender,
         [System.Windows.Threading.DispatcherUnhandledExceptionEventArgs]$args
     )
-    Write-Log "Unhandled Dispatcher exception: $($args.Exception.Message)"
-    # $args.Handled = $true
+    Handle-Error "Unhandled Dispatcher exception: $($args.Exception.Message)" -Source "Dispatcher"
 }
 
 Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledException -Action {
@@ -656,7 +704,7 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 }
 
 # ========================
-# 17) Initialize the First Update
+# Q) Initial Update & Start Dispatcher
 # ========================
 try {
     $window.Dispatcher.Invoke([Action]{
@@ -667,27 +715,21 @@ try {
     })
 }
 catch {
-    Write-Log "Error during initial update: $_"
+    Handle-Error "Error during initial update: $_" -Source "InitialUpdate"
 }
 
-# ========================
-# 18) Handle Window Closing (Hide Instead of Close)
-# ========================
 $window.Add_Closing({
     param($sender,$eventArgs)
     try {
         $eventArgs.Cancel = $true
         $window.Hide()
-        Write-Log "Dashboard hidden via window closing event."
+        Write-Log "Dashboard hidden via window closing event." -Level "INFO"
     }
     catch {
-        Write-Log "Error handling window closing: $_"
+        Handle-Error "Error handling window closing: $_" -Source "WindowClosing"
     }
 })
 
-# ========================
-# 19) Start the Application Dispatcher
-# ========================
-Write-Log "About to call Dispatcher.Run()..."
+Write-Log "About to call Dispatcher.Run()..." -Level "INFO"
 [System.Windows.Threading.Dispatcher]::Run()
-Write-Log "Dispatcher ended; script exiting."
+Write-Log "Dispatcher ended; script exiting." -Level "INFO"
