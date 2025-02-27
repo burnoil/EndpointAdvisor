@@ -1,8 +1,8 @@
 ###############################################################################
 # SystemMonitor.ps1 - Revised Version with Advanced Logging, External Config,
 # DispatcherTimer, Enhanced Log Viewer, Code42 Service Check, About Section,
-# Auto-Sizing, Anchored to Bottom Right, FIPS Compliance Detection, and a 
-# More Compact UI Layout
+# Auto-Sizing, Anchored to Bottom Right on Primary Display, FIPS Compliance 
+# Detection, and a More Compact UI Layout
 ###############################################################################
 
 # Ensure $PSScriptRoot is defined for older versions.
@@ -613,14 +613,14 @@ function Export-Logs {
 }
 
 # ========================
-# K) Window Visibility Management (Anchor to Bottom Right)
+# K) Window Visibility Management (Anchor to Primary Display's Bottom Right)
 # ========================
 function Set-WindowPosition {
     try {
         $window.UpdateLayout()
-        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-        $window.Left = $screen.Width - $window.ActualWidth - 10
-        $window.Top  = $screen.Height - $window.ActualHeight - 50
+        $primary = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+        $window.Left = $primary.X + $primary.Width - $window.ActualWidth - 10
+        $window.Top  = $primary.Y + $primary.Height - $window.ActualHeight - 50
     }
     catch {
         Handle-Error "Error setting window position: $_" -Source "Set-WindowPosition"
