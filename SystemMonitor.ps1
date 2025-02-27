@@ -1,6 +1,8 @@
 ###############################################################################
 # SystemMonitor.ps1 - Revised Version with Advanced Logging, External Config,
-# DispatcherTimer, Enhanced Log Viewer, and Code42 Service Check
+# DispatcherTimer, Enhanced Log Viewer, Code42 Service Check, About Section,
+# Auto-Sizing, Anchored to Bottom Right, FIPS Compliance Detection, and a 
+# More Compact UI Layout
 ###############################################################################
 
 # Ensure $PSScriptRoot is defined for older versions.
@@ -108,124 +110,130 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # ========================
-# E) XAML Layout Definition (with Enhanced Log Viewer and Code42 Section)
+# E) XAML Layout Definition (Compact UI, with Enhanced Log Viewer, Code42, FIPS & About)
 # ========================
 [xml]$xaml = @"
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="System Monitor"
-    Height="500"
-    Width="350"
+    WindowStartupLocation="Manual"
+    SizeToContent="WidthAndHeight"
+    MinWidth="350" MinHeight="500"
     ResizeMode="CanResize"
     ShowInTaskbar="False"
     Visibility="Hidden"
     Topmost="True"
     Background="#f0f0f0">
-
-    <Grid Margin="5">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Title Section -->
-        <Border Grid.Row="0" Background="#0078D7" Padding="8" CornerRadius="3" Margin="0,0,0,5">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-                <Image Source="$($config.IconPaths.Healthy)" Width="24" Height="24" Margin="0,0,8,0"/>
-                <TextBlock Text="MITLL System Monitoring Dashboard"
-                           FontSize="14" FontWeight="Bold" Foreground="White"
-                           VerticalAlignment="Center"/>
+  <Grid Margin="3">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <!-- Title Section -->
+    <Border Grid.Row="0" Background="#0078D7" Padding="4" CornerRadius="2" Margin="0,0,0,4">
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Image Source="$($config.IconPaths.Healthy)" Width="20" Height="20" Margin="0,0,4,0"/>
+        <TextBlock Text="System Monitoring Dashboard"
+                   FontSize="14" FontWeight="Bold" Foreground="White"
+                   VerticalAlignment="Center"/>
+      </StackPanel>
+    </Border>
+    <!-- Content Area -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <StackPanel VerticalAlignment="Top">
+        <!-- System Information Section -->
+        <Expander Header="System Information" FontSize="12" Foreground="#0078D7" IsExpanded="True" Margin="0,2,0,2">
+          <Border BorderBrush="#0078D7" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="LoggedOnUserText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="MachineTypeText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="OSVersionText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="SystemUptimeText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="UsedDiskSpaceText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="IpAddressText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
             </StackPanel>
-        </Border>
-
-        <!-- Content Area -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel VerticalAlignment="Top">
-
-                <!-- System Information Section -->
-                <Expander Header="System Information" FontSize="13" Foreground="#0078D7" IsExpanded="True" Margin="0,0,0,5">
-                    <Border BorderBrush="#0078D7" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="LoggedOnUserText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="MachineTypeText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="OSVersionText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="SystemUptimeText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="UsedDiskSpaceText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="IpAddressText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- Antivirus Section -->
-                <Expander Header="Antivirus Information" FontSize="13" Foreground="#28a745" IsExpanded="True" Margin="0,0,0,5">
-                    <Border BorderBrush="#28a745" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="AntivirusStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- BitLocker Section -->
-                <Expander x:Name="BitLockerExpander" Header="BitLocker Information" FontSize="13" Foreground="#6c757d" IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="BitLockerStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- YubiKey Section -->
-                <Expander x:Name="YubiKeyExpander" Header="YubiKey Information" FontSize="13" Foreground="#FF69B4" IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="YubiKeyBorder" BorderBrush="#FF69B4" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="YubiKeyStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- BigFix Section -->
-                <Expander x:Name="BigFixExpander" Header="BigFix (BESClient)" FontSize="13" Foreground="#4b0082" IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="BigFixBorder" BorderBrush="#4b0082" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="BigFixStatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- Code42 Service Section -->
-                <Expander x:Name="Code42Expander" Header="Code42 Service" FontSize="13" Foreground="#800080" IsExpanded="True" Margin="0,0,0,5">
-                    <Border x:Name="Code42Border" BorderBrush="#800080" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <TextBlock x:Name="Code42StatusText" FontSize="12" Margin="3" TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- Logs Section (Enhanced Log Viewer) -->
-                <Expander Header="Logs" FontSize="13" Foreground="#ff8c00" IsExpanded="False" Margin="0,0,0,5">
-                    <Border BorderBrush="#ff8c00" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="3">
-                        <StackPanel Orientation="Vertical">
-                            <ListView x:Name="LogListView" FontSize="10" Margin="3" Height="150">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="Timestamp" Width="120" DisplayMemberBinding="{Binding Timestamp}" />
-                                        <GridViewColumn Header="Message" Width="200" DisplayMemberBinding="{Binding Message}" />
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
-                            <Button x:Name="ExportLogsButton" Content="Export Logs" Width="90" Margin="3" HorizontalAlignment="Right"/>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
+          </Border>
+        </Expander>
+        <!-- Antivirus Section -->
+        <Expander Header="Antivirus Information" FontSize="12" Foreground="#28a745" IsExpanded="True" Margin="0,2,0,2">
+          <Border BorderBrush="#28a745" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="AntivirusStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
             </StackPanel>
-        </ScrollViewer>
-
-        <!-- Footer Section -->
-        <TextBlock Grid.Row="2" Text="© 2025 System Monitor" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,5,0,0"/>
-    </Grid>
+          </Border>
+        </Expander>
+        <!-- BitLocker Section -->
+        <Expander x:Name="BitLockerExpander" Header="BitLocker Information" FontSize="12" Foreground="#6c757d" IsExpanded="True" Margin="0,2,0,2">
+          <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="BitLockerStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- YubiKey Section -->
+        <Expander x:Name="YubiKeyExpander" Header="YubiKey Information" FontSize="12" Foreground="#FF69B4" IsExpanded="True" Margin="0,2,0,2">
+          <Border x:Name="YubiKeyBorder" BorderBrush="#FF69B4" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="YubiKeyStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- BigFix Section -->
+        <Expander x:Name="BigFixExpander" Header="BigFix (BESClient)" FontSize="12" Foreground="#4b0082" IsExpanded="True" Margin="0,2,0,2">
+          <Border x:Name="BigFixBorder" BorderBrush="#4b0082" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="BigFixStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- Code42 Service Section -->
+        <Expander x:Name="Code42Expander" Header="Code42 Service" FontSize="12" Foreground="#800080" IsExpanded="True" Margin="0,2,0,2">
+          <Border x:Name="Code42Border" BorderBrush="#800080" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="Code42StatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- FIPS Compliance Section -->
+        <Expander x:Name="FIPSExpander" Header="FIPS Compliance" FontSize="12" Foreground="#FF4500" IsExpanded="True" Margin="0,2,0,2">
+          <Border x:Name="FIPSBorder" BorderBrush="#FF4500" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="FIPSStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- Logs Section (Enhanced Log Viewer) -->
+        <Expander Header="Logs" FontSize="12" Foreground="#ff8c00" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#ff8c00" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <ListView x:Name="LogListView" FontSize="10" Margin="2" Height="120">
+                <ListView.View>
+                  <GridView>
+                    <GridViewColumn Header="Timestamp" Width="100" DisplayMemberBinding="{Binding Timestamp}" />
+                    <GridViewColumn Header="Message" Width="150" DisplayMemberBinding="{Binding Message}" />
+                  </GridView>
+                </ListView.View>
+              </ListView>
+              <Button x:Name="ExportLogsButton" Content="Export Logs" Width="80" Margin="2" HorizontalAlignment="Right"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- About Section -->
+        <Expander Header="About" FontSize="12" Foreground="#000000" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#000000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap"
+                         Text="System Monitor v1.0`n© 2025 System Monitor. All rights reserved.`nBuilt with PowerShell and WPF."/>
+            </StackPanel>
+          </Border>
+        </Expander>
+      </StackPanel>
+    </ScrollViewer>
+    <!-- Footer Section -->
+    <TextBlock Grid.Row="2" Text="© 2025 System Monitor" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+  </Grid>
 </Window>
 "@
 
@@ -260,6 +268,8 @@ $BitLockerStatusText = $window.FindName("BitLockerStatusText")
 $YubiKeyStatusText   = $window.FindName("YubiKeyStatusText")
 $BigFixStatusText    = $window.FindName("BigFixStatusText")
 $Code42StatusText    = $window.FindName("Code42StatusText")
+$FIPSStatusText      = $window.FindName("FIPSStatusText")
+$AboutText           = $window.FindName("AboutText")
 
 $LogListView         = $window.FindName("LogListView")
 $ExportLogsButton    = $window.FindName("ExportLogsButton")
@@ -272,6 +282,8 @@ $BigFixExpander      = $window.FindName("BigFixExpander")
 $BigFixBorder        = $window.FindName("BigFixBorder")
 $Code42Expander      = $window.FindName("Code42Expander")
 $Code42Border        = $window.FindName("Code42Border")
+$FIPSExpander        = $window.FindName("FIPSExpander")
+$FIPSBorder          = $window.FindName("FIPSBorder")
 
 # ========================
 # H) Modularized System Information Functions
@@ -419,16 +431,13 @@ function Get-YubiKeyStatus {
     }
 }
 
-# New function: Get-Code42Status
 function Get-Code42Status {
     try {
-        # Attempt to retrieve the Code42 process (process name without .exe)
         $code42Process = Get-Process -Name "Code42Service" -ErrorAction SilentlyContinue
         if ($code42Process) {
             return $true, "Code42 Service: Running (PID: $($code42Process.Id))"
         }
         else {
-            # Check if the executable exists for installation verification
             $servicePath = "C:\Program Files\Code42\Code42Service.exe"
             if (Test-Path $servicePath) {
                 return $false, "Code42 Service: Installed but NOT running."
@@ -440,6 +449,21 @@ function Get-Code42Status {
     }
     catch {
         return $false, "Error checking Code42 Service: $_"
+    }
+}
+
+function Get-FIPSStatus {
+    try {
+        $fipsSetting = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -ErrorAction SilentlyContinue
+        if ($fipsSetting -and $fipsSetting.Enabled -eq 1) {
+            return $true, "FIPS Compliance: Enabled"
+        }
+        else {
+            return $false, "FIPS Compliance: Not Enabled"
+        }
+    }
+    catch {
+        return $false, "FIPS Compliance: Unknown (error: $_)"
     }
 }
 
@@ -475,8 +499,8 @@ function Update-TrayIcon {
         $yubikeyStatus,  $yubikeyMessage   = Get-YubiKeyStatus
         $bigfixStatus,   $bigfixMessage    = Get-BigFixStatus
         $code42Status,   $code42Message    = Get-Code42Status
+        $fipsStatus,     $fipsMessage      = Get-FIPSStatus
 
-        # Decide on tray icon based on overall health (including Code42)
         if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status) {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Healthy -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             $TrayIcon.Text = "System Monitor - Healthy"
@@ -491,8 +515,8 @@ function Update-TrayIcon {
         $YubiKeyStatusText.Text   = $yubikeyMessage
         $BigFixStatusText.Text    = $bigfixMessage
         $Code42StatusText.Text    = $code42Message
+        $FIPSStatusText.Text      = $fipsMessage
 
-        # Update border colors based on individual statuses
         if ($bitlockerStatus) {
             $BitLockerExpander.Foreground = 'Green'
             $BitLockerBorder.BorderBrush = 'Green'
@@ -527,6 +551,15 @@ function Update-TrayIcon {
         else {
             $Code42Expander.Foreground = 'Red'
             $Code42Border.BorderBrush  = 'Red'
+        }
+        
+        if ($fipsStatus) {
+            $FIPSExpander.Foreground = 'Green'
+            $FIPSBorder.BorderBrush = 'Green'
+        }
+        else {
+            $FIPSExpander.Foreground = 'Red'
+            $FIPSBorder.BorderBrush = 'Red'
         }
 
         Write-Log "Tray icon and status updated." -Level "INFO"
@@ -580,8 +613,20 @@ function Export-Logs {
 }
 
 # ========================
-# K) Window Visibility Management
+# K) Window Visibility Management (Anchor to Bottom Right)
 # ========================
+function Set-WindowPosition {
+    try {
+        $window.UpdateLayout()
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+        $window.Left = $screen.Width - $window.ActualWidth - 10
+        $window.Top  = $screen.Height - $window.ActualHeight - 50
+    }
+    catch {
+        Handle-Error "Error setting window position: $_" -Source "Set-WindowPosition"
+    }
+}
+
 function Toggle-WindowVisibility {
     try {
         if ($window.Visibility -eq 'Visible') {
@@ -589,9 +634,7 @@ function Toggle-WindowVisibility {
             Write-Log "Dashboard hidden via Toggle-WindowVisibility." -Level "INFO"
         }
         else {
-            $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-            $window.Left = $screen.Width - $window.Width - 10
-            $window.Top  = $screen.Height - $window.Height - 50
+            Set-WindowPosition
             $window.Show()
             Write-Log "Dashboard shown via Toggle-WindowVisibility." -Level "INFO"
         }
@@ -617,9 +660,9 @@ $TrayIcon.Text = "System Monitor"
 # ========================
 # N) Tray Icon Context Menu
 # ========================
-$ContextMenu    = New-Object System.Windows.Forms.ContextMenu
-$MenuItemShow   = New-Object System.Windows.Forms.MenuItem("Show Dashboard")
-$MenuItemExit   = New-Object System.Windows.Forms.MenuItem("Exit")
+$ContextMenu = New-Object System.Windows.Forms.ContextMenu
+$MenuItemShow = New-Object System.Windows.Forms.MenuItem("Show Dashboard")
+$MenuItemExit = New-Object System.Windows.Forms.MenuItem("Exit")
 $ContextMenu.MenuItems.Add($MenuItemShow)
 $ContextMenu.MenuItems.Add($MenuItemExit)
 $TrayIcon.ContextMenu = $ContextMenu
@@ -707,6 +750,7 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 # Q) Initial Update & Start Dispatcher
 # ========================
 try {
+    $window.Add_Loaded({ Set-WindowPosition })
     $window.Dispatcher.Invoke([Action]{
         Update-SystemInfo
         Update-TrayIcon
