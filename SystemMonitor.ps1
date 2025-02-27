@@ -2,7 +2,7 @@
 # SystemMonitor.ps1 - Revised Version with Advanced Logging, External Config,
 # DispatcherTimer, Enhanced Log Viewer, Code42 Service Check, About Section,
 # Auto-Sizing, Anchored to Bottom Right on Primary Display, FIPS Compliance 
-# Detection, and a More Compact UI Layout
+# Detection, and a More Compact UI Layout (with Fixed Icon URIs)
 ###############################################################################
 
 # Ensure $PSScriptRoot is defined for older versions.
@@ -89,7 +89,7 @@ function Handle-Error {
         $ErrorMessage = "[$Source] $ErrorMessage"
     }
     Write-Log $ErrorMessage -Level "ERROR"
-    # Additional error handling (e.g., user notifications) can be added here.
+    # Additional error handling can be added here.
 }
 
 # Stubbed out: no toast notifications.
@@ -110,7 +110,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # ========================
-# E) XAML Layout Definition (Compact UI, with Enhanced Log Viewer, Code42, FIPS & About)
+# E) XAML Layout Definition (Compact UI with Fixed Icon URIs, Enhanced Log Viewer, Code42, FIPS & About)
 # ========================
 [xml]$xaml = @"
 <Window
@@ -134,7 +134,8 @@ Add-Type -AssemblyName System.Drawing
     <!-- Title Section -->
     <Border Grid.Row="0" Background="#0078D7" Padding="4" CornerRadius="2" Margin="0,0,0,4">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <Image Source="$($config.IconPaths.Healthy)" Width="20" Height="20" Margin="0,0,4,0"/>
+        <!-- Updated Image Source to use file URI -->
+        <Image Source="file:///$($config.IconPaths.Healthy)" Width="20" Height="20" Margin="0,0,4,0"/>
         <TextBlock Text="System Monitoring Dashboard"
                    FontSize="14" FontWeight="Bold" Foreground="White"
                    VerticalAlignment="Center"/>
