@@ -2,7 +2,7 @@
 # SystemMonitor.ps1 - Revised Version with Advanced Logging, External Config,
 # DispatcherTimer, Enhanced Log Viewer, Code42 Service Check, About Section,
 # Auto-Sizing, Anchored to Bottom Right on Primary Display, FIPS Compliance 
-# Detection, and a More Compact UI Layout (with Fixed Icon URIs)
+# Detection, a More Compact UI Layout, and .NET Version Logging
 ###############################################################################
 
 # Ensure $PSScriptRoot is defined for older versions.
@@ -89,7 +89,6 @@ function Handle-Error {
         $ErrorMessage = "[$Source] $ErrorMessage"
     }
     Write-Log $ErrorMessage -Level "ERROR"
-    # Additional error handling can be added here.
 }
 
 # Stubbed out: no toast notifications.
@@ -102,6 +101,24 @@ function Show-Notification {
     Write-Log "Notification suppressed: $Title - $Message" -Level "INFO"
 }
 
+# New function to log the .NET version for troubleshooting.
+function Log-DotNetVersion {
+    try {
+        $dotNetVersion = [System.Environment]::Version.ToString()
+        Write-Log ".NET Version: $dotNetVersion" -Level "INFO"
+        try {
+            $frameworkDescription = [System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription
+            Write-Log ".NET Framework Description: $frameworkDescription" -Level "INFO"
+        }
+        catch {
+            Write-Log "RuntimeInformation not available." -Level "WARNING"
+        }
+    }
+    catch {
+        Write-Log "Error capturing .NET version: $_" -Level "ERROR"
+    }
+}
+
 # ========================
 # D) Import Required Assemblies
 # ========================
@@ -110,7 +127,8 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # ========================
-# E) XAML Layout Definition (Compact UI with Fixed Icon URIs, Enhanced Log Viewer, Code42, FIPS & About)
+# E) XAML Layout Definition (Compact UI with Fixed Icon URIs, Enhanced Log Viewer, 
+# Code42, FIPS & About)
 # ========================
 [xml]$xaml = @"
 <Window
@@ -134,7 +152,6 @@ Add-Type -AssemblyName System.Drawing
     <!-- Title Section -->
     <Border Grid.Row="0" Background="#0078D7" Padding="4" CornerRadius="2" Margin="0,0,0,4">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <!-- Updated Image Source to use file URI -->
         <Image Source="file:///$($config.IconPaths.Healthy)" Width="20" Height="20" Margin="0,0,4,0"/>
         <TextBlock Text="System Monitoring Dashboard"
                    FontSize="14" FontWeight="Bold" Foreground="White"
@@ -758,6 +775,7 @@ try {
         Update-Logs
         Update-YubiKeyStatus
     })
+    Log-DotNetVersion
 }
 catch {
     Handle-Error "Error during initial update: $_" -Source "InitialUpdate"
