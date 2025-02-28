@@ -1,0 +1,23 @@
+{
+  "Announcements": {
+    "Text": "System Monitor v1.1 released on 2025-03-01! Check out the new features and updates.",
+    "Links": {
+      "Link1": "https://company.com/news/release-v1-1",
+      "Link2": "https://company.com/blog/update-mar-2025"
+    }
+  },
+  "Support": {
+    "Text": "For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
+    "Links": {
+      "Link1": "https://support.company.com/knowledge-base",
+      "Link2": "https://support.company.com/submit-ticket"
+    }
+  },
+  "EarlyAdopter": {
+    "Text": "Join our Early Adopter Program to test upcoming features! Sign up now.",
+    "Links": {
+      "Link1": "https://beta.company.com/register",
+      "Link2": "https://beta.company.com/details"
+    }
+  }
+}
