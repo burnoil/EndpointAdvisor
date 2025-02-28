@@ -2,8 +2,8 @@
   "Announcements": {
     "Text": "System Monitor v1.1 released on 2025-03-01! Check out the new features and updates.",
     "Links": {
-      "MITLL": "https://www.ll.mit.edu/",
-      "NIST": "https://www.nist.gov/cyberframework"
+      "Link1": "https://www.ll.mit.edu/",
+      "Link2": "https://www.nist.gov/cyberframework"
     }
   },
   "Support": {
