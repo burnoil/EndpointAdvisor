@@ -1,11 +1,10 @@
 ###############################################################################
 # SystemMonitor.ps1 - Revised Version with Advanced Logging, External Config,
-# DispatcherTimer, Enhanced Log Viewer, Code42 Service Check, About Section,
-# Auto-Sizing, Anchored to Bottom Right on Primary Display, FIPS Compliance 
-# Detection, a More Compact UI Layout, and .NET Version Logging
+# DispatcherTimer, Enhanced Log Viewer, New Sections,
+# Auto-Sizing, Anchored to Bottom Right on Primary Display, .NET Version Logging, and Fixed Icon URIs
 ###############################################################################
 
-# Ensure $PSScriptRoot is defined for older versions.
+# Ensure $PSScriptRoot is defined for older versions
 if (-not $PSScriptRoot) {
     $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 } else {
@@ -26,24 +25,37 @@ if (Test-Path $configPath) {
     }
 }
 if (-not $config) {
-    # Default settings
     $config = @{
-        RefreshInterval    = 30         # in seconds
-        LogRotationSizeMB  = 5          # Maximum log file size in MB
+        RefreshInterval    = 30
+        LogRotationSizeMB  = 5
         DefaultLogLevel    = "INFO"
         IconPaths          = @{
             Healthy = (Join-Path $ScriptDir "healthy.ico")
             Warning = (Join-Path $ScriptDir "warning.ico")
         }
+        SupportLinks       = @{
+            Link1 = "https://support.company.com/help"
+            Link2 = "https://support.company.com/tickets"
+        }
+        EarlyAdopterLinks  = @{
+            Link1 = "https://beta.company.com/signup"
+            Link2 = "https://beta.company.com/info"
+        }
+        AnnouncementLinks  = @{
+            Link1 = "https://company.com/news1"
+            Link2 = "https://company.com/news2"
+        }
     }
     $config | ConvertTo-Json | Out-File $configPath -Force
 }
+
+$healthyIconUri = "file:///" + ($config.IconPaths.Healthy -replace '\\','/')
 
 # ========================
 # B) Log File Setup & Rotation
 # ========================
 $LogFilePath = Join-Path $ScriptDir "SystemMonitor.log"
-$LogDirectory  = Split-Path $LogFilePath
+$LogDirectory = Split-Path $LogFilePath
 if (-not (Test-Path $LogDirectory)) {
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
 }
@@ -91,7 +103,6 @@ function Handle-Error {
     Write-Log $ErrorMessage -Level "ERROR"
 }
 
-# Stubbed out: no toast notifications.
 function Show-Notification {
     param(
         [string]$Title,
@@ -101,7 +112,6 @@ function Show-Notification {
     Write-Log "Notification suppressed: $Title - $Message" -Level "INFO"
 }
 
-# New function to log the .NET version for troubleshooting.
 function Log-DotNetVersion {
     try {
         $dotNetVersion = [System.Environment]::Version.ToString()
@@ -127,10 +137,10 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # ========================
-# E) XAML Layout Definition (Compact UI with Fixed Icon URIs, Enhanced Log Viewer, 
-# Code42, FIPS & About)
+# E) XAML Layout Definition (Compact UI with New Sections)
 # ========================
-[xml]$xaml = @"
+$xamlString = @"
+<?xml version="1.0" encoding="utf-8"?>
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -152,7 +162,7 @@ Add-Type -AssemblyName System.Drawing
     <!-- Title Section -->
     <Border Grid.Row="0" Background="#0078D7" Padding="4" CornerRadius="2" Margin="0,0,0,4">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <Image Source="file:///$($config.IconPaths.Healthy)" Width="20" Height="20" Margin="0,0,4,0"/>
+        <Image Source="$healthyIconUri" Width="20" Height="20" Margin="0,0,4,0"/>
         <TextBlock Text="System Monitoring Dashboard"
                    FontSize="14" FontWeight="Bold" Foreground="White"
                    VerticalAlignment="Center"/>
@@ -161,40 +171,17 @@ Add-Type -AssemblyName System.Drawing
     <!-- Content Area -->
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel VerticalAlignment="Top">
-        <!-- System Information Section -->
-        <Expander Header="System Information" FontSize="12" Foreground="#0078D7" IsExpanded="True" Margin="0,2,0,2">
+        <!-- Information Section -->
+        <Expander Header="Information" FontSize="12" Foreground="#0078D7" IsExpanded="True" Margin="0,2,0,2">
           <Border BorderBrush="#0078D7" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <TextBlock x:Name="LoggedOnUserText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-              <TextBlock x:Name="MachineTypeText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-              <TextBlock x:Name="OSVersionText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-              <TextBlock x:Name="SystemUptimeText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-              <TextBlock x:Name="UsedDiskSpaceText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-              <TextBlock x:Name="IpAddressText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <!-- Antivirus Section -->
-        <Expander Header="Antivirus Information" FontSize="12" Foreground="#28a745" IsExpanded="True" Margin="0,2,0,2">
-          <Border BorderBrush="#28a745" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="AntivirusStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <!-- BitLocker Section -->
-        <Expander x:Name="BitLockerExpander" Header="BitLocker Information" FontSize="12" Foreground="#6c757d" IsExpanded="True" Margin="0,2,0,2">
-          <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="BitLockerStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <!-- YubiKey Section -->
-        <Expander x:Name="YubiKeyExpander" Header="YubiKey Information" FontSize="12" Foreground="#FF69B4" IsExpanded="True" Margin="0,2,0,2">
-          <Border x:Name="YubiKeyBorder" BorderBrush="#FF69B4" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="YubiKeyStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="LoggedOnUserText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock x:Name="MachineTypeText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock x:Name="OSVersionText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock x:Name="SystemUptimeText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock x:Name="UsedDiskSpaceText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock x:Name="IpAddressText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock x:Name="YubiKeyCertExpiryText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -202,23 +189,92 @@ Add-Type -AssemblyName System.Drawing
         <Expander x:Name="BigFixExpander" Header="BigFix (BESClient)" FontSize="12" Foreground="#4b0082" IsExpanded="True" Margin="0,2,0,2">
           <Border x:Name="BigFixBorder" BorderBrush="#4b0082" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <TextBlock x:Name="BigFixStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="BigFixStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Code42 Service Section -->
-        <Expander x:Name="Code42Expander" Header="Code42 Service" FontSize="12" Foreground="#800080" IsExpanded="True" Margin="0,2,0,2">
-          <Border x:Name="Code42Border" BorderBrush="#800080" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <!-- Announcements -->
+        <Expander Header="Announcements" FontSize="12" Foreground="#000080" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#000080" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <TextBlock x:Name="Code42StatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="AnnouncementsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <Hyperlink x:Name="AnnouncementsLink1" NavigateUri="https://company.com/news1">Announcement Link 1</Hyperlink>
+              </TextBlock>
+              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <Hyperlink x:Name="AnnouncementsLink2" NavigateUri="https://company.com/news2">Announcement Link 2</Hyperlink>
+              </TextBlock>
             </StackPanel>
           </Border>
         </Expander>
-        <!-- FIPS Compliance Section -->
-        <Expander x:Name="FIPSExpander" Header="FIPS Compliance" FontSize="12" Foreground="#FF4500" IsExpanded="True" Margin="0,2,0,2">
-          <Border x:Name="FIPSBorder" BorderBrush="#FF4500" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <!-- Patching and Updates -->
+        <Expander Header="Patching and Updates" FontSize="12" Foreground="#008000" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#008000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <TextBlock x:Name="FIPSStatusText" FontSize="11" Margin="2" TextWrapping="Wrap"/>
+              <TextBlock x:Name="PatchingUpdatesText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- Support -->
+        <Expander Header="Support" FontSize="12" Foreground="#800000" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#800000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="SupportText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <Hyperlink x:Name="SupportLink1" NavigateUri="https://support.company.com/help">Support Link 1</Hyperlink>
+              </TextBlock>
+              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <Hyperlink x:Name="SupportLink2" NavigateUri="https://support.company.com/tickets">Support Link 2</Hyperlink>
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- Open Early Adopter Testing -->
+        <Expander Header="Open Early Adopter Testing" FontSize="12" Foreground="#FF00FF" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#FF00FF" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <TextBlock x:Name="EarlyAdopterText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <Hyperlink x:Name="EarlyAdopterLink1" NavigateUri="https://beta.company.com/signup">Early Adopter Link 1</Hyperlink>
+              </TextBlock>
+              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <Hyperlink x:Name="EarlyAdopterLink2" NavigateUri="https://beta.company.com/info">Early Adopter Link 2</Hyperlink>
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </Expander>
+        <!-- Compliance Section with Antivirus, BitLocker, Code42, and FIPS -->
+        <Expander Header="Compliance" FontSize="12" Foreground="#B22222" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#B22222" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+            <StackPanel>
+              <!-- Nested Antivirus Section -->
+              <Border BorderBrush="#28a745" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+                <StackPanel>
+                  <TextBlock Text="Antivirus Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#28a745"/>
+                  <TextBlock x:Name="AntivirusStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+                </StackPanel>
+              </Border>
+              <!-- Nested BitLocker Section -->
+              <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+                <StackPanel>
+                  <TextBlock Text="BitLocker Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#6c757d"/>
+                  <TextBlock x:Name="BitLockerStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+                </StackPanel>
+              </Border>
+              <!-- Nested Code42 Section -->
+              <Border x:Name="Code42Border" BorderBrush="#800080" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+                <StackPanel>
+                  <TextBlock Text="Code42 Service Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#800080"/>
+                  <TextBlock x:Name="Code42StatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+                </StackPanel>
+              </Border>
+              <!-- Nested FIPS Section -->
+              <Border x:Name="FIPSBorder" BorderBrush="#FF4500" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+                <StackPanel>
+                  <TextBlock Text="FIPS Compliance Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#FF4500"/>
+                  <TextBlock x:Name="FIPSStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+                </StackPanel>
+              </Border>
             </StackPanel>
           </Border>
         </Expander>
@@ -242,8 +298,11 @@ Add-Type -AssemblyName System.Drawing
         <Expander Header="About" FontSize="12" Foreground="#000000" IsExpanded="False" Margin="0,2,0,2">
           <Border BorderBrush="#000000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap"
-                         Text="System Monitor v1.0`n© 2025 System Monitor. All rights reserved.`nBuilt with PowerShell and WPF."/>
+              <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
+                <TextBlock.Text><![CDATA[System Monitor v1.0
+© 2025 System Monitor. All rights reserved.
+Built with PowerShell and WPF.]]></TextBlock.Text>
+              </TextBlock>
             </StackPanel>
           </Border>
         </Expander>
@@ -255,20 +314,26 @@ Add-Type -AssemblyName System.Drawing
 </Window>
 "@
 
+# Convert string to XmlDocument
+$xmlDoc = New-Object System.Xml.XmlDocument
+$xmlDoc.LoadXml($xamlString)
+
+# Create XmlNodeReader from XmlDocument
+$reader = New-Object System.Xml.XmlNodeReader $xmlDoc
+
 # ========================
 # F) Load and Verify XAML
 # ========================
-$reader = New-Object System.Xml.XmlNodeReader($xaml)
 try {
     $window = [Windows.Markup.XamlReader]::Load($reader)
 }
 catch {
     Handle-Error "Failed to load the XAML layout. Error: $_" -Source "XAML"
-    return
+    exit
 }
 if ($window -eq $null) {
     Handle-Error "Failed to load the XAML layout. Check the XAML syntax for errors." -Source "XAML"
-    return
+    exit
 }
 
 # ========================
@@ -280,32 +345,211 @@ $OSVersionText       = $window.FindName("OSVersionText")
 $SystemUptimeText    = $window.FindName("SystemUptimeText")
 $UsedDiskSpaceText   = $window.FindName("UsedDiskSpaceText")
 $IpAddressText       = $window.FindName("IpAddressText")
+$YubiKeyCertExpiryText = $window.FindName("YubiKeyCertExpiryText")
 
 $AntivirusStatusText = $window.FindName("AntivirusStatusText")
 $BitLockerStatusText = $window.FindName("BitLockerStatusText")
-$YubiKeyStatusText   = $window.FindName("YubiKeyStatusText")
 $BigFixStatusText    = $window.FindName("BigFixStatusText")
 $Code42StatusText    = $window.FindName("Code42StatusText")
 $FIPSStatusText      = $window.FindName("FIPSStatusText")
 $AboutText           = $window.FindName("AboutText")
 
+$AnnouncementsText   = $window.FindName("AnnouncementsText")
+$AnnouncementsLink1  = $window.FindName("AnnouncementsLink1")
+$AnnouncementsLink2  = $window.FindName("AnnouncementsLink2")
+$PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
+$SupportText         = $window.FindName("SupportText")
+$SupportLink1        = $window.FindName("SupportLink1")
+$SupportLink2        = $window.FindName("SupportLink2")
+$EarlyAdopterText    = $window.FindName("EarlyAdopterText")
+$EarlyAdopterLink1   = $window.FindName("EarlyAdopterLink1")
+$EarlyAdopterLink2   = $window.FindName("EarlyAdopterLink2")
+
 $LogListView         = $window.FindName("LogListView")
 $ExportLogsButton    = $window.FindName("ExportLogsButton")
 
-$BitLockerExpander   = $window.FindName("BitLockerExpander")
 $BitLockerBorder     = $window.FindName("BitLockerBorder")
-$YubiKeyExpander     = $window.FindName("YubiKeyExpander")
-$YubiKeyBorder       = $window.FindName("YubiKeyBorder")
 $BigFixExpander      = $window.FindName("BigFixExpander")
 $BigFixBorder        = $window.FindName("BigFixBorder")
-$Code42Expander      = $window.FindName("Code42Expander")
 $Code42Border        = $window.FindName("Code42Border")
-$FIPSExpander        = $window.FindName("FIPSExpander")
 $FIPSBorder          = $window.FindName("FIPSBorder")
+
+# Global variable to store the last YubiKey job
+$yubiKeyJob = $null
 
 # ========================
 # H) Modularized System Information Functions
 # ========================
+function Get-YubiKeyCertExpiryDays {
+    param([string]$ykmanPathPassed = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe")
+    try {
+        # Verify ykman.exe exists
+        if (-not (Test-Path $ykmanPathPassed)) {
+            throw "ykman.exe not found at $ykmanPathPassed"
+        }
+        Write-Log "ykman.exe found at $ykmanPathPassed" -Level "INFO"
+
+        # Check YubiKey general info
+        $yubiKeyInfo = & $ykmanPathPassed info 2>$null
+        if (-not $yubiKeyInfo) {
+            throw "No YubiKey detected by ykman"
+        }
+        Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
+
+        # Check PIV-specific info
+        $pivInfo = & $ykmanPathPassed "piv" "info" 2>$null
+        if ($pivInfo) {
+            Write-Log "PIV info: $pivInfo" -Level "INFO"
+        } else {
+            Write-Log "No PIV info available" -Level "WARNING"
+        }
+
+        # List of PIV slots to check
+        $slots = @("9a", "9c", "9d", "9e")
+        $certPem = $null
+        $slotUsed = $null
+
+        # Try each slot until a certificate is found
+        foreach ($slot in $slots) {
+            Write-Log "Checking slot $slot for certificate" -Level "INFO"
+            $certPem = & $ykmanPathPassed "piv" "certificates" "export" $slot "-" 2>$null
+            if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
+                $slotUsed = $slot
+                Write-Log "Certificate found in slot $slot" -Level "INFO"
+                break
+            } else {
+                Write-Log "No valid certificate in slot $slot" -Level "INFO"
+            }
+        }
+
+        if (-not $certPem) {
+            throw "No certificate found in slots 9a, 9c, 9d, or 9e"
+        }
+
+        # Save the PEM to a temporary file
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        $certPem | Out-File $tempFile -Encoding ASCII
+
+        # Convert PEM to certificate object
+        $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+        $cert.Import($tempFile)
+
+        # Calculate days until expiry
+        $today = Get-Date
+        $expiryDate = $cert.NotAfter
+        $daysUntilExpiry = ($expiryDate - $today).Days
+
+        # Clean up temporary file
+        Remove-Item $tempFile -Force
+
+        if ($daysUntilExpiry -lt 0) {
+            return "YubiKey Certificate (Slot $slotUsed): Expired ($(-$daysUntilExpiry) days ago)"
+        } else {
+            return "YubiKey Certificate (Slot $slotUsed): $daysUntilExpiry days until expiry ($expiryDate)"
+        }
+    }
+    catch {
+        Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
+        return "YubiKey Certificate: Unable to determine expiry date - $_"
+    }
+}
+
+function Start-YubiKeyCertCheck {
+    if ($global:yubiKeyJob -and $global:yubiKeyJob.State -eq "Running") {
+        Write-Log "YubiKey certificate check already in progress." -Level "INFO"
+        return
+    }
+
+    $global:yubiKeyJob = Start-Job -ScriptBlock {
+        param($ykmanPath, $LogFilePathPass)
+
+        # Re-import logging function in job context
+        function Write-Log {
+            param(
+                [string]$Message,
+                [ValidateSet("INFO", "WARNING", "ERROR")]
+                [string]$Level = "INFO"
+            )
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            $logEntry = "[$timestamp] [$Level] $Message"
+            Add-Content -Path $LogFilePathPass -Value $logEntry
+        }
+
+        try {
+            # Verify ykman.exe exists
+            if (-not (Test-Path $ykmanPath)) {
+                throw "ykman.exe not found at $ykmanPath"
+            }
+            Write-Log "ykman.exe found at $ykmanPath" -Level "INFO"
+
+            # Check YubiKey general info
+            $yubiKeyInfo = & $ykmanPath info 2>$null
+            if (-not $yubiKeyInfo) {
+                throw "No YubiKey detected by ykman"
+            }
+            Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
+
+            # Check PIV-specific info
+            $pivInfo = & $ykmanPath "piv" "info" 2>$null
+            if ($pivInfo) {
+                Write-Log "PIV info: $pivInfo" -Level "INFO"
+            } else {
+                Write-Log "No PIV info available" -Level "WARNING"
+            }
+
+            # List of PIV slots to check
+            $slots = @("9a", "9c", "9d", "9e")
+            $certPem = $null
+            $slotUsed = $null
+
+            # Try each slot until a certificate is found
+            foreach ($slot in $slots) {
+                Write-Log "Checking slot $slot for certificate" -Level "INFO"
+                $certPem = & $ykmanPath "piv" "certificates" "export" $slot "-" 2>$null
+                if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
+                    $slotUsed = $slot
+                    Write-Log "Certificate found in slot $slot" -Level "INFO"
+                    break
+                } else {
+                    Write-Log "No valid certificate in slot $slot" -Level "INFO"
+                }
+            }
+
+            if (-not $certPem) {
+                throw "No certificate found in slots 9a, 9c, 9d, or 9e"
+            }
+
+            # Save the PEM to a temporary file
+            $tempFile = [System.IO.Path]::GetTempFileName()
+            $certPem | Out-File $tempFile -Encoding ASCII
+
+            # Convert PEM to certificate object
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+            $cert.Import($tempFile)
+
+            # Calculate days until expiry
+            $today = Get-Date
+            $expiryDate = $cert.NotAfter
+            $daysUntilExpiry = ($expiryDate - $today).Days
+
+            # Clean up temporary file
+            Remove-Item $tempFile -Force
+
+            if ($daysUntilExpiry -lt 0) {
+                return "YubiKey Certificate (Slot $slotUsed): Expired ($(-$daysUntilExpiry) days ago)"
+            } else {
+                return "YubiKey Certificate (Slot $slotUsed): $daysUntilExpiry days until expiry ($expiryDate)"
+            }
+        }
+        catch {
+            Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
+            return "YubiKey Certificate: Unable to determine expiry date - $_"
+        }
+    } -ArgumentList "C:\Program Files\Yubico\Yubikey Manager\ykman.exe", $LogFilePath
+
+    Write-Log "Started YubiKey certificate check job." -Level "INFO"
+}
+
 function Update-SystemInfo {
     try {
         $user = [System.Environment]::UserName
@@ -314,7 +558,7 @@ function Update-SystemInfo {
 
         $machine = Get-CimInstance -ClassName Win32_ComputerSystem
         $machineType = "$($machine.Manufacturer) $($machine.Model)"
-        $MachineTypeText.Text = "Machine Type: $machineType"
+        $MachineTypeText.Text = $machineType
         Write-Log "Machine Type: $machineType" -Level "INFO"
 
         $os = Get-CimInstance -ClassName Win32_OperatingSystem
@@ -326,17 +570,17 @@ function Update-SystemInfo {
         catch {
             Handle-Error "Could not retrieve DisplayVersion from registry: $_" -Source "OSVersion"
         }
-        $OSVersionText.Text = "OS Version: $osVersion"
+        $OSVersionText.Text = $osVersion
         Write-Log "OS Version: $osVersion" -Level "INFO"
 
         $uptime = (Get-Date) - $os.LastBootUpTime
         $systemUptime = "$([math]::Floor($uptime.TotalDays)) days $($uptime.Hours) hours"
-        $SystemUptimeText.Text = "System Uptime: $systemUptime"
+        $SystemUptimeText.Text = $systemUptime
         Write-Log "System Uptime: $systemUptime" -Level "INFO"
 
         $drive = Get-PSDrive -Name C
         $usedDiskSpace = "$([math]::Round(($drive.Used / 1GB), 2)) GB of $([math]::Round((($drive.Free + $drive.Used) / 1GB), 2)) GB"
-        $UsedDiskSpaceText.Text = "Used Disk Space: $usedDiskSpace"
+        $UsedDiskSpaceText.Text = $usedDiskSpace
         Write-Log "Used Disk Space: $usedDiskSpace" -Level "INFO"
 
         $ipv4s = Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
@@ -352,6 +596,19 @@ function Update-SystemInfo {
         else {
             $IpAddressText.Text = "IPv4 Address(es): None detected"
             Write-Log "No valid IPv4 addresses found." -Level "WARNING"
+        }
+
+        # Check if YubiKey job has completed
+        if ($global:yubiKeyJob -and $global:yubiKeyJob.State -eq "Completed") {
+            $yubiKeyResult = Receive-Job -Job $global:yubiKeyJob
+            $YubiKeyCertExpiryText.Text = $yubiKeyResult
+            Remove-Job -Job $global:yubiKeyJob -Force
+            $global:yubiKeyJob = $null
+            Write-Log "YubiKey certificate check completed: $yubiKeyResult" -Level "INFO"
+        }
+        elseif (-not $global:yubiKeyJob) {
+            $YubiKeyCertExpiryText.Text = "Checking YubiKey certificate..."
+            Start-YubiKeyCertCheck
         }
     }
     catch {
@@ -413,42 +670,6 @@ function Get-AntivirusStatus {
     }
 }
 
-function Get-YubiKeyStatus {
-    Write-Log "Starting YubiKey detection..." -Level "INFO"
-    $yubicoVendorID = "1050"
-    $yubikeyProductIDs = @("0407","0408","0409","040A","040B","040C","040D","040E")
-    try {
-        $allYubicoDevices = Get-PnpDevice -Class USB | Where-Object {
-            ($_.InstanceId -match "VID_$yubicoVendorID") -and ($_.Status -eq "OK")
-        }
-        Write-Log "Found $($allYubicoDevices.Count) Yubico USB device(s) with Status='OK'." -Level "INFO"
-        foreach ($device in $allYubicoDevices) {
-            Write-Log "Detected Device: $($device.FriendlyName) - InstanceId: $($device.InstanceId)" -Level "INFO"
-        }
-        $detectedYubiKeys = $allYubicoDevices | Where-Object {
-            foreach ($productId in $yubikeyProductIDs) {
-                if ($_.InstanceId -match "PID_$productId") { return $true }
-            }
-            return $false
-        }
-        if ($detectedYubiKeys) {
-            $friendlyNames = $detectedYubiKeys | ForEach-Object { $_.FriendlyName } | Sort-Object -Unique
-            $statusMessage = "YubiKey Detected: $($friendlyNames -join ', ')"
-            Write-Log $statusMessage -Level "INFO"
-            return $true, $statusMessage
-        }
-        else {
-            $statusMessage = "No YubiKey Detected."
-            Write-Log $statusMessage -Level "INFO"
-            return $false, $statusMessage
-        }
-    }
-    catch {
-        Write-Log "Error during YubiKey detection: $_" -Level "ERROR"
-        return $false, "Error detecting YubiKey."
-    }
-}
-
 function Get-Code42Status {
     try {
         $code42Process = Get-Process -Name "Code42Service" -ErrorAction SilentlyContinue
@@ -485,6 +706,119 @@ function Get-FIPSStatus {
     }
 }
 
+function Update-Announcements {
+    try {
+        $announcements = "Latest update: System Monitor v1.1 released on $(Get-Date -Format 'yyyy-MM-dd')."
+        $AnnouncementsText.Text = $announcements
+        $AnnouncementsLink1.NavigateUri = [Uri]$config.AnnouncementLinks.Link1
+        $AnnouncementsLink1.Inlines.Clear()
+        $AnnouncementsLink1.Inlines.Add("Announcement Link 1")
+        $AnnouncementsLink2.NavigateUri = [Uri]$config.AnnouncementLinks.Link2
+        $AnnouncementsLink2.Inlines.Clear()
+        $AnnouncementsLink2.Inlines.Add("Announcement Link 2")
+        Write-Log "Announcements updated: $announcements" -Level "INFO"
+    }
+    catch {
+        $AnnouncementsText.Text = "Error fetching announcements."
+        Handle-Error "Error updating announcements: $_" -Source "Update-Announcements"
+    }
+}
+
+function Update-PatchingUpdates {
+    try {
+        $lastUpdate = Get-CimInstance -ClassName Win32_QuickFixEngineering | Sort-Object InstalledOn -Descending | Select-Object -First 1
+        if ($lastUpdate) {
+            $PatchingUpdatesText.Text = "Last Patch: $($lastUpdate.HotFixID) installed on $($lastUpdate.InstalledOn)"
+        }
+        else {
+            $PatchingUpdatesText.Text = "No recent patches detected."
+        }
+        Write-Log "Patching status updated." -Level "INFO"
+    }
+    catch {
+        $PatchingUpdatesText.Text = "Error checking patches."
+        Handle-Error "Error updating patching: $_" -Source "Update-PatchingUpdates"
+    }
+}
+
+function Update-Support {
+    try {
+        $SupportText.Text = "Contact IT Support: support@company.com | Phone: 1-800-555-1234"
+        $SupportLink1.NavigateUri = [Uri]$config.SupportLinks.Link1
+        $SupportLink1.Inlines.Clear()
+        $SupportLink1.Inlines.Add("Support Link 1")
+        $SupportLink2.NavigateUri = [Uri]$config.SupportLinks.Link2
+        $SupportLink2.Inlines.Clear()
+        $SupportLink2.Inlines.Add("Support Link 2")
+        Write-Log "Support info updated." -Level "INFO"
+    }
+    catch {
+        $SupportText.Text = "Error loading support info."
+        Handle-Error "Error updating support: $_" -Source "Update-Support"
+    }
+}
+
+function Update-EarlyAdopterTesting {
+    try {
+        $EarlyAdopterText.Text = "Join our beta program!"
+        $EarlyAdopterLink1.NavigateUri = [Uri]$config.EarlyAdopterLinks.Link1
+        $EarlyAdopterLink1.Inlines.Clear()
+        $EarlyAdopterLink1.Inlines.Add("Early Adopter Link 1")
+        $EarlyAdopterLink2.NavigateUri = [Uri]$config.EarlyAdopterLinks.Link2
+        $EarlyAdopterLink2.Inlines.Clear()
+        $EarlyAdopterLink2.Inlines.Add("Early Adopter Link 2")
+        Write-Log "Early adopter info updated." -Level "INFO"
+    }
+    catch {
+        $EarlyAdopterText.Text = "Error loading early adopter info."
+        Handle-Error "Error updating early adopter: $_" -Source "Update-EarlyAdopterTesting"
+    }
+}
+
+function Update-Compliance {
+    try {
+        $antivirusStatus, $antivirusMessage = Get-AntivirusStatus
+        $bitlockerStatus, $bitlockerMessage = Get-BitLockerStatus
+        $code42Status,    $code42Message    = Get-Code42Status
+        $fipsStatus,      $fipsMessage      = Get-FIPSStatus
+
+        $AntivirusStatusText.Text = $antivirusMessage
+        $BitLockerStatusText.Text = $bitlockerMessage
+        $Code42StatusText.Text    = $code42Message
+        $FIPSStatusText.Text      = $fipsMessage
+
+        if ($bitlockerStatus) {
+            $BitLockerBorder.BorderBrush = 'Green'
+        }
+        else {
+            $BitLockerBorder.BorderBrush = 'Red'
+        }
+
+        if ($code42Status) {
+            $Code42Border.BorderBrush = 'Green'
+        }
+        else {
+            $Code42Border.BorderBrush = 'Red'
+        }
+
+        if ($fipsStatus) {
+            $FIPSBorder.BorderBrush = 'Green'
+        }
+        else {
+            $FIPSBorder.BorderBrush = 'Red'
+        }
+
+        Write-Log "Compliance updated: Antivirus=$antivirusStatus, BitLocker=$bitlockerStatus, Code42=$code42Status, FIPS=$fipsStatus" -Level "INFO"
+    }
+    catch {
+        $AntivirusStatusText.Text = "Error checking antivirus."
+        $BitLockerStatusText.Text = "Error checking BitLocker."
+        $Code42StatusText.Text    = "Error checking Code42."
+        $FIPSStatusText.Text      = "Error checking FIPS."
+        Handle-Error "Error updating compliance: $_" -Source "Update-Compliance"
+    }
+}
+
 # ========================
 # I) Tray Icon Management
 # ========================
@@ -514,12 +848,15 @@ function Update-TrayIcon {
     try {
         $antivirusStatus, $antivirusMessage = Get-AntivirusStatus
         $bitlockerStatus, $bitlockerMessage = Get-BitLockerStatus
-        $yubikeyStatus,  $yubikeyMessage   = Get-YubiKeyStatus
-        $bigfixStatus,   $bigfixMessage    = Get-BigFixStatus
-        $code42Status,   $code42Message    = Get-Code42Status
-        $fipsStatus,     $fipsMessage      = Get-FIPSStatus
+        $bigfixStatus,    $bigfixMessage    = Get-BigFixStatus
+        $code42Status,    $code42Message    = Get-Code42Status
+        $fipsStatus,      $fipsMessage      = Get-FIPSStatus
 
-        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status) {
+        # Check YubiKey certificate presence as a proxy for YubiKey status
+        $yubiKeyCert = $YubiKeyCertExpiryText.Text  # Use current UI text to avoid direct call
+        $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date"
+
+        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus) {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Healthy -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             $TrayIcon.Text = "System Monitor - Healthy"
         }
@@ -530,27 +867,15 @@ function Update-TrayIcon {
 
         $AntivirusStatusText.Text = $antivirusMessage
         $BitLockerStatusText.Text = $bitlockerMessage
-        $YubiKeyStatusText.Text   = $yubikeyMessage
         $BigFixStatusText.Text    = $bigfixMessage
         $Code42StatusText.Text    = $code42Message
         $FIPSStatusText.Text      = $fipsMessage
 
         if ($bitlockerStatus) {
-            $BitLockerExpander.Foreground = 'Green'
             $BitLockerBorder.BorderBrush = 'Green'
         }
         else {
-            $BitLockerExpander.Foreground = 'Red'
             $BitLockerBorder.BorderBrush = 'Red'
-        }
-
-        if ($yubikeyStatus) {
-            $YubiKeyExpander.Foreground = 'Green'
-            $YubiKeyBorder.BorderBrush = 'Green'
-        }
-        else {
-            $YubiKeyExpander.Foreground = 'Red'
-            $YubiKeyBorder.BorderBrush = 'Red'
         }
 
         if ($bigfixStatus) {
@@ -563,20 +888,16 @@ function Update-TrayIcon {
         }
 
         if ($code42Status) {
-            $Code42Expander.Foreground = 'Green'
-            $Code42Border.BorderBrush  = 'Green'
+            $Code42Border.BorderBrush = 'Green'
         }
         else {
-            $Code42Expander.Foreground = 'Red'
-            $Code42Border.BorderBrush  = 'Red'
+            $Code42Border.BorderBrush = 'Red'
         }
         
         if ($fipsStatus) {
-            $FIPSExpander.Foreground = 'Green'
             $FIPSBorder.BorderBrush = 'Green'
         }
         else {
-            $FIPSExpander.Foreground = 'Red'
             $FIPSBorder.BorderBrush = 'Red'
         }
 
@@ -631,7 +952,7 @@ function Export-Logs {
 }
 
 # ========================
-# K) Window Visibility Management (Anchor to Primary Display's Bottom Right)
+# K) Window Visibility Management
 # ========================
 function Set-WindowPosition {
     try {
@@ -666,6 +987,14 @@ function Toggle-WindowVisibility {
 # L) Button Event Handlers
 # ========================
 $ExportLogsButton.Add_Click({ Export-Logs })
+
+# Hyperlink Click Handlers
+$AnnouncementsLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+$AnnouncementsLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+$SupportLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+$SupportLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+$EarlyAdopterLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+$EarlyAdopterLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
 
 # ========================
 # M) Create & Configure Tray Icon
@@ -703,6 +1032,11 @@ $MenuItemExit.add_Click({
         Write-Log "Exit clicked by user." -Level "INFO"
         $dispatcherTimer.Stop()
         Write-Log "DispatcherTimer stopped." -Level "INFO"
+        if ($global:yubiKeyJob) {
+            Stop-Job -Job $global:yubiKeyJob -ErrorAction SilentlyContinue
+            Remove-Job -Job $global:yubiKeyJob -Force -ErrorAction SilentlyContinue
+            Write-Log "YubiKey job stopped and removed." -Level "INFO"
+        }
         $TrayIcon.Dispose()
         Write-Log "Tray icon disposed." -Level "INFO"
         $window.Dispatcher.InvokeShutdown()
@@ -723,30 +1057,17 @@ $dispatcherTimer.add_Tick({
         Update-TrayIcon
         Update-SystemInfo
         Update-Logs
-        Update-YubiKeyStatus
+        Update-Announcements
+        Update-PatchingUpdates
+        Update-Support
+        Update-EarlyAdopterTesting
+        Update-Compliance
     }
     catch {
         Handle-Error "Error during timer tick: $_" -Source "DispatcherTimer"
     }
 })
 $dispatcherTimer.Start()
-
-function Update-YubiKeyStatus {
-    try {
-        $yubikeyPresent, $yubikeyMessage = Get-YubiKeyStatus
-        $YubiKeyStatusText.Text = $yubikeyMessage
-        if ($yubikeyPresent) {
-            Write-Log "YubiKey is present." -Level "INFO"
-        }
-        else {
-            Write-Log "YubiKey is not present." -Level "INFO"
-        }
-    }
-    catch {
-        $YubiKeyStatusText.Text = "Error detecting YubiKey."
-        Handle-Error "Error updating YubiKey status: $_" -Source "Update-YubiKeyStatus"
-    }
-}
 
 # ========================
 # P) Dispatcher Exception Handling
@@ -773,7 +1094,11 @@ try {
         Update-SystemInfo
         Update-TrayIcon
         Update-Logs
-        Update-YubiKeyStatus
+        Update-Announcements
+        Update-PatchingUpdates
+        Update-Support
+        Update-EarlyAdopterTesting
+        Update-Compliance
     })
     Log-DotNetVersion
 }
