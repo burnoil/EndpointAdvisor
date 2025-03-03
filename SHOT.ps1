@@ -1,5 +1,5 @@
 ###############################################################################
-# SystemMonitor.ps1 - Renamed to SHOT (System Health Observation Tool)
+# SHOT.ps1 - System Health Observation Tool (Fixed Compliance/Tray Sync, Dots on Issues Only)
 ###############################################################################
 
 # Ensure $PSScriptRoot is defined for older versions
@@ -21,7 +21,7 @@ function Write-Log {
         [ValidateSet("INFO", "WARNING", "ERROR")]
         [string]$Level = "INFO"
     )
-    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "SHOT.log" }  # Updated log name
+    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "SHOT.log" }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] [$Level] $Message"
     Add-Content -Path $logPath -Value $logEntry -ErrorAction SilentlyContinue
@@ -56,8 +56,8 @@ function Log-DotNetVersion {
 # ========================
 # B) External Configuration
 # ========================
-$configPath = Join-Path $ScriptDir "SHOT.config.json"  # Updated config name
-$LogFilePath = Join-Path $ScriptDir "SHOT.log"  # Updated log name
+$configPath = Join-Path $ScriptDir "SHOT.config.json"
+$LogFilePath = Join-Path $ScriptDir "SHOT.log"
 
 $defaultConfig = @{
     RefreshInterval    = 30
@@ -303,7 +303,7 @@ $xamlString = @"
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Compliance" VerticalAlignment="Center"/>
-              <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Gray" Visibility="Visible"/>
+              <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/> <!-- Hidden by default -->
             </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#B22222" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
@@ -868,6 +868,7 @@ function Update-Announcements {
             $global:announcementAlertActive = $true
         }
         else {
+            $window.Dispatcher.Invoke([Action]{ $AnnouncementsAlertIcon.Visibility = "Hidden" })
             Write-Log "No changes detected in Announcements or section already expanded" -Level "INFO"
         }
 
@@ -896,6 +897,7 @@ function Update-Announcements {
             $AnnouncementsLink2.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link2
             $AnnouncementsLink2.Inlines.Clear()
             $AnnouncementsLink2.Inlines.Add("Announcement Link 2")
+            $AnnouncementsAlertIcon.Visibility = "Hidden"  # Hide dot on error
         })
     }
 }
@@ -1011,15 +1013,18 @@ function Update-Compliance {
             $Code42StatusText.Text    = $code42Message
             $FIPSStatusText.Text      = $fipsMessage
 
+            # Color-code individual sections
+            if ($antivirusStatus) { $AntivirusStatusText.Foreground = "Green" } else { $AntivirusStatusText.Foreground = "Red" }
             if ($bitlockerStatus) { $BitLockerBorder.BorderBrush = 'Green' } else { $BitLockerBorder.BorderBrush = 'Red' }
             if ($bigfixStatus) { $BigFixBorder.BorderBrush = 'Green' } else { $BigFixBorder.BorderBrush = 'Red' }
             if ($code42Status) { $Code42Border.BorderBrush = 'Green' } else { $Code42Border.BorderBrush = 'Red' }
             if ($fipsStatus) { $FIPSBorder.BorderBrush = 'Green' } else { $FIPSBorder.BorderBrush = 'Red' }
 
+            # Show red dot only if something is non-compliant
             if ($antivirusStatus -and $bitlockerStatus -and $bigfixStatus -and $code42Status -and $fipsStatus) {
-                $ComplianceStatusIndicator.Fill = "Green"
+                $ComplianceStatusIndicator.Visibility = "Hidden"
             } else {
-                $ComplianceStatusIndicator.Fill = "Red"
+                $ComplianceStatusIndicator.Visibility = "Visible"
             }
         })
 
@@ -1033,7 +1038,12 @@ function Update-Compliance {
             $BigFixStatusText.Text    = "Error checking BigFix."
             $Code42StatusText.Text    = "Error checking Code42."
             $FIPSStatusText.Text      = "Error checking FIPS."
-            $ComplianceStatusIndicator.Fill = "Gray"
+            $AntivirusStatusText.Foreground = "Red"
+            $BitLockerBorder.BorderBrush = 'Red'
+            $BigFixBorder.BorderBrush = 'Red'
+            $Code42Border.BorderBrush = 'Red'
+            $FIPSBorder.BorderBrush = 'Red'
+            $ComplianceStatusIndicator.Visibility = "Visible"  # Show red dot on error
         })
     }
 }
@@ -1073,24 +1083,28 @@ function Update-TrayIcon {
         $fipsStatus,      $fipsMessage      = Get-FIPSStatus
 
         $yubiKeyCert = $YubiKeyCertExpiryText.Text
-        $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date" -and $yubiKeyCert -ne "YubiKey not present"
+        $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date" -and $yubiKeyCert -notmatch "not present" -and $yubiKeyCert -notmatch "Expired"
 
-        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus) {
+        # Sync tray icon with compliance status + YubiKey
+        if ($antivirusStatus -and $bitlockerStatus -and $bigfixStatus -and $code42Status -and $fipsStatus -and $yubikeyStatus) {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Main -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-            Write-Log "Tray icon set to icon.ico" -Level "INFO"
+            Write-Log "Tray icon set to icon.ico (healthy)" -Level "INFO"
             $TrayIcon.Text = "SHOT - Healthy"
         }
         else {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-            Write-Log "Tray icon set to warning.ico" -Level "INFO"
+            Write-Log "Tray icon set to warning.ico (issues detected)" -Level "INFO"
             $TrayIcon.Text = "SHOT - Warning"
         }
 
         $TrayIcon.Visible = $true
-        Write-Log "Tray icon and status updated." -Level "INFO"
+        Write-Log "Tray icon updated. Compliance: Antivirus=$antivirusStatus, BitLocker=$bitlockerStatus, BigFix=$bigfixStatus, Code42=$code42Status, FIPS=$fipsStatus, YubiKey=$yubikeyStatus" -Level "INFO"
     }
     catch {
         Handle-Error "Error updating tray icon: $_" -Source "Update-TrayIcon"
+        $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
+        $TrayIcon.Text = "SHOT - Error"
+        $TrayIcon.Visible = $true
     }
 }
 
