@@ -1,6 +1,6 @@
 # SHOT - System Health Observation Tool
 
-## SHOT (System Health Observation Tool) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a ## lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory.
+## SHOT (System Health Observation Tool) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory.
 
 ## Features
 System Monitoring: Tracks logged-in user, machine type, OS version, uptime, disk space, and IP addresses.
