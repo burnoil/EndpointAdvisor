@@ -1,20 +1,20 @@
 # SHOT - System Health Observation Tool
 
-## SHOT (System Health Observation Tool) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a ## lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements.
+## SHOT (System Health Observation Tool) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a ## lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory.
 
-Features
+## Features
 System Monitoring: Tracks logged-in user, machine type, OS version, uptime, disk space, and IP addresses.
 Compliance Checks: Monitors antivirus, BitLocker, BigFix, Code42, and FIPS status with a visual indicator.
 Real-Time Alerts: Notifies users of YubiKey certificate expirations (configurable threshold, default 7 days) via tray balloon tips.
 
-Announcements: Displays updates with a red dot alert, fetched from a configurable JSON source.
+## Announcements: Displays updates with a red dot alert, fetched from a configurable JSON source.
 Tray Integration: Collapsible context menu with quick actions (Show Dashboard, Refresh, Export Logs, Exit).
 
-Logging: Detailed logs saved to SHOT.log with rotation support.
+## Logging: Detailed logs saved to SHOT.log with rotation support.
 
-Async Operations: Non-blocking YubiKey certificate checks for smooth UI performance.
+## Async Operations: Non-blocking YubiKey certificate checks for smooth UI performance.
 
-Versioning: Includes a changelog in the "About" section (current version: 1.1.0).
+## Versioning: Includes a changelog in the "About" section (current version: 1.1.0).
 
 Prerequisites
 Windows OS: Tested on Windows 10/11.
