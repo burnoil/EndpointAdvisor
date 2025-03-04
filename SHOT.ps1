@@ -1,5 +1,5 @@
 ###############################################################################
-# SHOT.ps1 - System Health Observation Tool (Fixed Compliance/Tray Sync, Dots on Issues Only)
+# SystemMonitor.ps1 - Renamed to SHOT (System Health Observation Tool)
 ###############################################################################
 
 # Ensure $PSScriptRoot is defined for older versions
@@ -120,28 +120,28 @@ $mainIconPath = Join-Path $ScriptDir $config.IconPaths.Main
 $warningIconPath = Join-Path $ScriptDir $config.IconPaths.Warning
 $mainIconUri = "file:///" + ($mainIconPath -replace '\\','/')
 
-# Default content data in case fetch fails
+# Default content data in case fetch fails (links as objects)
 $defaultContentData = @{
     Announcements = @{
         Text    = "No announcements at this time."
         Details = "Check back later for updates."
         Links   = @{
-            Link1 = "https://company.com/news1"
-            Link2 = "https://company.com/news2"
+            Link1 = @{ Name = "Announcement Link 1"; Url = "https://company.com/news1" }
+            Link2 = @{ Name = "Announcement Link 2"; Url = "https://company.com/news2" }
         }
     }
     EarlyAdopter = @{
         Text  = "Join our beta program!"
         Links = @{
-            Link1 = "https://beta.company.com/signup"
-            Link2 = "https://beta.company.com/info"
+            Link1 = @{ Name = "Early Adopter Link 1"; Url = "https://beta.company.com/signup" }
+            Link2 = @{ Name = "Early Adopter Link 2"; Url = "https://beta.company.com/info" }
         }
     }
     Support = @{
         Text  = "Contact IT Support: support@company.com | Phone: 1-800-555-1234"
         Links = @{
-            Link1 = "https://support.company.com/help"
-            Link2 = "https://support.company.com/tickets"
+            Link1 = @{ Name = "Support Link 1"; Url = "https://support.company.com/help" }
+            Link2 = @{ Name = "Support Link 2"; Url = "https://support.company.com/tickets" }
         }
     }
 }
@@ -303,7 +303,7 @@ $xamlString = @"
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Compliance" VerticalAlignment="Center"/>
-              <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/> <!-- Hidden by default -->
+              <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Gray" Visibility="Visible"/>
             </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#B22222" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
@@ -719,7 +719,8 @@ function Update-SystemInfo {
             }
         }
         elseif (-not $global:yubiKeyJob) {
-            $checkYubiKey = ((Get-Date) - [DateTime]::Parse($config.YubiKeyLastCheck.Date)).TotalDays -ge 1
+            # Changed check: use TotalMinutes to see if 5 minutes have elapsed since last check
+            $checkYubiKey = ((Get-Date) - [DateTime]::Parse($config.YubiKeyLastCheck.Date)).TotalMinutes -ge 5
             if ($checkYubiKey) {
                 $window.Dispatcher.Invoke([Action]{ $YubiKeyCertExpiryText.Text = "Checking YubiKey certificate..." })
                 Start-YubiKeyCertCheckAsync
@@ -823,14 +824,17 @@ function Get-FIPSStatus {
     }
 }
 
+# --- UPDATED Compare-Announcements function ---
 function Compare-Announcements {
     param($current, $last)
     $changes = @()
-    if (-not $last.Text) { $last.Text = "" }
-    if (-not $last.Details) { $last.Details = "" }
-    if (-not $last.Links) { $last.Links = @{ Link1 = @{ Name = ""; Url = "" }; Link2 = @{ Name = ""; Url = "" } } }
-    if ($current.Text -ne $last.Text) { $changes += "Text changed from '$($last.Text)' to '$($current.Text)'" }
-    if ($current.Details -ne $last.Details) { $changes += "Details changed from '$($last.Details)' to '$($current.Details)'" }
+    # Use local variables; default to empty string if property is missing
+    $currentText = if ($current.PSObject.Properties.Match("Text")) { $current.Text } else { "" }
+    $lastText = if ($last.PSObject.Properties.Match("Text")) { $last.Text } else { "" }
+    $currentDetails = if ($current.PSObject.Properties.Match("Details")) { $current.Details } else { "" }
+    $lastDetails = if ($last.PSObject.Properties.Match("Details")) { $last.Details } else { "" }
+    if ($currentText -ne $lastText) { $changes += "Text changed from '$lastText' to '$currentText'" }
+    if ($currentDetails -ne $lastDetails) { $changes += "Details changed from '$lastDetails' to '$currentDetails'" }
     if ($current.Links.Link1.Name -ne $last.Links.Link1.Name -or $current.Links.Link1.Url -ne $last.Links.Link1.Url) {
         $changes += "Link1 changed from '$($last.Links.Link1.Name) ($($last.Links.Link1.Url))' to '$($current.Links.Link1.Name) ($($current.Links.Link1.Url))'"
     }
@@ -839,6 +843,7 @@ function Compare-Announcements {
     }
     return $changes
 }
+# --- End Compare-Announcements ---
 
 function Update-Announcements {
     try {
@@ -868,7 +873,6 @@ function Update-Announcements {
             $global:announcementAlertActive = $true
         }
         else {
-            $window.Dispatcher.Invoke([Action]{ $AnnouncementsAlertIcon.Visibility = "Hidden" })
             Write-Log "No changes detected in Announcements or section already expanded" -Level "INFO"
         }
 
@@ -891,13 +895,12 @@ function Update-Announcements {
         $window.Dispatcher.Invoke([Action]{ 
             $AnnouncementsText.Text = "Error fetching announcements."
             $AnnouncementsDetailsText.Text = ""
-            $AnnouncementsLink1.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link1
+            $AnnouncementsLink1.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link1.Url
             $AnnouncementsLink1.Inlines.Clear()
             $AnnouncementsLink1.Inlines.Add("Announcement Link 1")
-            $AnnouncementsLink2.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link2
+            $AnnouncementsLink2.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link2.Url
             $AnnouncementsLink2.Inlines.Clear()
             $AnnouncementsLink2.Inlines.Add("Announcement Link 2")
-            $AnnouncementsAlertIcon.Visibility = "Hidden"  # Hide dot on error
         })
     }
 }
@@ -949,10 +952,10 @@ function Update-Support {
         Write-Log "Failed to update support: $_" -Level "ERROR"
         $window.Dispatcher.Invoke([Action]{ 
             $SupportText.Text = "Error loading support info."
-            $SupportLink1.NavigateUri = [Uri]$defaultContentData.Support.Links.Link1
+            $SupportLink1.NavigateUri = [Uri]$defaultContentData.Support.Links.Link1.Url
             $SupportLink1.Inlines.Clear()
             $SupportLink1.Inlines.Add("Support Link 1")
-            $SupportLink2.NavigateUri = [Uri]$defaultContentData.Support.Links.Link2
+            $SupportLink2.NavigateUri = [Uri]$defaultContentData.Support.Links.Link2.Url
             $SupportLink2.Inlines.Clear()
             $SupportLink2.Inlines.Add("Support Link 2")
         })
@@ -988,10 +991,10 @@ function Update-EarlyAdopterTesting {
         Write-Log "Failed to update early adopter: $_" -Level "ERROR"
         $window.Dispatcher.Invoke([Action]{ 
             $EarlyAdopterText.Text = "Error loading early adopter info."
-            $EarlyAdopterLink1.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link1
+            $EarlyAdopterLink1.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link1.Url
             $EarlyAdopterLink1.Inlines.Clear()
             $EarlyAdopterLink1.Inlines.Add("Early Adopter Link 1")
-            $EarlyAdopterLink2.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link2
+            $EarlyAdopterLink2.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link2.Url
             $EarlyAdopterLink2.Inlines.Clear()
             $EarlyAdopterLink2.Inlines.Add("Early Adopter Link 2")
         })
@@ -1013,18 +1016,15 @@ function Update-Compliance {
             $Code42StatusText.Text    = $code42Message
             $FIPSStatusText.Text      = $fipsMessage
 
-            # Color-code individual sections
-            if ($antivirusStatus) { $AntivirusStatusText.Foreground = "Green" } else { $AntivirusStatusText.Foreground = "Red" }
             if ($bitlockerStatus) { $BitLockerBorder.BorderBrush = 'Green' } else { $BitLockerBorder.BorderBrush = 'Red' }
             if ($bigfixStatus) { $BigFixBorder.BorderBrush = 'Green' } else { $BigFixBorder.BorderBrush = 'Red' }
             if ($code42Status) { $Code42Border.BorderBrush = 'Green' } else { $Code42Border.BorderBrush = 'Red' }
             if ($fipsStatus) { $FIPSBorder.BorderBrush = 'Green' } else { $FIPSBorder.BorderBrush = 'Red' }
 
-            # Show red dot only if something is non-compliant
             if ($antivirusStatus -and $bitlockerStatus -and $bigfixStatus -and $code42Status -and $fipsStatus) {
-                $ComplianceStatusIndicator.Visibility = "Hidden"
+                $ComplianceStatusIndicator.Fill = "Green"
             } else {
-                $ComplianceStatusIndicator.Visibility = "Visible"
+                $ComplianceStatusIndicator.Fill = "Red"
             }
         })
 
@@ -1038,12 +1038,7 @@ function Update-Compliance {
             $BigFixStatusText.Text    = "Error checking BigFix."
             $Code42StatusText.Text    = "Error checking Code42."
             $FIPSStatusText.Text      = "Error checking FIPS."
-            $AntivirusStatusText.Foreground = "Red"
-            $BitLockerBorder.BorderBrush = 'Red'
-            $BigFixBorder.BorderBrush = 'Red'
-            $Code42Border.BorderBrush = 'Red'
-            $FIPSBorder.BorderBrush = 'Red'
-            $ComplianceStatusIndicator.Visibility = "Visible"  # Show red dot on error
+            $ComplianceStatusIndicator.Fill = "Gray"
         })
     }
 }
@@ -1083,28 +1078,24 @@ function Update-TrayIcon {
         $fipsStatus,      $fipsMessage      = Get-FIPSStatus
 
         $yubiKeyCert = $YubiKeyCertExpiryText.Text
-        $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date" -and $yubiKeyCert -notmatch "not present" -and $yubiKeyCert -notmatch "Expired"
+        $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date" -and $yubiKeyCert -ne "YubiKey not present"
 
-        # Sync tray icon with compliance status + YubiKey
-        if ($antivirusStatus -and $bitlockerStatus -and $bigfixStatus -and $code42Status -and $fipsStatus -and $yubikeyStatus) {
+        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus) {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Main -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-            Write-Log "Tray icon set to icon.ico (healthy)" -Level "INFO"
+            Write-Log "Tray icon set to icon.ico" -Level "INFO"
             $TrayIcon.Text = "SHOT - Healthy"
         }
         else {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-            Write-Log "Tray icon set to warning.ico (issues detected)" -Level "INFO"
+            Write-Log "Tray icon set to warning.ico" -Level "INFO"
             $TrayIcon.Text = "SHOT - Warning"
         }
 
         $TrayIcon.Visible = $true
-        Write-Log "Tray icon updated. Compliance: Antivirus=$antivirusStatus, BitLocker=$bitlockerStatus, BigFix=$bigfixStatus, Code42=$code42Status, FIPS=$fipsStatus, YubiKey=$yubikeyStatus" -Level "INFO"
+        Write-Log "Tray icon and status updated." -Level "INFO"
     }
     catch {
         Handle-Error "Error updating tray icon: $_" -Source "Update-TrayIcon"
-        $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-        $TrayIcon.Text = "SHOT - Error"
-        $TrayIcon.Visible = $true
     }
 }
 
