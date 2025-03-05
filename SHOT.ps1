@@ -303,7 +303,8 @@ $xamlString = @"
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Compliance" VerticalAlignment="Center"/>
-              <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Gray" Visibility="Visible"/>
+              <!-- ComplianceStatusIndicator will only be visible if a problem is detected -->
+              <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/>
             </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#B22222" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
@@ -314,25 +315,25 @@ $xamlString = @"
                   <TextBlock x:Name="AntivirusStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
                 </StackPanel>
               </Border>
-              <Border x:Name="BitLockerBorder" BorderBrush="#6c757d" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+              <Border x:Name="BitLockerBorder" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
                 <StackPanel>
                   <TextBlock Text="BitLocker Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#6c757d"/>
                   <TextBlock x:Name="BitLockerStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
                 </StackPanel>
               </Border>
-              <Border x:Name="BigFixBorder" BorderBrush="#4b0082" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+              <Border x:Name="BigFixBorder" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
                 <StackPanel>
                   <TextBlock Text="BigFix (BESClient) Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#4b0082"/>
                   <TextBlock x:Name="BigFixStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
                 </StackPanel>
               </Border>
-              <Border x:Name="Code42Border" BorderBrush="#800080" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+              <Border x:Name="Code42Border" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
                 <StackPanel>
                   <TextBlock Text="Code42 Service Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#800080"/>
                   <TextBlock x:Name="Code42StatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
                 </StackPanel>
               </Border>
-              <Border x:Name="FIPSBorder" BorderBrush="#FF4500" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+              <Border x:Name="FIPSBorder" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
                 <StackPanel>
                   <TextBlock Text="FIPS Compliance Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#FF4500"/>
                   <TextBlock x:Name="FIPSStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
@@ -367,7 +368,7 @@ $xamlString = @"
 Built with PowerShell and WPF.
 
 Changelog:
-- v1.1.0: Added tooltips, collapsible tray menu, status indicators, YubiKey alerts, async updates, versioning
+- v1.1.0: Added tooltips, collapsible tray menu, red dot indicators for out-of-spec conditions (only shown for problems or new announcements), YubiKey alerts, async updates, versioning
 - v1.0.0: Initial release]]></TextBlock.Text>
               </TextBlock>
             </StackPanel>
@@ -719,7 +720,7 @@ function Update-SystemInfo {
             }
         }
         elseif (-not $global:yubiKeyJob) {
-            # Changed check: use TotalMinutes to see if 5 minutes have elapsed since last check
+            # Check every 5 minutes for YubiKey certificate update
             $checkYubiKey = ((Get-Date) - [DateTime]::Parse($config.YubiKeyLastCheck.Date)).TotalMinutes -ge 5
             if ($checkYubiKey) {
                 $window.Dispatcher.Invoke([Action]{ $YubiKeyCertExpiryText.Text = "Checking YubiKey certificate..." })
@@ -1016,15 +1017,13 @@ function Update-Compliance {
             $Code42StatusText.Text    = $code42Message
             $FIPSStatusText.Text      = $fipsMessage
 
-            if ($bitlockerStatus) { $BitLockerBorder.BorderBrush = 'Green' } else { $BitLockerBorder.BorderBrush = 'Red' }
-            if ($bigfixStatus) { $BigFixBorder.BorderBrush = 'Green' } else { $BigFixBorder.BorderBrush = 'Red' }
-            if ($code42Status) { $Code42Border.BorderBrush = 'Green' } else { $Code42Border.BorderBrush = 'Red' }
-            if ($fipsStatus) { $FIPSBorder.BorderBrush = 'Green' } else { $FIPSBorder.BorderBrush = 'Red' }
-
+            # Only show a red dot (i.e. the ComplianceStatusIndicator) if any check fails;
+            # if all are OK, hide the indicator.
             if ($antivirusStatus -and $bitlockerStatus -and $bigfixStatus -and $code42Status -and $fipsStatus) {
-                $ComplianceStatusIndicator.Fill = "Green"
+                $ComplianceStatusIndicator.Visibility = "Hidden"
             } else {
                 $ComplianceStatusIndicator.Fill = "Red"
+                $ComplianceStatusIndicator.Visibility = "Visible"
             }
         })
 
@@ -1038,7 +1037,8 @@ function Update-Compliance {
             $BigFixStatusText.Text    = "Error checking BigFix."
             $Code42StatusText.Text    = "Error checking Code42."
             $FIPSStatusText.Text      = "Error checking FIPS."
-            $ComplianceStatusIndicator.Fill = "Gray"
+            $ComplianceStatusIndicator.Visibility = "Visible"
+            $ComplianceStatusIndicator.Fill = "Red"
         })
     }
 }
