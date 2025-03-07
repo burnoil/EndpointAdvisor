@@ -1,6 +1,6 @@
 {
   "Announcements": {
-    "Text": "System Monitor v1.1 released on 2025-03-01! This data is from the JSON on GIT.",
+    "Text": "SHOT 1.1.0 released on 2025-03-01. This data is from the JSON on GIT.",
     "Links": {
       "Link1": { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
       "Link2": { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" }
