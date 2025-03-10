@@ -12,9 +12,102 @@ if (-not $PSScriptRoot) {
 # Define version
 $ScriptVersion = "1.1.0"
 
-# ========================
+# ============================================================
+# MODULE: Configuration Management
+# ============================================================
+function Get-DefaultConfig {
+    return @{
+        RefreshInterval       = 30
+        LogRotationSizeMB     = 5
+        DefaultLogLevel       = "INFO"
+        ContentDataUrl        = "ContentData.json"
+        ContentFetchInterval  = 60
+        YubiKeyAlertDays      = 7
+        IconPaths             = @{
+            Main    = "icon.ico"
+            Warning = "warning.ico"
+        }
+        YubiKeyLastCheck      = @{
+            Date   = "1970-01-01 00:00:00"
+            Result = "YubiKey Certificate: Not yet checked"
+        }
+        AnnouncementsLastState = @{}
+        Version               = $ScriptVersion
+    }
+}
+
+function Load-Configuration {
+    param(
+        [string]$Path = (Join-Path $ScriptDir "SHOT.config.json")
+    )
+    $defaultConfig = Get-DefaultConfig
+    if (Test-Path $Path) {
+        try {
+            $config = Get-Content $Path -Raw | ConvertFrom-Json
+            Write-Log "Loaded config from $Path" -Level "INFO"
+            foreach ($key in $defaultConfig.Keys) {
+                if (-not $config.PSObject.Properties.Match($key)) {
+                    $config | Add-Member -NotePropertyName $key -NotePropertyValue $defaultConfig[$key]
+                }
+            }
+            if (-not $config.AnnouncementsLastState) {
+                $config.AnnouncementsLastState = @{}
+            }
+            return $config
+        }
+        catch {
+            Write-Log "Error loading config, reverting to default: $_" -Level "ERROR"
+            return $defaultConfig
+        }
+    }
+    else {
+        $defaultConfig | ConvertTo-Json -Depth 3 | Out-File $Path -Force
+        Write-Log "Created default config at $Path" -Level "INFO"
+        return $defaultConfig
+    }
+}
+
+function Save-Configuration {
+    param(
+        [psobject]$Config,
+        [string]$Path = (Join-Path $ScriptDir "SHOT.config.json")
+    )
+    $Config | ConvertTo-Json -Depth 3 | Out-File $Path -Force
+}
+
+# ============================================================
+# MODULE: Performance Optimizations – Caching
+# ============================================================
+# Global variables for caching:
+$global:StaticSystemInfo = $null
+$global:LastContentFetch = $null
+$global:CachedContentData = $null
+
+function Get-StaticSystemInfo {
+    $systemInfo = @{}
+    try {
+        $machine = Get-CimInstance -ClassName Win32_ComputerSystem
+        $systemInfo.MachineType = "$($machine.Manufacturer) $($machine.Model)"
+    } catch {
+        $systemInfo.MachineType = "Unknown"
+    }
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem
+        $osVersion = "$($os.Caption) (Build $($os.BuildNumber))"
+        try {
+            $displayVersion = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'DisplayVersion' -ErrorAction SilentlyContinue).DisplayVersion
+            if ($displayVersion) { $osVersion += " $displayVersion" }
+        } catch {}
+        $systemInfo.OSVersion = $osVersion
+    } catch {
+        $systemInfo.OSVersion = "Unknown"
+    }
+    return $systemInfo
+}
+
+# ============================================================
 # A) Advanced Logging & Error Handling
-# ========================
+# ============================================================
 function Write-Log {
     param(
         [string]$Message,
@@ -53,74 +146,18 @@ function Log-DotNetVersion {
     }
 }
 
-# ========================
-# B) External Configuration
-# ========================
-$configPath = Join-Path $ScriptDir "SHOT.config.json"
+# ============================================================
+# B) External Configuration Setup
+# ============================================================
 $LogFilePath = Join-Path $ScriptDir "SHOT.log"
-
-$defaultConfig = @{
-    RefreshInterval    = 30
-    LogRotationSizeMB  = 5
-    DefaultLogLevel    = "INFO"
-    ContentDataUrl     = "ContentData.json"
-    YubiKeyAlertDays   = 7
-    IconPaths          = @{
-        Main       = "icon.ico"
-        Warning    = "warning.ico"
-    }
-    YubiKeyLastCheck   = @{
-        Date   = "1970-01-01 00:00:00"
-        Result = "YubiKey Certificate: Not yet checked"
-    }
-    AnnouncementsLastState = @{}
-    Version            = $ScriptVersion
-}
-
-if (Test-Path $configPath) {
-    try {
-        $config = Get-Content $configPath -Raw | ConvertFrom-Json
-        Write-Log "Loaded config from $configPath" -Level "INFO"
-        foreach ($key in $defaultConfig.Keys) {
-            if (-not $config.PSObject.Properties.Match($key)) {
-                $config | Add-Member -NotePropertyName $key -NotePropertyValue $defaultConfig[$key]
-            }
-        }
-        if ($config.YubiKeyLastCheck.Result.PSObject.Properties.Name -contains "value") {
-            $config.YubiKeyLastCheck.Result = $config.YubiKeyLastCheck.Result.value
-        }
-        if (-not $config.AnnouncementsLastState) {
-            $config.AnnouncementsLastState = @{}
-        }
-    }
-    catch {
-        Write-Host "Error reading configuration file. Using default settings with preserved URL if possible."
-        Write-Log "Error reading config: $_" -Level "ERROR"
-        $config = $defaultConfig
-        try {
-            $rawContent = Get-Content $configPath -Raw
-            if ($rawContent -match '"ContentDataUrl"\s*:\s*"([^"]+)"') {
-                $config.ContentDataUrl = $matches[1]
-                Write-Log "Preserved ContentDataUrl: $($config.ContentDataUrl)" -Level "INFO"
-            }
-        }
-        catch {
-            Write-Log "Could not preserve ContentDataUrl from corrupted config: $_" -Level "WARNING"
-        }
-    }
-}
-else {
-    $config = $defaultConfig
-    $config | ConvertTo-Json -Depth 3 | Out-File $configPath -Force
-    Write-Log "Created default config at $configPath" -Level "INFO"
-}
+$config = Load-Configuration
 
 # Construct full icon paths dynamically
 $mainIconPath = Join-Path $ScriptDir $config.IconPaths.Main
 $warningIconPath = Join-Path $ScriptDir $config.IconPaths.Warning
 $mainIconUri = "file:///" + ($mainIconPath -replace '\\','/')
 
-# Default content data in case fetch fails (links as objects)
+# Default content data (links as objects)
 $defaultContentData = @{
     Announcements = @{
         Text    = "No announcements at this time."
@@ -146,9 +183,9 @@ $defaultContentData = @{
     }
 }
 
-# ========================
+# ============================================================
 # C) Log File Setup & Rotation
-# ========================
+# ============================================================
 $LogDirectory = Split-Path $LogFilePath
 if (-not (Test-Path $LogDirectory)) {
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
@@ -173,7 +210,6 @@ function Rotate-LogFile {
 }
 Rotate-LogFile
 
-# Update Write-Log to use $config.DefaultLogLevel
 function Write-Log {
     param(
         [string]$Message,
@@ -185,22 +221,22 @@ function Write-Log {
     Add-Content -Path $LogFilePath -Value $logEntry -ErrorAction SilentlyContinue
 }
 
-# ========================
+# ============================================================
 # D) Import Required Assemblies
-# ========================
+# ============================================================
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# ========================
+# ============================================================
 # E) XAML Layout Definition
-# ========================
+# ============================================================
 $xamlString = @"
 <?xml version="1.0" encoding="utf-8"?>
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="SHOT v$ScriptVersion"
+    Title="SHOT - System Health Observation Tool"
     WindowStartupLocation="Manual"
     SizeToContent="WidthAndHeight"
     MinWidth="350" MinHeight="500"
@@ -298,18 +334,18 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Compliance Section with Status Indicator -->
+        <!-- Compliance Section with Red Dot Indicator -->
         <Expander x:Name="ComplianceExpander" ToolTip="Check compliance status" FontSize="12" Foreground="#B22222" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Compliance" VerticalAlignment="Center"/>
-              <!-- ComplianceStatusIndicator will only be visible if a problem is detected -->
+              <!-- Only visible when an out-of-spec condition is detected -->
               <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/>
             </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#B22222" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <Border BorderBrush="#28a745" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+              <Border BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2" x:Name="AntivirusBorder">
                 <StackPanel>
                   <TextBlock Text="Antivirus Status" FontSize="11" FontWeight="Bold" Margin="2" Foreground="#28a745"/>
                   <TextBlock x:Name="AntivirusStatusText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
@@ -368,7 +404,8 @@ $xamlString = @"
 Built with PowerShell and WPF.
 
 Changelog:
-- v1.1.0: Added tooltips, collapsible tray menu, red dot indicators for out-of-spec conditions (only shown for problems or new announcements), YubiKey alerts, async updates, versioning
+- v1.1.0: Added modular configuration management and caching for improved performance.
+         Red dot indicators now appear only for out-of-spec conditions or new announcements.
 - v1.0.0: Initial release]]></TextBlock.Text>
               </TextBlock>
             </StackPanel>
@@ -382,16 +419,12 @@ Changelog:
 </Window>
 "@
 
-# Convert string to XmlDocument
+# ============================================================
+# F) Load and Verify XAML
+# ============================================================
 $xmlDoc = New-Object System.Xml.XmlDocument
 $xmlDoc.LoadXml($xamlString)
-
-# Create XmlNodeReader from XmlDocument
 $reader = New-Object System.Xml.XmlNodeReader $xmlDoc
-
-# ========================
-# F) Load and Verify XAML
-# ========================
 try {
     $window = [Windows.Markup.XamlReader]::Load($reader)
     Write-Log "XAML loaded successfully" -Level "INFO"
@@ -405,9 +438,9 @@ if ($window -eq $null) {
     exit
 }
 
-# ========================
+# ============================================================
 # G) Access UI Elements
-# ========================
+# ============================================================
 $LoggedOnUserText    = $window.FindName("LoggedOnUserText")
 $MachineTypeText     = $window.FindName("MachineTypeText")
 $OSVersionText       = $window.FindName("OSVersionText")
@@ -447,18 +480,26 @@ $BigFixBorder        = $window.FindName("BigFixBorder")
 $Code42Border        = $window.FindName("Code42Border")
 $FIPSBorder          = $window.FindName("FIPSBorder")
 
-# Global variables
-$yubiKeyJob = $null
-$contentData = $null
-$announcementAlertActive = $false
-$yubiKeyAlertShown = $false
+# ============================================================
+# Global Variables for Jobs, Caching, and Data
+# ============================================================
+$global:yubiKeyJob = $null
+$global:contentData = $null
+$global:announcementAlertActive = $false
+$global:yubiKeyAlertShown = $false
+# $global:StaticSystemInfo is used to cache static info (machine type, OS version)
+# $global:LastContentFetch and $global:CachedContentData are used to cache remote content
 
-# ========================
+# ============================================================
 # H) Modularized System Information Functions
-# ========================
+# ============================================================
 function Fetch-ContentData {
     try {
         $url = $config.ContentDataUrl
+        # Check caching: if we fetched recently, return cached data.
+        if ($global:LastContentFetch -and ((Get-Date) - $global:LastContentFetch).TotalSeconds -lt $config.ContentFetchInterval) {
+            return $global:CachedContentData
+        }
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         if ($url -match "^(http|https)://") {
             $response = Invoke-WebRequest -Uri $url -UseBasicParsing
@@ -467,9 +508,7 @@ function Fetch-ContentData {
             Write-Log "Raw content: $($response.Content)" -Level "INFO"
         }
         elseif ($url -match "^\\\\") {
-            if (-not (Test-Path $url)) {
-                throw "Network path not accessible: $url"
-            }
+            if (-not (Test-Path $url)) { throw "Network path not accessible: $url" }
             $rawContent = Get-Content -Path $url -Raw
             $contentData = $rawContent | ConvertFrom-Json
             Write-Log "Fetched content data from network path: $url" -Level "INFO"
@@ -477,15 +516,16 @@ function Fetch-ContentData {
         }
         else {
             $fullPath = if ([System.IO.Path]::IsPathRooted($url)) { $url } else { Join-Path $ScriptDir $url }
-            if (-not (Test-Path $fullPath)) {
-                throw "Local path not found: $fullPath"
-            }
+            if (-not (Test-Path $fullPath)) { throw "Local path not found: $fullPath" }
             $rawContent = Get-Content -Path $fullPath -Raw
             $contentData = $rawContent | ConvertFrom-Json
             Write-Log "Fetched content data from local path: $fullPath" -Level "INFO"
             Write-Log "Raw content: $rawContent" -Level "INFO"
         }
         Write-Log "Parsed content data: $($contentData | ConvertTo-Json -Depth 3)" -Level "INFO"
+        # Update cache
+        $global:CachedContentData = $contentData
+        $global:LastContentFetch = Get-Date
         return $contentData
     }
     catch {
@@ -502,25 +542,17 @@ function Get-YubiKeyCertExpiryDays {
             throw "ykman.exe not found at $ykmanPathPassed"
         }
         Write-Log "ykman.exe found at $ykmanPathPassed" -Level "INFO"
-
         $yubiKeyInfo = & $ykmanPathPassed info 2>$null
         if (-not $yubiKeyInfo) {
             Write-Log "No YubiKey detected" -Level "INFO"
             return "YubiKey not present"
         }
         Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
-
         $pivInfo = & $ykmanPathPassed "piv" "info" 2>$null
-        if ($pivInfo) {
-            Write-Log "PIV info: $pivInfo" -Level "INFO"
-        } else {
-            Write-Log "No PIV info available" -Level "WARNING"
-        }
-
+        if ($pivInfo) { Write-Log "PIV info: $pivInfo" -Level "INFO" } else { Write-Log "No PIV info available" -Level "WARNING" }
         $slots = @("9a", "9c", "9d", "9e")
         $certPem = $null
         $slotUsed = $null
-
         foreach ($slot in $slots) {
             Write-Log "Checking slot $slot for certificate" -Level "INFO"
             $certPem = & $ykmanPathPassed "piv" "certificates" "export" $slot "-" 2>$null
@@ -532,23 +564,15 @@ function Get-YubiKeyCertExpiryDays {
                 Write-Log "No valid certificate in slot $slot" -Level "INFO"
             }
         }
-
-        if (-not $certPem) {
-            throw "No certificate found in slots 9a, 9c, 9d, or 9e"
-        }
-
+        if (-not $certPem) { throw "No certificate found in slots 9a, 9c, 9d, or 9e" }
         $tempFile = [System.IO.Path]::GetTempFileName()
         $certPem | Out-File $tempFile -Encoding ASCII
-
         $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
         $cert.Import($tempFile)
-
         $today = Get-Date
         $expiryDate = $cert.NotAfter
         $daysUntilExpiry = ($expiryDate - $today).Days
-
         Remove-Item $tempFile -Force
-
         if ($daysUntilExpiry -lt 0) {
             return "YubiKey Certificate (Slot $slotUsed): Expired ($(-$daysUntilExpiry) days ago)"
         } else {
@@ -568,10 +592,8 @@ function Start-YubiKeyCertCheckAsync {
         Write-Log "YubiKey certificate check already in progress." -Level "INFO"
         return
     }
-
     $global:yubiKeyJob = Start-Job -ScriptBlock {
         param($ykmanPath, $LogFilePathPass)
-
         function Write-Log {
             param(
                 [string]$Message,
@@ -582,31 +604,20 @@ function Start-YubiKeyCertCheckAsync {
             $logEntry = "[$timestamp] [$Level] $Message"
             Add-Content -Path $LogFilePathPass -Value $logEntry -ErrorAction SilentlyContinue
         }
-
         try {
-            if (-not (Test-Path $ykmanPath)) {
-                throw "ykman.exe not found at $ykmanPath"
-            }
+            if (-not (Test-Path $ykmanPath)) { throw "ykman.exe not found at $ykmanPath" }
             Write-Log "ykman.exe found at $ykmanPath" -Level "INFO"
-
             $yubiKeyInfo = & $ykmanPath info 2>$null
             if (-not $yubiKeyInfo) {
                 Write-Log "No YubiKey detected" -Level "INFO"
                 return "YubiKey not present"
             }
             Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
-
             $pivInfo = & $ykmanPath "piv" "info" 2>$null
-            if ($pivInfo) {
-                Write-Log "PIV info: $pivInfo" -Level "INFO"
-            } else {
-                Write-Log "No PIV info available" -Level "WARNING"
-            }
-
+            if ($pivInfo) { Write-Log "PIV info: $pivInfo" -Level "INFO" } else { Write-Log "No PIV info available" -Level "WARNING" }
             $slots = @("9a", "9c", "9d", "9e")
             $certPem = $null
             $slotUsed = $null
-
             foreach ($slot in $slots) {
                 Write-Log "Checking slot $slot for certificate" -Level "INFO"
                 $certPem = & $ykmanPath "piv" "certificates" "export" $slot "-" 2>$null
@@ -618,23 +629,15 @@ function Start-YubiKeyCertCheckAsync {
                     Write-Log "No valid certificate in slot $slot" -Level "INFO"
                 }
             }
-
-            if (-not $certPem) {
-                throw "No certificate found in slots 9a, 9c, 9d, or 9e"
-            }
-
+            if (-not $certPem) { throw "No certificate found in slots 9a, 9c, 9d, or 9e" }
             $tempFile = [System.IO.Path]::GetTempFileName()
             $certPem | Out-File $tempFile -Encoding ASCII
-
             $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
             $cert.Import($tempFile)
-
             $today = Get-Date
             $expiryDate = $cert.NotAfter
             $daysUntilExpiry = ($expiryDate - $today).Days
-
             Remove-Item $tempFile -Force
-
             if ($daysUntilExpiry -lt 0) {
                 return "YubiKey Certificate (Slot $slotUsed): Expired ($(-$daysUntilExpiry) days ago)"
             } else {
@@ -648,66 +651,60 @@ function Start-YubiKeyCertCheckAsync {
             }
         }
     } -ArgumentList "C:\Program Files\Yubico\Yubikey Manager\ykman.exe", $LogFilePath
-
     Write-Log "Started async YubiKey certificate check job." -Level "INFO"
 }
 
 function Update-SystemInfo {
     try {
-        $window.Dispatcher.Invoke([Action]{ $LoggedOnUserText.Text = "Logged-in User: Checking..." })
+        $window.Dispatcher.Invoke({ $LoggedOnUserText.Text = "Logged-in User: Checking..." })
         $user = [System.Environment]::UserName
-        $window.Dispatcher.Invoke([Action]{ $LoggedOnUserText.Text = "Logged-in User: $user" })
+        $window.Dispatcher.Invoke({ $LoggedOnUserText.Text = "Logged-in User: $user" })
         Write-Log "Logged-in User: $user" -Level "INFO"
 
-        $machine = Get-CimInstance -ClassName Win32_ComputerSystem
-        $machineType = "$($machine.Manufacturer) $($machine.Model)"
-        $window.Dispatcher.Invoke([Action]{ $MachineTypeText.Text = "Machine Type: $machineType" })
+        # Cache static system info (machine type and OS version) if not already set.
+        if (-not $global:StaticSystemInfo) {
+            $global:StaticSystemInfo = Get-StaticSystemInfo
+        }
+        $machineType = $global:StaticSystemInfo.MachineType
+        $osVersion = $global:StaticSystemInfo.OSVersion
+        $window.Dispatcher.Invoke({ $MachineTypeText.Text = "Machine Type: $machineType" })
         Write-Log "Machine Type: $machineType" -Level "INFO"
-
-        $os = Get-CimInstance -ClassName Win32_OperatingSystem
-        $osVersion = "$($os.Caption) (Build $($os.BuildNumber))"
-        try {
-            $displayVersion = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'DisplayVersion' -ErrorAction SilentlyContinue).DisplayVersion
-            if ($displayVersion) { $osVersion += " $displayVersion" }
-        }
-        catch {
-            Handle-Error "Could not retrieve DisplayVersion from registry: $_" -Source "OSVersion"
-        }
-        $window.Dispatcher.Invoke([Action]{ $OSVersionText.Text = "OS Version: $osVersion" })
+        $window.Dispatcher.Invoke({ $OSVersionText.Text = "OS Version: $osVersion" })
         Write-Log "OS Version: $osVersion" -Level "INFO"
 
-        $uptime = (Get-Date) - $os.LastBootUpTime
+        # Dynamic data (uptime, disk space, IP addresses) are updated each tick.
+        $osDynamic = Get-CimInstance -ClassName Win32_OperatingSystem
+        $uptime = (Get-Date) - $osDynamic.LastBootUpTime
         $systemUptime = "$([math]::Floor($uptime.TotalDays)) days $($uptime.Hours) hours"
-        $window.Dispatcher.Invoke([Action]{ $SystemUptimeText.Text = "System Uptime: $systemUptime" })
+        $window.Dispatcher.Invoke({ $SystemUptimeText.Text = "System Uptime: $systemUptime" })
         Write-Log "System Uptime: $systemUptime" -Level "INFO"
 
         $drive = Get-PSDrive -Name C
         $usedDiskSpace = "$([math]::Round(($drive.Used / 1GB), 2)) GB of $([math]::Round((($drive.Free + $drive.Used) / 1GB), 2)) GB"
-        $window.Dispatcher.Invoke([Action]{ $UsedDiskSpaceText.Text = "Used Disk Space: $usedDiskSpace" })
+        $window.Dispatcher.Invoke({ $UsedDiskSpaceText.Text = "Used Disk Space: $usedDiskSpace" })
         Write-Log "Used Disk Space: $usedDiskSpace" -Level "INFO"
 
         $ipv4s = Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
             $_.IPAddress -notlike "127.*" -and $_.IPAddress -notlike "169.254.*" -and
             $_.IPAddress -notin @("0.0.0.0","255.255.255.255") -and $_.PrefixOrigin -ne "WellKnown"
         } | Select-Object -ExpandProperty IPAddress -ErrorAction SilentlyContinue
-
         if ($ipv4s) {
             $ipList = $ipv4s -join ", "
-            $window.Dispatcher.Invoke([Action]{ $IpAddressText.Text = "IPv4 Address(es): $ipList" })
+            $window.Dispatcher.Invoke({ $IpAddressText.Text = "IPv4 Address(es): $ipList" })
             Write-Log "IP Address(es): $ipList" -Level "INFO"
         }
         else {
-            $window.Dispatcher.Invoke([Action]{ $IpAddressText.Text = "IPv4 Address(es): None detected" })
+            $window.Dispatcher.Invoke({ $IpAddressText.Text = "IPv4 Address(es): None detected" })
             Write-Log "No valid IPv4 addresses found." -Level "WARNING"
         }
 
         if ($global:yubiKeyJob -and $global:yubiKeyJob.State -eq "Completed") {
             $yubiKeyResult = Receive-Job -Job $global:yubiKeyJob
             $yubiKeyResultString = if ($yubiKeyResult -is [string]) { $yubiKeyResult } else { $yubiKeyResult.ToString() }
-            $window.Dispatcher.Invoke([Action]{ $YubiKeyCertExpiryText.Text = $yubiKeyResultString })
+            $window.Dispatcher.Invoke({ $YubiKeyCertExpiryText.Text = $yubiKeyResultString })
             $config.YubiKeyLastCheck.Date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
             $config.YubiKeyLastCheck.Result = $yubiKeyResultString
-            $config | ConvertTo-Json -Depth 3 | Out-File $configPath -Force
+            Save-Configuration -Config $config
             Remove-Job -Job $global:yubiKeyJob -Force
             $global:yubiKeyJob = $null
             Write-Log "YubiKey certificate check completed and saved: $yubiKeyResultString" -Level "INFO"
@@ -723,10 +720,10 @@ function Update-SystemInfo {
             # Check every 5 minutes for YubiKey certificate update
             $checkYubiKey = ((Get-Date) - [DateTime]::Parse($config.YubiKeyLastCheck.Date)).TotalMinutes -ge 5
             if ($checkYubiKey) {
-                $window.Dispatcher.Invoke([Action]{ $YubiKeyCertExpiryText.Text = "Checking YubiKey certificate..." })
+                $window.Dispatcher.Invoke({ $YubiKeyCertExpiryText.Text = "Checking YubiKey certificate..." })
                 Start-YubiKeyCertCheckAsync
             } else {
-                $window.Dispatcher.Invoke([Action]{ $YubiKeyCertExpiryText.Text = $config.YubiKeyLastCheck.Result })
+                $window.Dispatcher.Invoke({ $YubiKeyCertExpiryText.Text = $config.YubiKeyLastCheck.Result })
             }
         }
     }
@@ -829,7 +826,6 @@ function Get-FIPSStatus {
 function Compare-Announcements {
     param($current, $last)
     $changes = @()
-    # Use local variables; default to empty string if property is missing
     $currentText = if ($current.PSObject.Properties.Match("Text")) { $current.Text } else { "" }
     $lastText = if ($last.PSObject.Properties.Match("Text")) { $last.Text } else { "" }
     $currentDetails = if ($current.PSObject.Properties.Match("Details")) { $current.Details } else { "" }
@@ -859,25 +855,25 @@ function Update-Announcements {
             -not $global:contentData.Announcements.Links.Link2.Url) { 
             throw "Announcements.Links.Link1 or Link2 missing Name or Url" 
         }
-        
         $currentAnnouncements = $global:contentData.Announcements
         $lastAnnouncements = $config.AnnouncementsLastState
-
         Write-Log "Current Announcements: $($currentAnnouncements | ConvertTo-Json -Depth 3)" -Level "INFO"
         Write-Log "Last Announcements: $($lastAnnouncements | ConvertTo-Json -Depth 3)" -Level "INFO"
-
         $changes = Compare-Announcements -current $currentAnnouncements -last $lastAnnouncements
         if ($changes.Count -gt 0 -and -not $AnnouncementsExpander.IsExpanded) {
-            Write-Log "Announcements changed detected: $($changes -join '; ')" -Level "INFO"
-            $window.Dispatcher.Invoke([Action]{ $AnnouncementsAlertIcon.Visibility = "Visible" })
-            Write-Log "Announcements red dot set to visible" -Level "INFO"
-            $global:announcementAlertActive = $true
-        }
+    Write-Log "Announcements changed detected: $($changes -join '; ')" -Level "INFO"
+    $window.Dispatcher.Invoke({
+        $AnnouncementsAlertIcon.Visibility = "Visible"
+        $TrayIcon.ShowBalloonTip(5000, "Announcements Updated", $currentAnnouncements.Text, [System.Windows.Forms.ToolTipIcon]::Info)
+    })
+    Write-Log "Announcements red dot set to visible and toast popup displayed" -Level "INFO"
+    $global:announcementAlertActive = $true
+}
+
         else {
             Write-Log "No changes detected in Announcements or section already expanded" -Level "INFO"
         }
-
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $AnnouncementsText.Text = $currentAnnouncements.Text
             $AnnouncementsDetailsText.Text = if ($currentAnnouncements.Details) { $currentAnnouncements.Details } else { "" }
             $AnnouncementsLink1.NavigateUri = [Uri]$currentAnnouncements.Links.Link1.Url
@@ -888,12 +884,12 @@ function Update-Announcements {
             $AnnouncementsLink2.Inlines.Add($currentAnnouncements.Links.Link2.Name)
         })
         $config.AnnouncementsLastState = $currentAnnouncements
-        $config | ConvertTo-Json -Depth 3 | Out-File $configPath -Force
+        Save-Configuration -Config $config
         Write-Log "Announcements updated: $($AnnouncementsText.Text)" -Level "INFO"
     }
     catch {
         Write-Log "Failed to update announcements: $_" -Level "ERROR"
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $AnnouncementsText.Text = "Error fetching announcements."
             $AnnouncementsDetailsText.Text = ""
             $AnnouncementsLink1.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link1.Url
@@ -915,12 +911,12 @@ function Update-PatchingUpdates {
         else {
             $patchText = "No recent patches detected."
         }
-        $window.Dispatcher.Invoke([Action]{ $PatchingUpdatesText.Text = $patchText })
+        $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $patchText })
         Write-Log "Patching status updated: $patchText" -Level "INFO"
     }
     catch {
         Write-Log "Failed to update patching: $_" -Level "ERROR"
-        $window.Dispatcher.Invoke([Action]{ $PatchingUpdatesText.Text = "Error checking patches." })
+        $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = "Error checking patches." })
     }
 }
 
@@ -937,8 +933,7 @@ function Update-Support {
             -not $global:contentData.Support.Links.Link2.Url) { 
             throw "Support.Links.Link1 or Link2 missing Name or Url" 
         }
-        
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $SupportText.Text = $global:contentData.Support.Text
             $SupportLink1.NavigateUri = [Uri]$global:contentData.Support.Links.Link1.Url
             $SupportLink1.Inlines.Clear()
@@ -951,7 +946,7 @@ function Update-Support {
     }
     catch {
         Write-Log "Failed to update support: $_" -Level "ERROR"
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $SupportText.Text = "Error loading support info."
             $SupportLink1.NavigateUri = [Uri]$defaultContentData.Support.Links.Link1.Url
             $SupportLink1.Inlines.Clear()
@@ -976,8 +971,7 @@ function Update-EarlyAdopterTesting {
             -not $global:contentData.EarlyAdopter.Links.Link2.Url) { 
             throw "EarlyAdopter.Links.Link1 or Link2 missing Name or Url" 
         }
-        
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $EarlyAdopterText.Text = $global:contentData.EarlyAdopter.Text
             $EarlyAdopterLink1.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links.Link1.Url
             $EarlyAdopterLink1.Inlines.Clear()
@@ -990,7 +984,7 @@ function Update-EarlyAdopterTesting {
     }
     catch {
         Write-Log "Failed to update early adopter: $_" -Level "ERROR"
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $EarlyAdopterText.Text = "Error loading early adopter info."
             $EarlyAdopterLink1.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link1.Url
             $EarlyAdopterLink1.Inlines.Clear()
@@ -1006,19 +1000,15 @@ function Update-Compliance {
     try {
         $antivirusStatus, $antivirusMessage = Get-AntivirusStatus
         $bitlockerStatus, $bitlockerMessage = Get-BitLockerStatus
-        $bigfixStatus,    $bigfixMessage    = Get-BigFixStatus
-        $code42Status,    $code42Message    = Get-Code42Status
-        $fipsStatus,      $fipsMessage      = Get-FIPSStatus
-
-        $window.Dispatcher.Invoke([Action]{ 
+        $bigfixStatus, $bigfixMessage = Get-BigFixStatus
+        $code42Status, $code42Message = Get-Code42Status
+        $fipsStatus, $fipsMessage = Get-FIPSStatus
+        $window.Dispatcher.Invoke({
             $AntivirusStatusText.Text = $antivirusMessage
             $BitLockerStatusText.Text = $bitlockerMessage
-            $BigFixStatusText.Text    = $bigfixMessage
-            $Code42StatusText.Text    = $code42Message
-            $FIPSStatusText.Text      = $fipsMessage
-
-            # Only show a red dot (i.e. the ComplianceStatusIndicator) if any check fails;
-            # if all are OK, hide the indicator.
+            $BigFixStatusText.Text = $bigfixMessage
+            $Code42StatusText.Text = $code42Message
+            $FIPSStatusText.Text = $fipsMessage
             if ($antivirusStatus -and $bitlockerStatus -and $bigfixStatus -and $code42Status -and $fipsStatus) {
                 $ComplianceStatusIndicator.Visibility = "Hidden"
             } else {
@@ -1026,26 +1016,25 @@ function Update-Compliance {
                 $ComplianceStatusIndicator.Visibility = "Visible"
             }
         })
-
         Write-Log "Compliance updated: Antivirus=$antivirusStatus, BitLocker=$bitlockerStatus, BigFix=$bigfixStatus, Code42=$code42Status, FIPS=$fipsStatus" -Level "INFO"
     }
     catch {
         Write-Log "Failed to update compliance: $_" -Level "ERROR"
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $AntivirusStatusText.Text = "Error checking antivirus."
             $BitLockerStatusText.Text = "Error checking BitLocker."
-            $BigFixStatusText.Text    = "Error checking BigFix."
-            $Code42StatusText.Text    = "Error checking Code42."
-            $FIPSStatusText.Text      = "Error checking FIPS."
-            $ComplianceStatusIndicator.Visibility = "Visible"
+            $BigFixStatusText.Text = "Error checking BigFix."
+            $Code42StatusText.Text = "Error checking Code42."
+            $FIPSStatusText.Text = "Error checking FIPS."
             $ComplianceStatusIndicator.Fill = "Red"
+            $ComplianceStatusIndicator.Visibility = "Visible"
         })
     }
 }
 
-# ========================
+# ============================================================
 # I) Tray Icon Management
-# ========================
+# ============================================================
 function Get-Icon {
     param(
         [string]$Path,
@@ -1071,6 +1060,7 @@ function Get-Icon {
 
 function Update-TrayIcon {
     try {
+        # Compliance checks
         $antivirusStatus, $antivirusMessage = Get-AntivirusStatus
         $bitlockerStatus, $bitlockerMessage = Get-BitLockerStatus
         $bigfixStatus,    $bigfixMessage    = Get-BigFixStatus
@@ -1080,7 +1070,44 @@ function Update-TrayIcon {
         $yubiKeyCert = $YubiKeyCertExpiryText.Text
         $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date" -and $yubiKeyCert -ne "YubiKey not present"
 
-        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus) {
+        # Check for new announcements
+        $announcementPending = $global:announcementAlertActive -or $AnnouncementsAlertIcon.Visibility -eq "Visible"
+
+        # Track previous compliance state (initialize if not set)
+        if (-not $global:PreviousComplianceState) {
+            $global:PreviousComplianceState = @{
+                Antivirus = $antivirusStatus
+                BitLocker = $bitlockerStatus
+                BigFix    = $bigfixStatus
+                Code42    = $code42Status
+                FIPS      = $fipsStatus
+                YubiKey   = $yubikeyStatus
+            }
+        }
+
+        # Detect compliance changes
+        $complianceChanged = (
+            $antivirusStatus -ne $global:PreviousComplianceState.Antivirus -or
+            $bitlockerStatus -ne $global:PreviousComplianceState.BitLocker -or
+            $bigfixStatus    -ne $global:PreviousComplianceState.BigFix -or
+            $code42Status    -ne $global:PreviousComplianceState.Code42 -or
+            $fipsStatus      -ne $global:PreviousComplianceState.FIPS -or
+            $yubikeyStatus   -ne $global:PreviousComplianceState.YubiKey
+        )
+
+        # Update previous state
+        $global:PreviousComplianceState = @{
+            Antivirus = $antivirusStatus
+            BitLocker = $bitlockerStatus
+            BigFix    = $bigfixStatus
+            Code42    = $code42Status
+            FIPS      = $fipsStatus
+            YubiKey   = $yubikeyStatus
+        }
+
+        # Determine tray icon state
+        $allHealthy = ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus)
+        if ($allHealthy -and -not $announcementPending -and -not $complianceChanged) {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Main -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             Write-Log "Tray icon set to icon.ico" -Level "INFO"
             $TrayIcon.Text = "SHOT - Healthy"
@@ -1089,6 +1116,9 @@ function Update-TrayIcon {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             Write-Log "Tray icon set to warning.ico" -Level "INFO"
             $TrayIcon.Text = "SHOT - Warning"
+            if ($announcementPending) { Write-Log "Warning due to pending announcement" -Level "INFO" }
+            if ($complianceChanged) { Write-Log "Warning due to compliance change" -Level "INFO" }
+            if (-not $allHealthy) { Write-Log "Warning due to unhealthy compliance state" -Level "INFO" }
         }
 
         $TrayIcon.Visible = $true
@@ -1099,9 +1129,9 @@ function Update-TrayIcon {
     }
 }
 
-# ========================
+# ============================================================
 # J) Enhanced Logs Management (ListView)
-# ========================
+# ============================================================
 function Update-Logs {
     try {
         if (Test-Path $LogFilePath) {
@@ -1115,10 +1145,10 @@ function Update-Logs {
                     }
                 }
             }
-            $window.Dispatcher.Invoke([Action]{ $LogListView.ItemsSource = $logEntries })
+            $window.Dispatcher.Invoke({ $LogListView.ItemsSource = $logEntries })
         }
         else {
-            $window.Dispatcher.Invoke([Action]{ $LogListView.ItemsSource = @([PSCustomObject]@{Timestamp="N/A"; Message="Log file not found."}) })
+            $window.Dispatcher.Invoke({ $LogListView.ItemsSource = @([PSCustomObject]@{Timestamp="N/A"; Message="Log file not found."}) })
         }
         Write-Log "Logs updated in GUI." -Level "INFO"
     }
@@ -1142,12 +1172,12 @@ function Export-Logs {
     }
 }
 
-# ========================
+# ============================================================
 # K) Window Visibility Management
-# ========================
+# ============================================================
 function Set-WindowPosition {
     try {
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             $window.UpdateLayout()
             $primary = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
             $window.Left = $primary.X + $primary.Width - $window.ActualWidth - 10
@@ -1162,7 +1192,7 @@ function Set-WindowPosition {
 
 function Toggle-WindowVisibility {
     try {
-        $window.Dispatcher.Invoke([Action]{ 
+        $window.Dispatcher.Invoke({
             if ($window.Visibility -eq 'Visible') {
                 $window.Hide()
                 Write-Log "Dashboard hidden via Toggle-WindowVisibility." -Level "INFO"
@@ -1179,12 +1209,10 @@ function Toggle-WindowVisibility {
     }
 }
 
-# ========================
+# ============================================================
 # L) Button and Event Handlers
-# ========================
+# ============================================================
 $ExportLogsButton.Add_Click({ Export-Logs })
-
-# Hyperlink Click Handlers
 $AnnouncementsLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Announcements Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
 $AnnouncementsLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Announcements Link 2: $($e.Uri.AbsoluteUri)" -Level "INFO" })
 $SupportLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Support Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
@@ -1192,18 +1220,17 @@ $SupportLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.Abso
 $EarlyAdopterLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Early Adopter Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
 $EarlyAdopterLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Early Adopter Link 2: $($e.Uri.AbsoluteUri)" -Level "INFO" })
 
-# Announcements Expander Event Handler
 $AnnouncementsExpander.Add_Expanded({
     if ($global:announcementAlertActive) {
-        $window.Dispatcher.Invoke([Action]{ $AnnouncementsAlertIcon.Visibility = "Hidden" })
+        $window.Dispatcher.Invoke({ $AnnouncementsAlertIcon.Visibility = "Hidden" })
         $global:announcementAlertActive = $false
         Write-Log "Announcements red dot hidden on expand" -Level "INFO"
     }
 })
 
-# ========================
+# ============================================================
 # M) Create & Configure Tray Icon with Collapsible Menu
-# ========================
+# ============================================================
 $TrayIcon = New-Object System.Windows.Forms.NotifyIcon
 $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Main -DefaultIcon ([System.Drawing.SystemIcons]::Application)
 $TrayIcon.Text = "SHOT v$ScriptVersion"
@@ -1217,7 +1244,6 @@ $MenuItemQuickActions = New-Object System.Windows.Forms.MenuItem("Quick Actions"
 $MenuItemRefresh = New-Object System.Windows.Forms.MenuItem("Refresh Now")
 $MenuItemExportLogs = New-Object System.Windows.Forms.MenuItem("Export Logs")
 $MenuItemExit = New-Object System.Windows.Forms.MenuItem("Exit")
-
 $MenuItemQuickActions.MenuItems.Add($MenuItemRefresh)
 $MenuItemQuickActions.MenuItems.Add($MenuItemExportLogs)
 $ContextMenu.MenuItems.Add($MenuItemShow)
@@ -1226,7 +1252,7 @@ $ContextMenu.MenuItems.Add($MenuItemExit)
 $TrayIcon.ContextMenu = $ContextMenu
 
 $TrayIcon.add_MouseClick({
-    param($sender,$e)
+    param($sender, $e)
     try {
         if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
             Toggle-WindowVisibility
@@ -1272,9 +1298,9 @@ $MenuItemExit.add_Click({
     }
 })
 
-# ========================
+# ============================================================
 # O) DispatcherTimer for Periodic Updates
-# ========================
+# ============================================================
 $dispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
 $dispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterval)
 $dispatcherTimer.add_Tick({
@@ -1297,9 +1323,9 @@ $dispatcherTimer.add_Tick({
 $dispatcherTimer.Start()
 Write-Log "DispatcherTimer started with interval $($config.RefreshInterval) seconds" -Level "INFO"
 
-# ========================
+# ============================================================
 # P) Dispatcher Exception Handling
-# ========================
+# ============================================================
 function Handle-DispatcherUnhandledException {
     param(
         [object]$sender,
@@ -1313,14 +1339,13 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
     Handle-DispatcherUnhandledException -sender $sender -args $args
 }
 
-# ========================
+# ============================================================
 # Q) Initial Update & Start Dispatcher
-# ========================
+# ============================================================
 try {
     $window.Add_Loaded({ Set-WindowPosition })
     $global:contentData = Fetch-ContentData
     Write-Log "Initial contentData set: $($global:contentData | ConvertTo-Json -Depth 3)" -Level "INFO"
-    
     Update-SystemInfo
     Update-TrayIcon
     Update-Logs
@@ -1337,7 +1362,7 @@ catch {
 }
 
 $window.Add_Closing({
-    param($sender,$eventArgs)
+    param($sender, $eventArgs)
     try {
         $eventArgs.Cancel = $true
         $window.Hide()
