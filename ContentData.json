@@ -1,10 +1,11 @@
 {
   "Announcements": {
-    "Text": "SHOT 1.1.0 released on 2025-03-07. This is test data from the JSON on GIT.",
+    "Text": "System Monitor v1.1 released on 2025-03-01! Check out the new features and updates.",
+    "Details": "Additional details here...",
     "Links": {
       "Link1": { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
       "Link2": { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
-      "Link3": { "Name": "CISA", "Url": "https://www.cisa.gov/" }
+      "Link3": { "Name": "Additional News", "Url": "https://company.com/news3" }
     }
   },
   "Support": {
