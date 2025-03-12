@@ -78,7 +78,6 @@ function Save-Configuration {
 # ============================================================
 # MODULE: Performance Optimizations – Caching
 # ============================================================
-# Global variables for caching:
 $global:StaticSystemInfo = $null
 $global:LastContentFetch = $null
 $global:CachedContentData = $null
@@ -152,34 +151,33 @@ function Log-DotNetVersion {
 $LogFilePath = Join-Path $ScriptDir "SHOT.log"
 $config = Load-Configuration
 
-# Construct full icon paths dynamically
 $mainIconPath = Join-Path $ScriptDir $config.IconPaths.Main
 $warningIconPath = Join-Path $ScriptDir $config.IconPaths.Warning
 $mainIconUri = "file:///" + ($mainIconPath -replace '\\','/')
 
-# Default content data (links as objects)
+# Update default content data so that Announcements.Links is an array
 $defaultContentData = @{
     Announcements = @{
         Text    = "No announcements at this time."
         Details = "Check back later for updates."
-        Links   = @{
-            Link1 = @{ Name = "Announcement Link 1"; Url = "https://company.com/news1" }
-            Link2 = @{ Name = "Announcement Link 2"; Url = "https://company.com/news2" }
-        }
+        Links   = @(
+            @{ Name = "Announcement Link 1"; Url = "https://company.com/news1" },
+            @{ Name = "Announcement Link 2"; Url = "https://company.com/news2" }
+        )
     }
     EarlyAdopter = @{
         Text  = "Join our beta program!"
-        Links = @{
-            Link1 = @{ Name = "Early Adopter Link 1"; Url = "https://beta.company.com/signup" }
-            Link2 = @{ Name = "Early Adopter Link 2"; Url = "https://beta.company.com/info" }
-        }
+        Links = @(
+            @{ Name = "Early Adopter Link 1"; Url = "https://beta.company.com/signup" },
+            @{ Name = "Early Adopter Link 2"; Url = "https://beta.company.com/info" }
+        )
     }
     Support = @{
         Text  = "Contact IT Support: support@company.com | Phone: 1-800-555-1234"
-        Links = @{
-            Link1 = @{ Name = "Support Link 1"; Url = "https://support.company.com/help" }
-            Link2 = @{ Name = "Support Link 2"; Url = "https://support.company.com/tickets" }
-        }
+        Links = @(
+            @{ Name = "Support Link 1"; Url = "https://support.company.com/help" },
+            @{ Name = "Support Link 2"; Url = "https://support.company.com/tickets" }
+        )
     }
 }
 
@@ -231,6 +229,7 @@ Add-Type -AssemblyName System.Drawing
 # ============================================================
 # E) XAML Layout Definition
 # ============================================================
+# The Announcements section now includes a StackPanel named AnnouncementsLinksPanel.
 $xamlString = @"
 <?xml version="1.0" encoding="utf-8"?>
 <Window
@@ -277,7 +276,7 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Announcements with Red Dot Alert -->
+        <!-- Announcements Section -->
         <Expander x:Name="AnnouncementsExpander" ToolTip="View latest announcements" FontSize="12" Foreground="#000080" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
@@ -289,16 +288,12 @@ $xamlString = @"
             <StackPanel>
               <TextBlock x:Name="AnnouncementsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <Hyperlink x:Name="AnnouncementsLink1" NavigateUri="https://company.com/news1" ToolTip="Open announcement link 1">Announcement Link 1</Hyperlink>
-              </TextBlock>
-              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <Hyperlink x:Name="AnnouncementsLink2" NavigateUri="https://company.com/news2" ToolTip="Open announcement link 2">Announcement Link 2</Hyperlink>
-              </TextBlock>
+              <!-- Container for dynamic announcement links -->
+              <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="2"/>
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Patching and Updates -->
+        <!-- Patching and Updates Section -->
         <Expander Header="Patching and Updates" ToolTip="View patching status" FontSize="12" Foreground="#008000" IsExpanded="False" Margin="0,2,0,2">
           <Border BorderBrush="#008000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
@@ -306,7 +301,7 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Support -->
+        <!-- Support Section -->
         <Expander Header="Support" ToolTip="Contact IT support" FontSize="12" Foreground="#800000" IsExpanded="False" Margin="0,2,0,2">
           <Border BorderBrush="#800000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
@@ -320,7 +315,7 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Open Early Adopter Testing -->
+        <!-- Early Adopter Section -->
         <Expander Header="Open Early Adopter Testing" ToolTip="Join beta program" FontSize="12" Foreground="#FF00FF" IsExpanded="False" Margin="0,2,0,2">
           <Border BorderBrush="#FF00FF" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
@@ -334,12 +329,11 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Compliance Section with Red Dot Indicator -->
+        <!-- Compliance Section -->
         <Expander x:Name="ComplianceExpander" ToolTip="Check compliance status" FontSize="12" Foreground="#B22222" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Compliance" VerticalAlignment="Center"/>
-              <!-- Only visible when an out-of-spec condition is detected -->
               <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/>
             </StackPanel>
           </Expander.Header>
@@ -399,14 +393,16 @@ $xamlString = @"
           <Border BorderBrush="#000000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <TextBlock.Text><![CDATA[SHOT v1.1.0
+                <TextBlock.Text><![CDATA[
+SHOT v1.1.0
 © 2025 SHOT. All rights reserved.
 Built with PowerShell and WPF.
 
 Changelog:
 - v1.1.0: Added modular configuration management and caching for improved performance.
-         Red dot indicators now appear only for out-of-spec conditions or new announcements.
-- v1.0.0: Initial release]]></TextBlock.Text>
+         Toast popup and dynamic announcement links now allow adding any number of links via JSON.
+- v1.0.0: Initial release
+                ]]></TextBlock.Text>
               </TextBlock>
             </StackPanel>
           </Border>
@@ -438,6 +434,9 @@ if ($window -eq $null) {
     exit
 }
 
+# Optionally set the window title programmatically
+$window.Title = "SHOT - System Health Observation Tool"
+
 # ============================================================
 # G) Access UI Elements
 # ============================================================
@@ -460,8 +459,7 @@ $AnnouncementsExpander = $window.FindName("AnnouncementsExpander")
 $AnnouncementsAlertIcon = $window.FindName("AnnouncementsAlertIcon")
 $AnnouncementsText   = $window.FindName("AnnouncementsText")
 $AnnouncementsDetailsText = $window.FindName("AnnouncementsDetailsText")
-$AnnouncementsLink1  = $window.FindName("AnnouncementsLink1")
-$AnnouncementsLink2  = $window.FindName("AnnouncementsLink2")
+$AnnouncementsLinksPanel = $window.FindName("AnnouncementsLinksPanel")
 $PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
 $SupportText         = $window.FindName("SupportText")
 $SupportLink1        = $window.FindName("SupportLink1")
@@ -487,8 +485,6 @@ $global:yubiKeyJob = $null
 $global:contentData = $null
 $global:announcementAlertActive = $false
 $global:yubiKeyAlertShown = $false
-# $global:StaticSystemInfo is used to cache static info (machine type, OS version)
-# $global:LastContentFetch and $global:CachedContentData are used to cache remote content
 
 # ============================================================
 # H) Modularized System Information Functions
@@ -496,7 +492,6 @@ $global:yubiKeyAlertShown = $false
 function Fetch-ContentData {
     try {
         $url = $config.ContentDataUrl
-        # Check caching: if we fetched recently, return cached data.
         if ($global:LastContentFetch -and ((Get-Date) - $global:LastContentFetch).TotalSeconds -lt $config.ContentFetchInterval) {
             return $global:CachedContentData
         }
@@ -523,7 +518,6 @@ function Fetch-ContentData {
             Write-Log "Raw content: $rawContent" -Level "INFO"
         }
         Write-Log "Parsed content data: $($contentData | ConvertTo-Json -Depth 3)" -Level "INFO"
-        # Update cache
         $global:CachedContentData = $contentData
         $global:LastContentFetch = Get-Date
         return $contentData
@@ -536,26 +530,29 @@ function Fetch-ContentData {
 }
 
 function Get-YubiKeyCertExpiryDays {
-    param([string]$ykmanPathPassed = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe")
     try {
-        if (-not (Test-Path $ykmanPathPassed)) {
-            throw "ykman.exe not found at $ykmanPathPassed"
+        if (-not (Test-Path "C:\Program Files\Yubico\Yubikey Manager\ykman.exe")) {
+            throw "ykman.exe not found at C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         }
-        Write-Log "ykman.exe found at $ykmanPathPassed" -Level "INFO"
-        $yubiKeyInfo = & $ykmanPathPassed info 2>$null
+        Write-Log "ykman.exe found at C:\Program Files\Yubico\Yubikey Manager\ykman.exe" -Level "INFO"
+        $yubiKeyInfo = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" info 2>$null
         if (-not $yubiKeyInfo) {
             Write-Log "No YubiKey detected" -Level "INFO"
             return "YubiKey not present"
         }
         Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
-        $pivInfo = & $ykmanPathPassed "piv" "info" 2>$null
-        if ($pivInfo) { Write-Log "PIV info: $pivInfo" -Level "INFO" } else { Write-Log "No PIV info available" -Level "WARNING" }
+        $pivInfo = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" "piv" "info" 2>$null
+        if ($pivInfo) {
+            Write-Log "PIV info: $pivInfo" -Level "INFO"
+        } else {
+            Write-Log "No PIV info available" -Level "WARNING"
+        }
         $slots = @("9a", "9c", "9d", "9e")
         $certPem = $null
         $slotUsed = $null
         foreach ($slot in $slots) {
             Write-Log "Checking slot $slot for certificate" -Level "INFO"
-            $certPem = & $ykmanPathPassed "piv" "certificates" "export" $slot "-" 2>$null
+            $certPem = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" "piv" "certificates" "export" $slot "-" 2>$null
             if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
                 $slotUsed = $slot
                 Write-Log "Certificate found in slot $slot" -Level "INFO"
@@ -661,7 +658,6 @@ function Update-SystemInfo {
         $window.Dispatcher.Invoke({ $LoggedOnUserText.Text = "Logged-in User: $user" })
         Write-Log "Logged-in User: $user" -Level "INFO"
 
-        # Cache static system info (machine type and OS version) if not already set.
         if (-not $global:StaticSystemInfo) {
             $global:StaticSystemInfo = Get-StaticSystemInfo
         }
@@ -672,7 +668,6 @@ function Update-SystemInfo {
         $window.Dispatcher.Invoke({ $OSVersionText.Text = "OS Version: $osVersion" })
         Write-Log "OS Version: $osVersion" -Level "INFO"
 
-        # Dynamic data (uptime, disk space, IP addresses) are updated each tick.
         $osDynamic = Get-CimInstance -ClassName Win32_OperatingSystem
         $uptime = (Get-Date) - $osDynamic.LastBootUpTime
         $systemUptime = "$([math]::Floor($uptime.TotalDays)) days $($uptime.Hours) hours"
@@ -708,7 +703,6 @@ function Update-SystemInfo {
             Remove-Job -Job $global:yubiKeyJob -Force
             $global:yubiKeyJob = $null
             Write-Log "YubiKey certificate check completed and saved: $yubiKeyResultString" -Level "INFO"
-
             if ($yubiKeyResultString -match "(\d+) days until expiry" -and [int]$matches[1] -le $config.YubiKeyAlertDays -and -not $global:yubiKeyAlertShown) {
                 $days = [int]$matches[1]
                 $TrayIcon.ShowBalloonTip(5000, "YubiKey Expiry Alert", "YubiKey certificate expires in $days days!", [System.Windows.Forms.ToolTipIcon]::Warning)
@@ -717,7 +711,6 @@ function Update-SystemInfo {
             }
         }
         elseif (-not $global:yubiKeyJob) {
-            # Check every 5 minutes for YubiKey certificate update
             $checkYubiKey = ((Get-Date) - [DateTime]::Parse($config.YubiKeyLastCheck.Date)).TotalMinutes -ge 5
             if ($checkYubiKey) {
                 $window.Dispatcher.Invoke({ $YubiKeyCertExpiryText.Text = "Checking YubiKey certificate..." })
@@ -822,7 +815,7 @@ function Get-FIPSStatus {
     }
 }
 
-# --- UPDATED Compare-Announcements function ---
+# --- UPDATED Compare-Announcements function for dynamic links ---
 function Compare-Announcements {
     param($current, $last)
     $changes = @()
@@ -832,28 +825,24 @@ function Compare-Announcements {
     $lastDetails = if ($last.PSObject.Properties.Match("Details")) { $last.Details } else { "" }
     if ($currentText -ne $lastText) { $changes += "Text changed from '$lastText' to '$currentText'" }
     if ($currentDetails -ne $lastDetails) { $changes += "Details changed from '$lastDetails' to '$currentDetails'" }
-    if ($current.Links.Link1.Name -ne $last.Links.Link1.Name -or $current.Links.Link1.Url -ne $last.Links.Link1.Url) {
-        $changes += "Link1 changed from '$($last.Links.Link1.Name) ($($last.Links.Link1.Url))' to '$($current.Links.Link1.Name) ($($current.Links.Link1.Url))'"
-    }
-    if ($current.Links.Link2.Name -ne $last.Links.Link2.Name -or $current.Links.Link2.Url -ne $last.Links.Link2.Url) {
-        $changes += "Link2 changed from '$($last.Links.Link2.Name) ($($last.Links.Link2.Url))' to '$($current.Links.Link2.Name) ($($current.Links.Link2.Url))'"
+    # Compare links array items
+    for ($i = 0; $i -lt $current.Links.Count; $i++) {
+        if ($i -ge $last.Links.Count) {
+            $changes += "New link added: '$($current.Links[$i].Name) ($($current.Links[$i].Url))'"
+        }
+        elseif (($current.Links[$i].Name -ne $last.Links[$i].Name) -or ($current.Links[$i].Url -ne $last.Links[$i].Url)) {
+            $changes += "Link " + ($i+1) + " changed from '$($last.Links[$i].Name) ($($last.Links[$i].Url))' to '$($current.Links[$i].Name) ($($current.Links[$i].Url))'"
+        }
     }
     return $changes
 }
-# --- End Compare-Announcements ---
 
 function Update-Announcements {
     try {
         if (-not $global:contentData.Announcements) { throw "Announcements data missing" }
         if (-not $global:contentData.Announcements.Text) { throw "Announcements.Text missing" }
-        if (-not $global:contentData.Announcements.Links -or 
-            -not $global:contentData.Announcements.Links.Link1 -or 
-            -not $global:contentData.Announcements.Links.Link1.Name -or 
-            -not $global:contentData.Announcements.Links.Link1.Url -or 
-            -not $global:contentData.Announcements.Links.Link2 -or 
-            -not $global:contentData.Announcements.Links.Link2.Name -or 
-            -not $global:contentData.Announcements.Links.Link2.Url) { 
-            throw "Announcements.Links.Link1 or Link2 missing Name or Url" 
+        if (-not $global:contentData.Announcements.Links -or ($global:contentData.Announcements.Links.Count -lt 2)) { 
+            throw "Announcements.Links missing required links" 
         }
         $currentAnnouncements = $global:contentData.Announcements
         $lastAnnouncements = $config.AnnouncementsLastState
@@ -861,27 +850,36 @@ function Update-Announcements {
         Write-Log "Last Announcements: $($lastAnnouncements | ConvertTo-Json -Depth 3)" -Level "INFO"
         $changes = Compare-Announcements -current $currentAnnouncements -last $lastAnnouncements
         if ($changes.Count -gt 0 -and -not $AnnouncementsExpander.IsExpanded) {
-    Write-Log "Announcements changed detected: $($changes -join '; ')" -Level "INFO"
-    $window.Dispatcher.Invoke({
-        $AnnouncementsAlertIcon.Visibility = "Visible"
-        $TrayIcon.ShowBalloonTip(5000, "Announcements Updated", $currentAnnouncements.Text, [System.Windows.Forms.ToolTipIcon]::Info)
-    })
-    Write-Log "Announcements red dot set to visible and toast popup displayed" -Level "INFO"
-    $global:announcementAlertActive = $true
-}
-
+            Write-Log "Announcements changed detected: $($changes -join '; ')" -Level "INFO"
+            $window.Dispatcher.Invoke({
+                $AnnouncementsAlertIcon.Visibility = "Visible"
+                $TrayIcon.ShowBalloonTip(5000, "SHOT Announcements", $currentAnnouncements.Text, [System.Windows.Forms.ToolTipIcon]::Info)
+            })
+            Write-Log "Announcements red dot set to visible and toast popup displayed" -Level "INFO"
+            $global:announcementAlertActive = $true
+        }
         else {
             Write-Log "No changes detected in Announcements or section already expanded" -Level "INFO"
         }
         $window.Dispatcher.Invoke({
             $AnnouncementsText.Text = $currentAnnouncements.Text
             $AnnouncementsDetailsText.Text = if ($currentAnnouncements.Details) { $currentAnnouncements.Details } else { "" }
-            $AnnouncementsLink1.NavigateUri = [Uri]$currentAnnouncements.Links.Link1.Url
-            $AnnouncementsLink1.Inlines.Clear()
-            $AnnouncementsLink1.Inlines.Add($currentAnnouncements.Links.Link1.Name)
-            $AnnouncementsLink2.NavigateUri = [Uri]$currentAnnouncements.Links.Link2.Url
-            $AnnouncementsLink2.Inlines.Clear()
-            $AnnouncementsLink2.Inlines.Add($currentAnnouncements.Links.Link2.Name)
+            # Dynamically populate the links panel
+            $AnnouncementsLinksPanel.Children.Clear()
+            foreach ($link in $currentAnnouncements.Links) {
+                $tb = New-Object System.Windows.Controls.TextBlock
+                $hp = New-Object System.Windows.Documents.Hyperlink
+                $hp.NavigateUri = [Uri]$link.Url
+                $hp.Inlines.Add($link.Name)
+                $hp.Add_RequestNavigate({
+                    param($sender, $e)
+                    Start-Process $e.Uri.AbsoluteUri
+                    $e.Handled = $true
+                    Write-Log "Clicked Announcement Link: $($e.Uri.AbsoluteUri)" -Level "INFO"
+                })
+                $tb.Inlines.Add($hp)
+                $AnnouncementsLinksPanel.Children.Add($tb)
+            }
         })
         $config.AnnouncementsLastState = $currentAnnouncements
         Save-Configuration -Config $config
@@ -892,12 +890,7 @@ function Update-Announcements {
         $window.Dispatcher.Invoke({
             $AnnouncementsText.Text = "Error fetching announcements."
             $AnnouncementsDetailsText.Text = ""
-            $AnnouncementsLink1.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link1.Url
-            $AnnouncementsLink1.Inlines.Clear()
-            $AnnouncementsLink1.Inlines.Add("Announcement Link 1")
-            $AnnouncementsLink2.NavigateUri = [Uri]$defaultContentData.Announcements.Links.Link2.Url
-            $AnnouncementsLink2.Inlines.Clear()
-            $AnnouncementsLink2.Inlines.Add("Announcement Link 2")
+            $AnnouncementsLinksPanel.Children.Clear()
         })
     }
 }
@@ -924,23 +917,17 @@ function Update-Support {
     try {
         if (-not $global:contentData.Support) { throw "Support data missing" }
         if (-not $global:contentData.Support.Text) { throw "Support.Text missing" }
-        if (-not $global:contentData.Support.Links -or 
-            -not $global:contentData.Support.Links.Link1 -or 
-            -not $global:contentData.Support.Links.Link1.Name -or 
-            -not $global:contentData.Support.Links.Link1.Url -or 
-            -not $global:contentData.Support.Links.Link2 -or 
-            -not $global:contentData.Support.Links.Link2.Name -or 
-            -not $global:contentData.Support.Links.Link2.Url) { 
-            throw "Support.Links.Link1 or Link2 missing Name or Url" 
+        if (-not $global:contentData.Support.Links -or ($global:contentData.Support.Links.Count -lt 2)) { 
+            throw "Support.Links missing required links" 
         }
         $window.Dispatcher.Invoke({
             $SupportText.Text = $global:contentData.Support.Text
-            $SupportLink1.NavigateUri = [Uri]$global:contentData.Support.Links.Link1.Url
+            $SupportLink1.NavigateUri = [Uri]$global:contentData.Support.Links[0].Url
             $SupportLink1.Inlines.Clear()
-            $SupportLink1.Inlines.Add($global:contentData.Support.Links.Link1.Name)
-            $SupportLink2.NavigateUri = [Uri]$global:contentData.Support.Links.Link2.Url
+            $SupportLink1.Inlines.Add($global:contentData.Support.Links[0].Name)
+            $SupportLink2.NavigateUri = [Uri]$global:contentData.Support.Links[1].Url
             $SupportLink2.Inlines.Clear()
-            $SupportLink2.Inlines.Add($global:contentData.Support.Links.Link2.Name)
+            $SupportLink2.Inlines.Add($global:contentData.Support.Links[1].Name)
         })
         Write-Log "Support info updated: $($SupportText.Text)" -Level "INFO"
     }
@@ -948,10 +935,10 @@ function Update-Support {
         Write-Log "Failed to update support: $_" -Level "ERROR"
         $window.Dispatcher.Invoke({
             $SupportText.Text = "Error loading support info."
-            $SupportLink1.NavigateUri = [Uri]$defaultContentData.Support.Links.Link1.Url
+            $SupportLink1.NavigateUri = [Uri]$defaultContentData.Support.Links[0].Url
             $SupportLink1.Inlines.Clear()
             $SupportLink1.Inlines.Add("Support Link 1")
-            $SupportLink2.NavigateUri = [Uri]$defaultContentData.Support.Links.Link2.Url
+            $SupportLink2.NavigateUri = [Uri]$defaultContentData.Support.Links[1].Url
             $SupportLink2.Inlines.Clear()
             $SupportLink2.Inlines.Add("Support Link 2")
         })
@@ -962,23 +949,17 @@ function Update-EarlyAdopterTesting {
     try {
         if (-not $global:contentData.EarlyAdopter) { throw "EarlyAdopter data missing" }
         if (-not $global:contentData.EarlyAdopter.Text) { throw "EarlyAdopter.Text missing" }
-        if (-not $global:contentData.EarlyAdopter.Links -or 
-            -not $global:contentData.EarlyAdopter.Links.Link1 -or 
-            -not $global:contentData.EarlyAdopter.Links.Link1.Name -or 
-            -not $global:contentData.EarlyAdopter.Links.Link1.Url -or 
-            -not $global:contentData.EarlyAdopter.Links.Link2 -or 
-            -not $global:contentData.EarlyAdopter.Links.Link2.Name -or 
-            -not $global:contentData.EarlyAdopter.Links.Link2.Url) { 
-            throw "EarlyAdopter.Links.Link1 or Link2 missing Name or Url" 
+        if (-not $global:contentData.EarlyAdopter.Links -or ($global:contentData.EarlyAdopter.Links.Count -lt 2)) { 
+            throw "EarlyAdopter.Links missing required links" 
         }
         $window.Dispatcher.Invoke({
             $EarlyAdopterText.Text = $global:contentData.EarlyAdopter.Text
-            $EarlyAdopterLink1.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links.Link1.Url
+            $EarlyAdopterLink1.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links[0].Url
             $EarlyAdopterLink1.Inlines.Clear()
-            $EarlyAdopterLink1.Inlines.Add($global:contentData.EarlyAdopter.Links.Link1.Name)
-            $EarlyAdopterLink2.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links.Link2.Url
+            $EarlyAdopterLink1.Inlines.Add($global:contentData.EarlyAdopter.Links[0].Name)
+            $EarlyAdopterLink2.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links[1].Url
             $EarlyAdopterLink2.Inlines.Clear()
-            $EarlyAdopterLink2.Inlines.Add($global:contentData.EarlyAdopter.Links.Link2.Name)
+            $EarlyAdopterLink2.Inlines.Add($global:contentData.EarlyAdopter.Links[1].Name)
         })
         Write-Log "Early adopter info updated: $($EarlyAdopterText.Text)" -Level "INFO"
     }
@@ -986,10 +967,10 @@ function Update-EarlyAdopterTesting {
         Write-Log "Failed to update early adopter: $_" -Level "ERROR"
         $window.Dispatcher.Invoke({
             $EarlyAdopterText.Text = "Error loading early adopter info."
-            $EarlyAdopterLink1.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link1.Url
+            $EarlyAdopterLink1.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links[0].Url
             $EarlyAdopterLink1.Inlines.Clear()
             $EarlyAdopterLink1.Inlines.Add("Early Adopter Link 1")
-            $EarlyAdopterLink2.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links.Link2.Url
+            $EarlyAdopterLink2.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links[1].Url
             $EarlyAdopterLink2.Inlines.Clear()
             $EarlyAdopterLink2.Inlines.Add("Early Adopter Link 2")
         })
@@ -1060,54 +1041,14 @@ function Get-Icon {
 
 function Update-TrayIcon {
     try {
-        # Compliance checks
         $antivirusStatus, $antivirusMessage = Get-AntivirusStatus
         $bitlockerStatus, $bitlockerMessage = Get-BitLockerStatus
-        $bigfixStatus,    $bigfixMessage    = Get-BigFixStatus
-        $code42Status,    $code42Message    = Get-Code42Status
-        $fipsStatus,      $fipsMessage      = Get-FIPSStatus
-
+        $bigfixStatus, $bigfixMessage = Get-BigFixStatus
+        $code42Status, $code42Message = Get-Code42Status
+        $fipsStatus, $fipsMessage = Get-FIPSStatus
         $yubiKeyCert = $YubiKeyCertExpiryText.Text
         $yubikeyStatus = $yubiKeyCert -notmatch "Unable to determine expiry date" -and $yubiKeyCert -ne "YubiKey not present"
-
-        # Check for new announcements
-        $announcementPending = $global:announcementAlertActive -or $AnnouncementsAlertIcon.Visibility -eq "Visible"
-
-        # Track previous compliance state (initialize if not set)
-        if (-not $global:PreviousComplianceState) {
-            $global:PreviousComplianceState = @{
-                Antivirus = $antivirusStatus
-                BitLocker = $bitlockerStatus
-                BigFix    = $bigfixStatus
-                Code42    = $code42Status
-                FIPS      = $fipsStatus
-                YubiKey   = $yubikeyStatus
-            }
-        }
-
-        # Detect compliance changes
-        $complianceChanged = (
-            $antivirusStatus -ne $global:PreviousComplianceState.Antivirus -or
-            $bitlockerStatus -ne $global:PreviousComplianceState.BitLocker -or
-            $bigfixStatus    -ne $global:PreviousComplianceState.BigFix -or
-            $code42Status    -ne $global:PreviousComplianceState.Code42 -or
-            $fipsStatus      -ne $global:PreviousComplianceState.FIPS -or
-            $yubikeyStatus   -ne $global:PreviousComplianceState.YubiKey
-        )
-
-        # Update previous state
-        $global:PreviousComplianceState = @{
-            Antivirus = $antivirusStatus
-            BitLocker = $bitlockerStatus
-            BigFix    = $bigfixStatus
-            Code42    = $code42Status
-            FIPS      = $fipsStatus
-            YubiKey   = $yubikeyStatus
-        }
-
-        # Determine tray icon state
-        $allHealthy = ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus)
-        if ($allHealthy -and -not $announcementPending -and -not $complianceChanged) {
+        if ($antivirusStatus -and $bitlockerStatus -and $yubikeyStatus -and $code42Status -and $fipsStatus -and $bigfixStatus) {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Main -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             Write-Log "Tray icon set to icon.ico" -Level "INFO"
             $TrayIcon.Text = "SHOT - Healthy"
@@ -1116,11 +1057,7 @@ function Update-TrayIcon {
             $TrayIcon.Icon = Get-Icon -Path $config.IconPaths.Warning -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             Write-Log "Tray icon set to warning.ico" -Level "INFO"
             $TrayIcon.Text = "SHOT - Warning"
-            if ($announcementPending) { Write-Log "Warning due to pending announcement" -Level "INFO" }
-            if ($complianceChanged) { Write-Log "Warning due to compliance change" -Level "INFO" }
-            if (-not $allHealthy) { Write-Log "Warning due to unhealthy compliance state" -Level "INFO" }
         }
-
         $TrayIcon.Visible = $true
         Write-Log "Tray icon and status updated." -Level "INFO"
     }
@@ -1213,8 +1150,8 @@ function Toggle-WindowVisibility {
 # L) Button and Event Handlers
 # ============================================================
 $ExportLogsButton.Add_Click({ Export-Logs })
-$AnnouncementsLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Announcements Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
-$AnnouncementsLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Announcements Link 2: $($e.Uri.AbsoluteUri)" -Level "INFO" })
+
+# For Support and Early Adopter links (static controls)
 $SupportLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Support Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
 $SupportLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Support Link 2: $($e.Uri.AbsoluteUri)" -Level "INFO" })
 $EarlyAdopterLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Early Adopter Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
