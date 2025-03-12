@@ -1,12 +1,11 @@
 {
   "Announcements": {
-    "Text": "System Monitor v1.1 released on 2025-03-12! It is a work in progress.",
-    "Details": "All systems are operating normally.",
+    "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
+    "Details": "All systems are running normally. Please review the latest updates.",
     "Links": [
       { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
       { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
-      { "Name": "Test Link", "Url": "https://www.nist.gov/cyberframework" },
-      { "Name": "Test Link2", "Url": "https://www.nist.gov/cyberframework" }
+      { "Name": "Test Link", "Url": "https://www.nist.gov/cyberframework" }
     ]
   },
   "Support": {
