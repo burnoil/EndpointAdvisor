@@ -1,24 +1,25 @@
-"Announcements": {
-  "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
-  "Links": [
-    { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
-    { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
-    { "Name": "TEST LINK", "Url": "https://www.nist.gov/cyberframework" }
-  ]
-
+{
+  "Announcements": {
+    "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
+    "Details": "All systems are operating normally. Please review the latest updates.",
+    "Links": [
+      { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
+      { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
+      { "Name": "Test Link", "Url": "https://www.nist.gov/cyberframework" }
+    ]
   },
   "Support": {
     "Text": "For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
-    "Links": {
-      "Link1": { "Name": "Knowledge Base", "Url": "https://www.google.com" },
-      "Link2": { "Name": "Submit Ticket", "Url": "https://www.google.com" }
-    }
+    "Links": [
+      { "Name": "Knowledge Base", "Url": "https://support.company.com/help" },
+      { "Name": "Submit Ticket", "Url": "https://support.company.com/tickets" }
+    ]
   },
   "EarlyAdopter": {
     "Text": "Join our Early Adopter Program to test upcoming features! Sign up now.",
-    "Links": {
-      "Link1": { "Name": "Register", "Url": "https://beta.company.com/register" },
-      "Link2": { "Name": "More Info", "Url": "https://beta.company.com/details" }
-    }
+    "Links": [
+      { "Name": "Register", "Url": "https://beta.company.com/register" },
+      { "Name": "More Info", "Url": "https://beta.company.com/details" }
+    ]
   }
-
+}
