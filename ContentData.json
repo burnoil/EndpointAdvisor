@@ -1,11 +1,11 @@
-{
-  "Announcements": {
-    "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
-  "Links": {
-      "Link1": { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
-      "Link2": { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
-      "Link3": { "Name": "TEST LINK", "Url": "https://www.nist.gov/cyberframework" }
-    }
+"Announcements": {
+  "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
+  "Links": [
+    { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
+    { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
+    { "Name": "TEST LINK", "Url": "https://www.nist.gov/cyberframework" }
+  ]
+}
   },
   "Support": {
     "Text": "For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
