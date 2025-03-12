@@ -1,38 +1,34 @@
 {
-    "LogRotationSizeMB":  5,
-    "YubiKeyLastCheck":  {
-                             "Date":  "2025-03-10 07:42:34",
-                             "Result":  {
-                                            "value":  "YubiKey Certificate (Slot 9a): 1786 days until expiry (01/29/2030 16:00:00)",
-                                            "PSComputerName":  "localhost",
-                                            "RunspaceId":  "cdc57d93-fc36-4cdb-aa4c-39618dc57572",
-                                            "PSShowComputerName":  false
-                                        }
-                         },
-    "DefaultLogLevel":  "INFO",
-    "IconPaths":  {
-                      "Main":  "icon.ico",
-                      "Warning":  "warning.ico"
-                  },
-    "Version":  "1.1.0",
-    "AnnouncementsLastState":  {
-                                   "Text":  "SHOT 1.1.0 released on 2025-03-07. This is test data from the JSON on GIT.",
-                                   "Links":  {
-                                                 "Link1":  {
-                                                               "Name":  "MIT Lincoln Lab",
-                                                               "Url":  "https://www.ll.mit.edu/"
-                                                           },
-                                                 "Link2":  {
-                                                               "Name":  "NIST Cyber Framework",
-                                                               "Url":  "https://www.nist.gov/cyberframework"
-                                                           }
-                                                  "Link2": {
-                                                               "Name":  "CISA - Cybersecurity & Infrastructure Security Agency",
-                                                               "Url":  "https://www.cisa.gov/"
-                                                           }
-                                             }
-                               },
-    "YubiKeyAlertDays":  7,
-    "RefreshInterval":  30,
-    "ContentDataUrl":  "https://raw.githubusercontent.com/burnoil/SHOT/refs/heads/main/ContentData.json"
+    "LogRotationSizeMB": 5,
+    "YubiKeyLastCheck": {
+        "Date": "2025-03-12 13:41:03",
+        "Result": "YubiKey Certificate (Slot 9a): 1784 days until expiry (01/29/2030 16:00:00)"
+    },
+    "DefaultLogLevel": "INFO",
+    "IconPaths": {
+        "Main": "icon.ico",
+        "Warning": "warning.ico"
+    },
+    "Version": "1.1.0",
+    "AnnouncementsLastState": {
+        "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
+        "Details": "All systems are running normally. Please review the latest updates.",
+        "Links": [
+            {
+                "Name": "MIT Lincoln Lab",
+                "Url": "https://www.ll.mit.edu/"
+            },
+            {
+                "Name": "NIST Cyber Framework",
+                "Url": "https://www.nist.gov/cyberframework"
+            },
+            {
+                "Name": "Test Link",
+                "Url": "https://www.nist.gov/cyberframework"
+            }
+        ]
+    },
+    "YubiKeyAlertDays": 7,
+    "RefreshInterval": 30,
+    "ContentDataUrl": "https://raw.pathremoved/ContentData.json"
 }
