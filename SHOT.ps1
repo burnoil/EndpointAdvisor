@@ -155,7 +155,7 @@ $mainIconPath = Join-Path $ScriptDir $config.IconPaths.Main
 $warningIconPath = Join-Path $ScriptDir $config.IconPaths.Warning
 $mainIconUri = "file:///" + ($mainIconPath -replace '\\','/')
 
-# Update default content data so that Announcements.Links is an array
+# Default content data now expects arrays for Links
 $defaultContentData = @{
     Announcements = @{
         Text    = "No announcements at this time."
@@ -229,7 +229,8 @@ Add-Type -AssemblyName System.Drawing
 # ============================================================
 # E) XAML Layout Definition
 # ============================================================
-# The Announcements section now includes a StackPanel named AnnouncementsLinksPanel.
+# The Announcements, Support, and EarlyAdopter sections now include a container (StackPanel)
+# for dynamic link creation.
 $xamlString = @"
 <?xml version="1.0" encoding="utf-8"?>
 <Window
@@ -306,12 +307,8 @@ $xamlString = @"
           <Border BorderBrush="#800000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="SupportText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <Hyperlink x:Name="SupportLink1" NavigateUri="https://support.company.com/help" ToolTip="Visit support page">Support Link 1</Hyperlink>
-              </TextBlock>
-              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <Hyperlink x:Name="SupportLink2" NavigateUri="https://support.company.com/tickets" ToolTip="Submit a ticket">Support Link 2</Hyperlink>
-              </TextBlock>
+              <!-- Container for dynamic support links -->
+              <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="2"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -320,12 +317,8 @@ $xamlString = @"
           <Border BorderBrush="#FF00FF" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="EarlyAdopterText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <Hyperlink x:Name="EarlyAdopterLink1" NavigateUri="https://beta.company.com/signup" ToolTip="Sign up for beta">Early Adopter Link 1</Hyperlink>
-              </TextBlock>
-              <TextBlock FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <Hyperlink x:Name="EarlyAdopterLink2" NavigateUri="https://beta.company.com/info" ToolTip="Learn more about beta">Early Adopter Link 2</Hyperlink>
-              </TextBlock>
+              <!-- Container for dynamic early adopter links -->
+              <StackPanel x:Name="EarlyAdopterLinksPanel" Orientation="Vertical" Margin="2"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -400,7 +393,7 @@ Built with PowerShell and WPF.
 
 Changelog:
 - v1.1.0: Added modular configuration management and caching for improved performance.
-         Toast popup and dynamic announcement links now allow adding any number of links via JSON.
+         Toast popup and dynamic links for Announcements, Support, and Early Adopter allow data-driven updates.
 - v1.0.0: Initial release
                 ]]></TextBlock.Text>
               </TextBlock>
@@ -462,12 +455,9 @@ $AnnouncementsDetailsText = $window.FindName("AnnouncementsDetailsText")
 $AnnouncementsLinksPanel = $window.FindName("AnnouncementsLinksPanel")
 $PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
 $SupportText         = $window.FindName("SupportText")
-$SupportLink1        = $window.FindName("SupportLink1")
-$SupportLink2        = $window.FindName("SupportLink2")
+$SupportLinksPanel   = $window.FindName("SupportLinksPanel")
 $EarlyAdopterText    = $window.FindName("EarlyAdopterText")
-$EarlyAdopterLink1   = $window.FindName("EarlyAdopterLink1")
-$EarlyAdopterLink2   = $window.FindName("EarlyAdopterLink2")
-
+$EarlyAdopterLinksPanel = $window.FindName("EarlyAdopterLinksPanel")
 $ComplianceExpander  = $window.FindName("ComplianceExpander")
 $ComplianceStatusIndicator = $window.FindName("ComplianceStatusIndicator")
 $LogListView         = $window.FindName("LogListView")
@@ -497,8 +487,9 @@ function Fetch-ContentData {
         }
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         if ($url -match "^(http|https)://") {
-            $response = Invoke-WebRequest -Uri $url -UseBasicParsing
-            $contentData = $response.Content | ConvertFrom-Json
+		$response = Invoke-WebRequest -Uri $url -UseBasicParsing
+		$contentString = $response.Content.Trim()
+		$contentData = $contentString | ConvertFrom-Json
             Write-Log "Fetched content data from URL: $url" -Level "INFO"
             Write-Log "Raw content: $($response.Content)" -Level "INFO"
         }
@@ -825,7 +816,6 @@ function Compare-Announcements {
     $lastDetails = if ($last.PSObject.Properties.Match("Details")) { $last.Details } else { "" }
     if ($currentText -ne $lastText) { $changes += "Text changed from '$lastText' to '$currentText'" }
     if ($currentDetails -ne $lastDetails) { $changes += "Details changed from '$lastDetails' to '$currentDetails'" }
-    # Compare links array items
     for ($i = 0; $i -lt $current.Links.Count; $i++) {
         if ($i -ge $last.Links.Count) {
             $changes += "New link added: '$($current.Links[$i].Name) ($($current.Links[$i].Url))'"
@@ -841,7 +831,7 @@ function Update-Announcements {
     try {
         if (-not $global:contentData.Announcements) { throw "Announcements data missing" }
         if (-not $global:contentData.Announcements.Text) { throw "Announcements.Text missing" }
-        if (-not $global:contentData.Announcements.Links -or ($global:contentData.Announcements.Links.Count -lt 2)) { 
+        if (-not $global:contentData.Announcements.Links -or ($global:contentData.Announcements.Links.Count -lt 1)) { 
             throw "Announcements.Links missing required links" 
         }
         $currentAnnouncements = $global:contentData.Announcements
@@ -864,7 +854,7 @@ function Update-Announcements {
         $window.Dispatcher.Invoke({
             $AnnouncementsText.Text = $currentAnnouncements.Text
             $AnnouncementsDetailsText.Text = if ($currentAnnouncements.Details) { $currentAnnouncements.Details } else { "" }
-            # Dynamically populate the links panel
+            # Dynamically populate the links panel for Announcements
             $AnnouncementsLinksPanel.Children.Clear()
             foreach ($link in $currentAnnouncements.Links) {
                 $tb = New-Object System.Windows.Controls.TextBlock
@@ -917,17 +907,29 @@ function Update-Support {
     try {
         if (-not $global:contentData.Support) { throw "Support data missing" }
         if (-not $global:contentData.Support.Text) { throw "Support.Text missing" }
-        if (-not $global:contentData.Support.Links -or ($global:contentData.Support.Links.Count -lt 2)) { 
+        if (-not $global:contentData.Support.Links -or ($global:contentData.Support.Links.Count -lt 1)) { 
             throw "Support.Links missing required links" 
         }
         $window.Dispatcher.Invoke({
             $SupportText.Text = $global:contentData.Support.Text
-            $SupportLink1.NavigateUri = [Uri]$global:contentData.Support.Links[0].Url
-            $SupportLink1.Inlines.Clear()
-            $SupportLink1.Inlines.Add($global:contentData.Support.Links[0].Name)
-            $SupportLink2.NavigateUri = [Uri]$global:contentData.Support.Links[1].Url
-            $SupportLink2.Inlines.Clear()
-            $SupportLink2.Inlines.Add($global:contentData.Support.Links[1].Name)
+            # Dynamically populate Support links
+            if ($SupportLinksPanel -ne $null) {
+                $SupportLinksPanel.Children.Clear()
+                foreach ($link in $global:contentData.Support.Links) {
+                    $tb = New-Object System.Windows.Controls.TextBlock
+                    $hp = New-Object System.Windows.Documents.Hyperlink
+                    $hp.NavigateUri = [Uri]$link.Url
+                    $hp.Inlines.Add($link.Name)
+                    $hp.Add_RequestNavigate({
+                        param($sender, $e)
+                        Start-Process $e.Uri.AbsoluteUri
+                        $e.Handled = $true
+                        Write-Log "Clicked Support Link: $($e.Uri.AbsoluteUri)" -Level "INFO"
+                    })
+                    $tb.Inlines.Add($hp)
+                    $SupportLinksPanel.Children.Add($tb)
+                }
+            }
         })
         Write-Log "Support info updated: $($SupportText.Text)" -Level "INFO"
     }
@@ -935,12 +937,7 @@ function Update-Support {
         Write-Log "Failed to update support: $_" -Level "ERROR"
         $window.Dispatcher.Invoke({
             $SupportText.Text = "Error loading support info."
-            $SupportLink1.NavigateUri = [Uri]$defaultContentData.Support.Links[0].Url
-            $SupportLink1.Inlines.Clear()
-            $SupportLink1.Inlines.Add("Support Link 1")
-            $SupportLink2.NavigateUri = [Uri]$defaultContentData.Support.Links[1].Url
-            $SupportLink2.Inlines.Clear()
-            $SupportLink2.Inlines.Add("Support Link 2")
+            $SupportLinksPanel.Children.Clear()
         })
     }
 }
@@ -949,17 +946,29 @@ function Update-EarlyAdopterTesting {
     try {
         if (-not $global:contentData.EarlyAdopter) { throw "EarlyAdopter data missing" }
         if (-not $global:contentData.EarlyAdopter.Text) { throw "EarlyAdopter.Text missing" }
-        if (-not $global:contentData.EarlyAdopter.Links -or ($global:contentData.EarlyAdopter.Links.Count -lt 2)) { 
+        if (-not $global:contentData.EarlyAdopter.Links -or ($global:contentData.EarlyAdopter.Links.Count -lt 1)) { 
             throw "EarlyAdopter.Links missing required links" 
         }
         $window.Dispatcher.Invoke({
             $EarlyAdopterText.Text = $global:contentData.EarlyAdopter.Text
-            $EarlyAdopterLink1.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links[0].Url
-            $EarlyAdopterLink1.Inlines.Clear()
-            $EarlyAdopterLink1.Inlines.Add($global:contentData.EarlyAdopter.Links[0].Name)
-            $EarlyAdopterLink2.NavigateUri = [Uri]$global:contentData.EarlyAdopter.Links[1].Url
-            $EarlyAdopterLink2.Inlines.Clear()
-            $EarlyAdopterLink2.Inlines.Add($global:contentData.EarlyAdopter.Links[1].Name)
+            # Dynamically populate Early Adopter links
+            if ($EarlyAdopterLinksPanel -ne $null) {
+                $EarlyAdopterLinksPanel.Children.Clear()
+                foreach ($link in $global:contentData.EarlyAdopter.Links) {
+                    $tb = New-Object System.Windows.Controls.TextBlock
+                    $hp = New-Object System.Windows.Documents.Hyperlink
+                    $hp.NavigateUri = [Uri]$link.Url
+                    $hp.Inlines.Add($link.Name)
+                    $hp.Add_RequestNavigate({
+                        param($sender, $e)
+                        Start-Process $e.Uri.AbsoluteUri
+                        $e.Handled = $true
+                        Write-Log "Clicked Early Adopter Link: $($e.Uri.AbsoluteUri)" -Level "INFO"
+                    })
+                    $tb.Inlines.Add($hp)
+                    $EarlyAdopterLinksPanel.Children.Add($tb)
+                }
+            }
         })
         Write-Log "Early adopter info updated: $($EarlyAdopterText.Text)" -Level "INFO"
     }
@@ -967,12 +976,7 @@ function Update-EarlyAdopterTesting {
         Write-Log "Failed to update early adopter: $_" -Level "ERROR"
         $window.Dispatcher.Invoke({
             $EarlyAdopterText.Text = "Error loading early adopter info."
-            $EarlyAdopterLink1.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links[0].Url
-            $EarlyAdopterLink1.Inlines.Clear()
-            $EarlyAdopterLink1.Inlines.Add("Early Adopter Link 1")
-            $EarlyAdopterLink2.NavigateUri = [Uri]$defaultContentData.EarlyAdopter.Links[1].Url
-            $EarlyAdopterLink2.Inlines.Clear()
-            $EarlyAdopterLink2.Inlines.Add("Early Adopter Link 2")
+            $EarlyAdopterLinksPanel.Children.Clear()
         })
     }
 }
@@ -1151,12 +1155,7 @@ function Toggle-WindowVisibility {
 # ============================================================
 $ExportLogsButton.Add_Click({ Export-Logs })
 
-# For Support and Early Adopter links (static controls)
-$SupportLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Support Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
-$SupportLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Support Link 2: $($e.Uri.AbsoluteUri)" -Level "INFO" })
-$EarlyAdopterLink1.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Early Adopter Link 1: $($e.Uri.AbsoluteUri)" -Level "INFO" })
-$EarlyAdopterLink2.Add_RequestNavigate({ param($sender, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true; Write-Log "Clicked Early Adopter Link 2: $($e.Uri.AbsoluteUri)" -Level "INFO" })
-
+# Static links for Support and Early Adopter are now dynamically generated, so no fixed hyperlink handlers are required.
 $AnnouncementsExpander.Add_Expanded({
     if ($global:announcementAlertActive) {
         $window.Dispatcher.Invoke({ $AnnouncementsAlertIcon.Visibility = "Hidden" })
