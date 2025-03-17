@@ -17,11 +17,11 @@ $ScriptVersion = "1.1.0"
 # ============================================================
 function Get-DefaultConfig {
     return @{
-        RefreshInterval       = 90
+        RefreshInterval       = 30
         LogRotationSizeMB     = 5
         DefaultLogLevel       = "INFO"
         ContentDataUrl        = "ContentData.json"
-        ContentFetchInterval  = 120
+        ContentFetchInterval  = 60
         YubiKeyAlertDays      = 7
         IconPaths             = @{
             Main    = "icon.ico"
@@ -33,8 +33,7 @@ function Get-DefaultConfig {
         }
         AnnouncementsLastState = @{}
         Version               = $ScriptVersion
-        # New property for the patch text file
-        PatchInfoFilePath     = "C:\temp\X-Fixlet-Patch_Count.txt"  # Default path relative to script directory
+        PatchInfoFilePath     = "C:\\temp\\patch_fixlets.txt"  # Updated to your desired path
     }
 }
 
@@ -896,33 +895,34 @@ function Update-PatchingUpdates {
         } else {
             Join-Path $ScriptDir $config.PatchInfoFilePath
         }
+        Write-Log "Resolved patch file path: $patchFilePath" -Level "INFO"
 
         # Check if the file exists and read its contents
-        if (Test-Path $patchFilePath) {
+        if (Test-Path $patchFilePath -PathType Leaf) {
+            Write-Log "File exists at $patchFilePath, attempting to read..." -Level "INFO"
             $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
             if ([string]::IsNullOrWhiteSpace($patchContent)) {
                 $patchText = "Patch info file is empty."
+                Write-Log "File is empty at $patchFilePath" -Level "WARNING"
             } else {
                 $patchText = $patchContent.Trim()
+                Write-Log "Successfully read content: $patchText" -Level "INFO"
             }
-            Write-Log "Successfully read patch info from $patchFilePath: $patchText" -Level "INFO"
         } else {
             $patchText = "Patch info file not found at $patchFilePath."
-            Write-Log "Patch info file not found: $patchFilePath" -Level "WARNING"
+            Write-Log "File not found or inaccessible: $patchFilePath" -Level "ERROR"
+            # Check common issues
+            if (-not (Test-Path "C:\temp" -PathType Container)) {
+                Write-Log "Directory C:\temp does not exist" -Level "ERROR"
+            }
         }
-
-        # Optionally, combine with CIM-based patch info (commented out here)
-        # $lastUpdate = Get-CimInstance -ClassName Win32_QuickFixEngineering | Sort-Object InstalledOn -Descending | Select-Object -First 1
-        # if ($lastUpdate) {
-        #     $patchText += "`nLast Patch: $($lastUpdate.HotFixID) installed on $($lastUpdate.InstalledOn)"
-        # }
 
         # Update the UI
         $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $patchText })
-        Write-Log "Patching status updated: $patchText" -Level "INFO"
+        Write-Log "Patching status updated in UI: $patchText" -Level "INFO"
     }
     catch {
-        $errorMessage = "Error reading patch info file: $_"
+        $errorMessage = "Error reading patch info file at $patchFilePath: $_"
         Write-Log $errorMessage -Level "ERROR"
         $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $errorMessage })
     }
