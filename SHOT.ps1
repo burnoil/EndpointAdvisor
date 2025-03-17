@@ -889,7 +889,6 @@ function Update-Announcements {
 
 function Update-PatchingUpdates {
     try {
-        # Resolve the full path to the patch info file
         $patchFilePath = if ([System.IO.Path]::IsPathRooted($config.PatchInfoFilePath)) {
             $config.PatchInfoFilePath
         } else {
@@ -897,7 +896,6 @@ function Update-PatchingUpdates {
         }
         Write-Log "Resolved patch file path: $patchFilePath" -Level "INFO"
 
-        # Check if the file exists and read its contents
         if (Test-Path $patchFilePath -PathType Leaf) {
             Write-Log "File exists at $patchFilePath, attempting to read..." -Level "INFO"
             $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
@@ -911,18 +909,21 @@ function Update-PatchingUpdates {
         } else {
             $patchText = "Patch info file not found at $patchFilePath."
             Write-Log "File not found or inaccessible: $patchFilePath" -Level "ERROR"
-            # Check common issues
             if (-not (Test-Path "C:\temp" -PathType Container)) {
                 Write-Log "Directory C:\temp does not exist" -Level "ERROR"
             }
         }
 
-        # Update the UI
         $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $patchText })
         Write-Log "Patching status updated in UI: $patchText" -Level "INFO"
     }
     catch {
-        $errorMessage = "Error reading patch info file at $patchFilePath: $_"
+        # Escape the colon explicitly
+        $errorMessage = "Error reading patch info file at ${patchFilePath}`: $_"
+        # Alternative: Use a here-string
+        # $errorMessage = @"
+        # Error reading patch info file at $patchFilePath: $_
+        # "@
         Write-Log $errorMessage -Level "ERROR"
         $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $errorMessage })
     }
