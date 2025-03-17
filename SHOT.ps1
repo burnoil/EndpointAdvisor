@@ -918,13 +918,11 @@ function Update-PatchingUpdates {
         Write-Log "Patching status updated in UI: $patchText" -Level "INFO"
     }
     catch {
-        # Escape the colon explicitly
-        $errorMessage = "Error reading patch info file at ${patchFilePath}`: $_"
-        # Alternative: Use a here-string
-        # $errorMessage = @"
-        # Error reading patch info file at $patchFilePath: $_
-        # "@
-        Write-Log $errorMessage -Level "ERROR"
+        # Use the exact syntax that worked in the test
+        $errorMessage = "Error reading patch info file at ${patchFilePath}``: $_"
+        Write-Log "Debug: patchFilePath = $patchFilePath" -Level "INFO"
+        Write-Log "Debug: Error details = $_" -Level "INFO"
+        Write-Log "Debug: errorMessage set to: $errorMessage" -Level "ERROR"
         $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $errorMessage })
     }
 }
