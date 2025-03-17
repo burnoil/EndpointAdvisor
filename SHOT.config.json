@@ -1,18 +1,15 @@
 {
-    "RefreshInterval": 30,
     "LogRotationSizeMB": 5,
-    "DefaultLogLevel": "INFO",
-    "ContentDataUrl": "ContentData.json",
-    "ContentFetchInterval": 60,
-    "YubiKeyAlertDays": 7,
-    "IconPaths": {
-        "Main": "icon.ico",
-        "Warning": "warning.ico"
-    },
     "YubiKeyLastCheck": {
         "Date": "2025-03-12 13:41:03",
         "Result": "YubiKey Certificate (Slot 9a): 1784 days until expiry (01/29/2030 16:00:00)"
     },
+    "DefaultLogLevel": "INFO",
+    "IconPaths": {
+        "Main": "icon.ico",
+        "Warning": "warning.ico"
+    },
+    "Version": "1.1.0",
     "AnnouncementsLastState": {
         "Text": "System Monitor v1.1 released on 2025-03-11! Check out the new features and updates.",
         "Details": "All systems are running normally. Please review the latest updates.",
@@ -31,6 +28,9 @@
             }
         ]
     },
-    "Version": "1.1.0",
+    "YubiKeyAlertDays": 7,
+    "RefreshInterval": 30,
+    "ContentDataUrl": "https://raw.pathremoved/ContentData.json",
+    "ContentFetchInterval": 60,
     "PatchInfoFilePath": "C:\\temp\\patch_fixlets.txt"
 }
