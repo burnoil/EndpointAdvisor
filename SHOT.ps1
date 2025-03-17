@@ -17,11 +17,11 @@ $ScriptVersion = "1.1.0"
 # ============================================================
 function Get-DefaultConfig {
     return @{
-        RefreshInterval       = 30
+        RefreshInterval       = 90
         LogRotationSizeMB     = 5
         DefaultLogLevel       = "INFO"
         ContentDataUrl        = "ContentData.json"
-        ContentFetchInterval  = 60
+        ContentFetchInterval  = 120
         YubiKeyAlertDays      = 7
         IconPaths             = @{
             Main    = "icon.ico"
@@ -33,6 +33,8 @@ function Get-DefaultConfig {
         }
         AnnouncementsLastState = @{}
         Version               = $ScriptVersion
+        # New property for the patch text file
+        PatchInfoFilePath     = "C:\temp\X-Fixlet-Patch_Count.txt"  # Default path relative to script directory
     }
 }
 
@@ -481,41 +483,42 @@ $global:yubiKeyAlertShown = $false
 # ============================================================
 function Fetch-ContentData {
     try {
+        Write-Log "Config object: $($config | ConvertTo-Json -Depth 3)" -Level "INFO"  # Log entire config
         $url = $config.ContentDataUrl
+        Write-Log "Raw ContentDataUrl from config: '$url'" -Level "INFO"  # Log exact value
         if ($global:LastContentFetch -and ((Get-Date) - $global:LastContentFetch).TotalSeconds -lt $config.ContentFetchInterval) {
+            Write-Log "Using cached content data" -Level "INFO"
             return $global:CachedContentData
         }
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
-        if ($url -match "^(http|https)://") {
-		$response = Invoke-WebRequest -Uri $url -UseBasicParsing
-		$contentString = $response.Content.Trim()
-		$contentData = $contentString | ConvertFrom-Json
-            Write-Log "Fetched content data from URL: $url" -Level "INFO"
+        if ($url -match "^(?i)(http|https)://") {
+            Write-Log "Detected HTTP/HTTPS URL, using Invoke-WebRequest" -Level "INFO"
+            $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
             Write-Log "Raw content: $($response.Content)" -Level "INFO"
+            $contentString = $response.Content.Trim()
+            $contentData = $contentString | ConvertFrom-Json
+            Write-Log "Fetched content data from URL: $url" -Level "INFO"
         }
         elseif ($url -match "^\\\\") {
+            Write-Log "Detected network path" -Level "INFO"
             if (-not (Test-Path $url)) { throw "Network path not accessible: $url" }
             $rawContent = Get-Content -Path $url -Raw
             $contentData = $rawContent | ConvertFrom-Json
-            Write-Log "Fetched content data from network path: $url" -Level "INFO"
-            Write-Log "Raw content: $rawContent" -Level "INFO"
         }
         else {
+            Write-Log "Assuming local file path" -Level "INFO"
             $fullPath = if ([System.IO.Path]::IsPathRooted($url)) { $url } else { Join-Path $ScriptDir $url }
+            Write-Log "Resolved full path: $fullPath" -Level "INFO"
             if (-not (Test-Path $fullPath)) { throw "Local path not found: $fullPath" }
             $rawContent = Get-Content -Path $fullPath -Raw
             $contentData = $rawContent | ConvertFrom-Json
-            Write-Log "Fetched content data from local path: $fullPath" -Level "INFO"
-            Write-Log "Raw content: $rawContent" -Level "INFO"
         }
-        Write-Log "Parsed content data: $($contentData | ConvertTo-Json -Depth 3)" -Level "INFO"
         $global:CachedContentData = $contentData
         $global:LastContentFetch = Get-Date
         return $contentData
     }
     catch {
         Write-Log "Failed to fetch content data from ${url}: $_" -Level "ERROR"
-        Write-Log "Reverting to default content data" -Level "WARNING"
         return $defaultContentData
     }
 }
@@ -887,19 +890,41 @@ function Update-Announcements {
 
 function Update-PatchingUpdates {
     try {
-        $lastUpdate = Get-CimInstance -ClassName Win32_QuickFixEngineering | Sort-Object InstalledOn -Descending | Select-Object -First 1
-        if ($lastUpdate) {
-            $patchText = "Last Patch: $($lastUpdate.HotFixID) installed on $($lastUpdate.InstalledOn)"
+        # Resolve the full path to the patch info file
+        $patchFilePath = if ([System.IO.Path]::IsPathRooted($config.PatchInfoFilePath)) {
+            $config.PatchInfoFilePath
+        } else {
+            Join-Path $ScriptDir $config.PatchInfoFilePath
         }
-        else {
-            $patchText = "No recent patches detected."
+
+        # Check if the file exists and read its contents
+        if (Test-Path $patchFilePath) {
+            $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
+            if ([string]::IsNullOrWhiteSpace($patchContent)) {
+                $patchText = "Patch info file is empty."
+            } else {
+                $patchText = $patchContent.Trim()
+            }
+            Write-Log "Successfully read patch info from $patchFilePath: $patchText" -Level "INFO"
+        } else {
+            $patchText = "Patch info file not found at $patchFilePath."
+            Write-Log "Patch info file not found: $patchFilePath" -Level "WARNING"
         }
+
+        # Optionally, combine with CIM-based patch info (commented out here)
+        # $lastUpdate = Get-CimInstance -ClassName Win32_QuickFixEngineering | Sort-Object InstalledOn -Descending | Select-Object -First 1
+        # if ($lastUpdate) {
+        #     $patchText += "`nLast Patch: $($lastUpdate.HotFixID) installed on $($lastUpdate.InstalledOn)"
+        # }
+
+        # Update the UI
         $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $patchText })
         Write-Log "Patching status updated: $patchText" -Level "INFO"
     }
     catch {
-        Write-Log "Failed to update patching: $_" -Level "ERROR"
-        $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = "Error checking patches." })
+        $errorMessage = "Error reading patch info file: $_"
+        Write-Log $errorMessage -Level "ERROR"
+        $window.Dispatcher.Invoke({ $PatchingUpdatesText.Text = $errorMessage })
     }
 }
 
