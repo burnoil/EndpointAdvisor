@@ -1143,12 +1143,29 @@ function Export-Logs {
 function Set-WindowPosition {
     try {
         $window.Dispatcher.Invoke({
-            $window.UpdateLayout()
+            # Set a minimum size immediately
+            if ($window.ActualWidth -eq 0 -or $window.ActualHeight -eq 0) {
+                $window.Width = 350
+                $window.Height = 500
+                $window.UpdateLayout()  # Force layout update after setting size
+            }
+
+            # Get primary screen working area
             $primary = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-            $window.Left = $primary.X + $primary.Width - $window.ActualWidth - 10
-            $window.Top  = $primary.Y + $primary.Height - $window.ActualHeight - 50
+            Write-Log "Primary screen: X=$($primary.X), Y=$($primary.Y), Width=$($primary.Width), Height=$($primary.Height)" -Level "INFO"
+
+            # Calculate position
+            $left = $primary.X + $primary.Width - $window.ActualWidth - 10
+            $top = $primary.Y + $primary.Height - $window.ActualHeight - 50
+
+            # Ensure within bounds
+            $left = [Math]::Max($primary.X, [Math]::Min($left, $primary.X + $primary.Width - $window.ActualWidth))
+            $top = [Math]::Max($primary.Y, [Math]::Min($top, $primary.Y + $primary.Height - $window.ActualHeight))
+
+            $window.Left = $left
+            $window.Top = $top
+            Write-Log "Window position set: Left=$left, Top=$top, Width=$($window.ActualWidth), Height=$($window.ActualHeight)" -Level "INFO"
         })
-        Write-Log "Window position set: Left=$($window.Left), Top=$($window.Top)" -Level "INFO"
     }
     catch {
         Handle-Error "Error setting window position: $_" -Source "Set-WindowPosition"
@@ -1164,8 +1181,12 @@ function Toggle-WindowVisibility {
             }
             else {
                 Set-WindowPosition
-                $window.Show()
-                Write-Log "Dashboard shown via Toggle-WindowVisibility." -Level "INFO"
+                $window.Show()         # Show the window
+                $window.Activate()     # Bring it to the foreground
+                $window.Topmost = $true  # Ensure it’s on top briefly
+                Start-Sleep -Milliseconds 100  # Small delay
+                $window.Topmost = $false  # Reset Topmost
+                Write-Log "Dashboard shown via Toggle-WindowVisibility at Left=$($window.Left), Top=$($window.Top)" -Level "INFO"
             }
         })
     }
