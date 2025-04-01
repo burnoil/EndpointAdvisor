@@ -265,8 +265,8 @@ $xamlString = @"
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel VerticalAlignment="Top">
         <!-- Information Section -->
-        <Expander Header="Information" ToolTip="View system details" FontSize="12" Foreground="#0078D7" IsExpanded="True" Margin="0,2,0,2">
-          <Border BorderBrush="#0078D7" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <Expander Header="Information" ToolTip="View system details" FontSize="12" Foreground="#00008B" IsExpanded="True" Margin="0,2,0,2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="LoggedOnUserText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <TextBlock x:Name="MachineTypeText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
@@ -279,59 +279,56 @@ $xamlString = @"
           </Border>
         </Expander>
         <!-- Announcements Section -->
-        <Expander x:Name="AnnouncementsExpander" ToolTip="View latest announcements" FontSize="12" Foreground="#000080" IsExpanded="False" Margin="0,2,0,2">
+        <Expander x:Name="AnnouncementsExpander" ToolTip="View latest announcements" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Announcements" VerticalAlignment="Center"/>
               <Ellipse x:Name="AnnouncementsAlertIcon" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/>
             </StackPanel>
           </Expander.Header>
-          <Border BorderBrush="#000080" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="AnnouncementsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <!-- Container for dynamic announcement links -->
               <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="2"/>
             </StackPanel>
           </Border>
         </Expander>
         <!-- Patching and Updates Section -->
-        <Expander Header="Patching and Updates" ToolTip="View patching status" FontSize="12" Foreground="#008000" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#008000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <Expander Header="Patching and Updates" ToolTip="View patching status" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
         </Expander>
         <!-- Support Section -->
-        <Expander Header="Support" ToolTip="Contact IT support" FontSize="12" Foreground="#800000" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#800000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <Expander Header="Support" ToolTip="Contact IT support" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="SupportText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <!-- Container for dynamic support links -->
               <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="2"/>
             </StackPanel>
           </Border>
         </Expander>
         <!-- Early Adopter Section -->
-        <Expander Header="Open Early Adopter Testing" ToolTip="Join beta program" FontSize="12" Foreground="#FF00FF" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#FF00FF" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <Expander Header="Open Early Adopter Testing" ToolTip="Join beta program" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="EarlyAdopterText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <!-- Container for dynamic early adopter links -->
               <StackPanel x:Name="EarlyAdopterLinksPanel" Orientation="Vertical" Margin="2"/>
             </StackPanel>
           </Border>
         </Expander>
         <!-- Compliance Section -->
-        <Expander x:Name="ComplianceExpander" ToolTip="Check compliance status" FontSize="12" Foreground="#B22222" IsExpanded="False" Margin="0,2,0,2">
+        <Expander x:Name="ComplianceExpander" ToolTip="Check compliance status" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Compliance" VerticalAlignment="Center"/>
               <Ellipse x:Name="ComplianceStatusIndicator" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/>
             </StackPanel>
           </Expander.Header>
-          <Border BorderBrush="#B22222" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <Border BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2" x:Name="AntivirusBorder">
                 <StackPanel>
@@ -367,8 +364,8 @@ $xamlString = @"
           </Border>
         </Expander>
         <!-- Logs Section -->
-        <Expander Header="Logs" ToolTip="View recent logs" FontSize="12" Foreground="#ff8c00" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#ff8c00" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <Expander Header="Logs" ToolTip="View recent logs" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <ListView x:Name="LogListView" FontSize="10" Margin="2" Height="120">
                 <ListView.View>
@@ -383,8 +380,8 @@ $xamlString = @"
           </Border>
         </Expander>
         <!-- About Section -->
-        <Expander Header="About" ToolTip="View app info and changelog" FontSize="12" Foreground="#000000" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#000000" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
+        <Expander Header="About" ToolTip="View app info and changelog" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
                 <TextBlock.Text><![CDATA[
@@ -409,6 +406,7 @@ Changelog:
 </Window>
 "@
 
+
 # ============================================================
 # F) Load and Verify XAML
 # ============================================================
@@ -417,7 +415,13 @@ $xmlDoc.LoadXml($xamlString)
 $reader = New-Object System.Xml.XmlNodeReader $xmlDoc
 try {
     $window = [Windows.Markup.XamlReader]::Load($reader)
-    Write-Log "XAML loaded successfully" -Level "INFO"
+	$window.Width = 350
+$window.Height = 500
+$window.Left = 100  # Set initial position but don’t show yet
+$window.Top = 100
+$window.WindowState = 'Normal'
+Write-Log "Initial window setup: Left=100, Top=100, Width=350, Height=500, State=$($window.WindowState)" -Level "INFO"
+# Do NOT set Visibility or Hide here; let Toggle-WindowVisibility handle it
 }
 catch {
     Handle-Error "Failed to load the XAML layout: $_" -Source "XAML"
@@ -1143,22 +1147,18 @@ function Export-Logs {
 function Set-WindowPosition {
     try {
         $window.Dispatcher.Invoke({
-            # Set a minimum size immediately
             if ($window.ActualWidth -eq 0 -or $window.ActualHeight -eq 0) {
                 $window.Width = 350
                 $window.Height = 500
-                $window.UpdateLayout()  # Force layout update after setting size
+                $window.UpdateLayout()
             }
 
-            # Get primary screen working area
             $primary = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
             Write-Log "Primary screen: X=$($primary.X), Y=$($primary.Y), Width=$($primary.Width), Height=$($primary.Height)" -Level "INFO"
 
-            # Calculate position
-            $left = $primary.X + $primary.Width - $window.ActualWidth - 10
-            $top = $primary.Y + $primary.Height - $window.ActualHeight - 50
+            $left = $primary.X + ($primary.Width - $window.ActualWidth) / 2  # Center horizontally
+            $top = $primary.Y + ($primary.Height - $window.ActualHeight) / 2  # Center vertically
 
-            # Ensure within bounds
             $left = [Math]::Max($primary.X, [Math]::Min($left, $primary.X + $primary.Width - $window.ActualWidth))
             $top = [Math]::Max($primary.Y, [Math]::Min($top, $primary.Y + $primary.Height - $window.ActualHeight))
 
@@ -1181,14 +1181,16 @@ function Toggle-WindowVisibility {
             }
             else {
                 Set-WindowPosition
-                $window.Show()         # Show the window
-                $window.Activate()     # Bring it to the foreground
-                $window.Topmost = $true  # Ensure it’s on top briefly
-                Start-Sleep -Milliseconds 100  # Small delay
-                $window.Topmost = $false  # Reset Topmost
-                Write-Log "Dashboard shown via Toggle-WindowVisibility at Left=$($window.Left), Top=$($window.Top)" -Level "INFO"
+                $window.Show()
+                $window.WindowState = 'Normal'
+                $window.Activate()
+                $window.Topmost = $true
+                Start-Sleep -Milliseconds 500
+                $window.Topmost = $false
+                Write-Log "Dashboard shown via Toggle-WindowVisibility at Left=$($window.Left), Top=$($window.Top), Visibility=$($window.Visibility), State=$($window.WindowState)" -Level "INFO"
+                Write-Log "Post-Show: IsVisible=$($window.IsVisible), IsActive=$($window.IsActive), ZOrder=$($window.Topmost)" -Level "INFO"
             }
-        })
+        }, "Normal")
     }
     catch {
         Handle-Error "Error toggling window visibility: $_" -Source "Toggle-WindowVisibility"
