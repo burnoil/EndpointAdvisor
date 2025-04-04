@@ -1,6 +1,6 @@
 {
   "Announcements": {
-    "Text": "System Monitor v1.2 released on 2025-04-04. Work in progress.",
+    "Text": "System Monitor v1.1.0 released on 2025-04-04. Work in progress.",
     "Details": "All systems are running normally. Please review the latest updates.",
     "Links": [
       { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
@@ -9,7 +9,7 @@
     ]
   },
   "Support": {
-    "Text": "This section updated on 2025-04-04. For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
+    "Text": "Updated on 2025-04-04. For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
     "Links": [
       { "Name": "Test Knowledge Base", "Url": "https://support.company.com/help" },
       { "Name": "Test Submit Ticket", "Url": "https://support.company.com/tickets" }
