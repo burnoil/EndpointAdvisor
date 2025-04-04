@@ -9,7 +9,7 @@
     ]
   },
   "Support": {
-    "Text": "Updated on 2025-04-04. For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
+    "Text": "This section updated on 2025-04-04. For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
     "Links": [
       { "Name": "Test Knowledge Base", "Url": "https://support.company.com/help" },
       { "Name": "Test Submit Ticket", "Url": "https://support.company.com/tickets" }
