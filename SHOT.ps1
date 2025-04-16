@@ -142,8 +142,8 @@ function Get-StaticSystemInfo {
 $LogFilePath = Join-Path $ScriptDir "SHOT.log"
 $config = Load-Configuration
 
-# Override the icon paths so that they always use the current $ScriptDir.
-$config.IconPaths.Main = Join-Path $ScriptDir "icon.ico"
+# Use healthy.ico for the normal state, warning.ico when anything alerts.
+$config.IconPaths.Main    = Join-Path $ScriptDir "healthy.ico"
 $config.IconPaths.Warning = Join-Path $ScriptDir "warning.ico"
 
 $mainIconPath = $config.IconPaths.Main
@@ -865,8 +865,26 @@ function Get-Icon {
 function Update-TrayIcon {
     try {
         if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
-            $someCondition = $false
-            $iconPath = if ($someCondition) { $config.IconPaths.Warning } else { $config.IconPaths.Main }
+            # Check if any section still has its red-dot visible
+            $hasAlert = $false
+            foreach ($icon in @(
+                $global:AnnouncementsAlertIcon,
+                $global:SupportAlertIcon,
+                $global:EarlyAdopterAlertIcon
+            )) {
+                if ($icon -and $icon.Visibility -eq 'Visible') {
+                    $hasAlert = $true
+                    break
+                }
+            }
+
+            # Choose healthy vs warning
+            $iconPath = if ($hasAlert) {
+                $config.IconPaths.Warning
+            } else {
+                $config.IconPaths.Main
+            }
+
             $global:TrayIcon.Icon = Get-Icon -Path $iconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
             Write-Log "Tray icon updated to $iconPath" -Level "INFO"
         }
