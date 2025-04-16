@@ -776,6 +776,38 @@ function Update-EarlyAdopter {
     }
 }
 
+function Update-PatchingUpdates {
+    try {
+        $patchFilePath = if ([System.IO.Path]::IsPathRooted($config.PatchInfoFilePath)) {
+            $config.PatchInfoFilePath
+        }
+        else {
+            Join-Path $ScriptDir $config.PatchInfoFilePath
+        }
+        Write-Log "Resolved patch file path: $patchFilePath" -Level "INFO"
+        if (Test-Path $patchFilePath -PathType Leaf) {
+            $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
+            $patchText = if ([string]::IsNullOrWhiteSpace($patchContent)) { 
+                "Patch info file is empty." 
+            } else { 
+                $patchContent.Trim() 
+            }
+            Write-Log "Successfully read patch info: $patchText" -Level "INFO"
+        }
+        else {
+            $patchText = "Patch info file not found at $patchFilePath."
+            Write-Log "Patch info file not found: $patchFilePath" -Level "WARNING"
+        }
+        $window.Dispatcher.Invoke({ $global:PatchingUpdatesText.Text = $patchText })
+        Write-Log "Patching status updated: $patchText" -Level "INFO"
+    }
+    catch {
+        $errorMessage = "Error reading patch info file: $_"
+        Write-Log $errorMessage -Level "ERROR"
+        $window.Dispatcher.Invoke({ $global:PatchingUpdatesText.Text = $errorMessage })
+    }
+}
+
 # ------------------------------------------------------------
 # System Information Update
 # ------------------------------------------------------------
@@ -943,6 +975,7 @@ function Update-UIElements {
     & "Update-Announcements"
     & "Update-Support"
     & "Update-EarlyAdopter"
+    & "Update-PatchingUpdates"
     Update-CertificateInfo
 }
 
@@ -1078,6 +1111,7 @@ $global:DispatcherTimer.add_Tick({
         & "Update-Announcements"
         & "Update-Support"
         & "Update-EarlyAdopter"
+		& "Update-PatchingUpdates"
         Update-CertificateInfo
         Write-Log "Dispatcher tick completed" -Level "INFO"
     }
@@ -1116,6 +1150,7 @@ try {
     try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $_" -Source "InitialUpdate" }
     try { Update-Support } catch { Handle-Error "Update-Support failed: $_" -Source "InitialUpdate" }
     try { Update-EarlyAdopter } catch { Handle-Error "Update-EarlyAdopter failed: $_" -Source "InitialUpdate" }
+	try { Update-PatchingUpdates }      catch { Handle-Error "Update-PatchingUpdates failed: $_" -Source "InitialUpdate" }
     try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $_" -Source "InitialUpdate" }
     Log-DotNetVersion
     Write-Log "Initial update completed" -Level "INFO"
