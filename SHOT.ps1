@@ -46,12 +46,12 @@ Write-Log "Script directory resolved as: $ScriptDir" -Level "INFO"
 # ============================================================
 function Get-DefaultConfig {
     return @{
-        RefreshInterval       = 30
+        RefreshInterval       = 90
         LogRotationSizeMB     = 5
         DefaultLogLevel       = "INFO"
         ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/SHOT/refs/heads/main/ContentData.json"
-        ContentFetchInterval  = 60
-        YubiKeyAlertDays      = 7
+        ContentFetchInterval  = 120
+        YubiKeyAlertDays      = 14
         IconPaths             = @{
             Main    = Join-Path $ScriptDir "icon.ico"
             Warning = Join-Path $ScriptDir "warning.ico"
@@ -244,7 +244,7 @@ $xamlString = @"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="SHOT - System Health Observation Tool"
     WindowStartupLocation="Manual"
-    SizeToContent="WidthAndHeight"
+    SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
     MaxWidth="400" MaxHeight="550"
     ResizeMode="CanResize"
@@ -354,7 +354,7 @@ $xamlString = @"
         <Expander Header="Logs" ToolTip="View recent logs" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
-              <ListView x:Name="LogListView" FontSize="10" Margin="2" Height="120">
+              <ListView x:Name="LogListView" FontSize="10" Margin="2" Height="120" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling">
                 <ListView.View>
                   <GridView>
                     <GridViewColumn Header="Timestamp" Width="100" DisplayMemberBinding="{Binding Timestamp}" />
