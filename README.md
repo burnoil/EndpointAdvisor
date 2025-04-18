@@ -1,7 +1,8 @@
 # MITSI (MIT System Info)
 ### MITSI (MIT System Info) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory and is currently a work in progress.
 
-![MITSI](https://github.com/user-attachments/assets/373ccb4a-a96e-46eb-9f8c-935cb466a3c2)
+![MITSI](https://github.com/user-attachments/assets/388e4f47-9bad-43ff-9238-69a4b2786f27)
+
 
 
 ## Features
