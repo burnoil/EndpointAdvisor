@@ -1,7 +1,7 @@
-# SHOT (System Health Observation Tool)
-### SHOT (System Health Observation Tool) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory and is currently a work in progress.
+# MITSI (MIT System Info)
+### MITSI (MIT System Info) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory and is currently a work in progress.
 
-![SHOT](https://github.com/user-attachments/assets/373ccb4a-a96e-46eb-9f8c-935cb466a3c2)
+![MITSI](https://github.com/user-attachments/assets/373ccb4a-a96e-46eb-9f8c-935cb466a3c2)
 
 
 ## Features
@@ -11,7 +11,7 @@
 - Real-Time Alerts: Notifies users of YubiKey certificate expirations (configurable threshold, default 7 days) via tray       balloon tips.
 - Announcements: Displays updates with a red dot alert, fetched from a configurable JSON source.
 - Tray Integration: Collapsible context menu with quick actions (Show Dashboard, Refresh, Export Logs, Exit).
-- Logging: Detailed logs saved to SHOT.log with rotation support.
+- Logging: Detailed logs saved to MITSI.log with rotation support.
 - Async Operations: Non-blocking YubiKey certificate checks for smooth UI performance.
 
 ## Tech
@@ -26,15 +26,15 @@
 
 ## Running it
 - Icons: icon.ico (main) and warning.ico (non-healthy state) in the script directory.
-- Installation Place Icons: Copy icon.ico and warning.ico to the script directory (e.g., C:\SHOT). If missing, the app falls back to default system icons.
-- Run the Script: Open PowerShell as Administrator (recommended for full system access). Execute: powershell Unwrap Copy .\SHOT.ps1
-- Ensure Tray Visibility (Optional): Right-click the taskbar → "Taskbar settings" → "Notification area" → "Select which icons appear on the taskbar". Set "SHOT" to "On" for persistent visibility.
+- Installation Place Icons: Copy icon.ico and warning.ico to the script directory (e.g., C:\MITSI). If missing, the app falls back to default system icons.
+- Run the Script: Open PowerShell as Administrator (recommended for full system access). Execute: powershell Unwrap Copy .\MITSI.ps1
+- Ensure Tray Visibility (Optional): Right-click the taskbar → "Taskbar settings" → "Notification area" → "Select which icons appear on the taskbar". Set "MITSI" to "On" for persistent visibility.
 - Usage Tray Icon: Displays icon.ico when healthy, warning.ico if issues are detected. Left-click to toggle the dashboard; right-click for the context menu. 
 - Dashboard: Expand sections (e.g., "Information", "Compliance") to view details. 
 - Announcements: Red dot appears on new updates; expand to clear. YubiKey Alerts: Balloon tip shown when certificate nears expiry (default: ≤7 days). 
-- Logs: View recent logs in the "Logs" section or export via the tray menu. Configuration The app uses SHOT.config.json for settings. Default configuration:
+- Logs: View recent logs in the "Logs" section or export via the tray menu. Configuration The app uses MITSI.config.json for settings. Default configuration:
 
-# SHOT.config.json
+# MITSI.config.json
 ```json
 {
     "LogRotationSizeMB":  5,
