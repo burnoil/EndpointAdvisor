@@ -1,4 +1,4 @@
-# SystemMonitor.ps1 - Renamed to SHOT (System Health Observation Tool)
+# MITSI.ps1 - MIT System Info
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -19,7 +19,7 @@ function Write-Log {
         [ValidateSet("INFO", "WARNING", "ERROR")]
         [string]$Level = "INFO"
     )
-    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "SHOT.log" }
+    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "MITSI.log" }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] [$Level] $Message"
     try {
@@ -47,13 +47,13 @@ Write-Log "Script directory resolved as: $ScriptDir" -Level "INFO"
 function Get-DefaultConfig {
     return @{
         RefreshInterval       = 90
-        LogRotationSizeMB     = 5
+        LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/SHOT/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/MITSI/refs/heads/main/ContentData.json"
         ContentFetchInterval  = 120
         YubiKeyAlertDays      = 14
         IconPaths             = @{
-            Main    = Join-Path $ScriptDir "icon.ico"
+            Main    = Join-Path $ScriptDir "healthy.ico"
             Warning = Join-Path $ScriptDir "warning.ico"
         }
         YubiKeyLastCheck      = @{
@@ -70,7 +70,7 @@ function Get-DefaultConfig {
 
 function Load-Configuration {
     param(
-        [string]$Path = (Join-Path $ScriptDir "SHOT.config.json")
+        [string]$Path = (Join-Path $ScriptDir "MITSI.config.json")
     )
     $defaultConfig = Get-DefaultConfig
     if (Test-Path $Path) {
@@ -81,6 +81,12 @@ function Load-Configuration {
                 if (-not $config.PSObject.Properties.Match($key)) {
                     $config | Add-Member -NotePropertyName $key -NotePropertyValue $defaultConfig[$key]
                 }
+            }
+            # Update LogRotationSizeMB to 2 if using old value
+            if ($config.LogRotationSizeMB -ne 2) {
+                $config.LogRotationSizeMB = 2
+                Save-Configuration -Config $config -Path $Path
+                Write-Log "Updated LogRotationSizeMB to 2 in $Path" -Level "INFO"
             }
             return $config
         }
@@ -99,7 +105,7 @@ function Load-Configuration {
 function Save-Configuration {
     param(
         [psobject]$Config,
-        [string]$Path = (Join-Path $ScriptDir "SHOT.config.json")
+        [string]$Path = (Join-Path $ScriptDir "MITSI.config.json")
     )
     $Config | ConvertTo-Json -Depth 3 | Out-File $Path -Force
 }
@@ -139,7 +145,7 @@ function Get-StaticSystemInfo {
 # ============================================================
 # B) External Configuration Setup
 # ============================================================
-$LogFilePath = Join-Path $ScriptDir "SHOT.log"
+$LogFilePath = Join-Path $ScriptDir "MITSI.log"
 $config = Load-Configuration
 
 # Use healthy.ico for the normal state, warning.ico when anything alerts.
@@ -200,6 +206,16 @@ function Rotate-LogFile {
                 $archivePath = "$LogFilePath.$(Get-Date -Format 'yyyyMMddHHmmss').archive"
                 Rename-Item -Path $LogFilePath -NewName $archivePath
                 Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
+
+                # Limit to 5 most recent archive files
+                $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "MITSI.log.*.archive" | Sort-Object LastWriteTime -Descending
+                if ($archiveFiles.Count -gt 5) {
+                    $filesToDelete = $archiveFiles | Select-Object -Skip 5
+                    foreach ($file in $filesToDelete) {
+                        Remove-Item -Path $file.FullName -Force
+                        Write-Log "Deleted old archive: $($file.FullName)" -Level "INFO"
+                    }
+                }
             }
         }
     }
@@ -229,20 +245,51 @@ function Log-DotNetVersion {
 # ============================================================
 # D) Import Required Assemblies
 # ============================================================
-Add-Type -AssemblyName PresentationFramework
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+function Import-RequiredAssemblies {
+    try {
+        # Check PowerShell version
+        $psVersion = $PSVersionTable.PSVersion
+        $isWindowsPowerShell = $PSVersionTable.PSEdition -eq "Desktop" -or $psVersion.Major -le 5
+        Write-Log "PowerShell Version: $psVersion, Edition: $($PSVersionTable.PSEdition)" -Level "INFO"
+
+        if (-not $isWindowsPowerShell) {
+            Write-Log "Running in PowerShell Core/7. System.Windows.Forms may not be fully supported." -Level "WARNING"
+        }
+
+        # Load assemblies with error handling
+        Add-Type -AssemblyName PresentationFramework -ErrorAction Stop
+        Write-Log "Loaded PresentationFramework assembly" -Level "INFO"
+
+        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        Write-Log "Loaded System.Windows.Forms assembly" -Level "INFO"
+
+        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+        Write-Log "Loaded System.Drawing assembly" -Level "INFO"
+
+        return $true
+    }
+    catch {
+        Write-Log "Failed to load required assemblies: $_" -Level "ERROR"
+        if ($_.Exception.Message -match "System.Windows.Forms") {
+            Write-Log "System.Windows.Forms is unavailable. Tray icon functionality will be disabled." -Level "WARNING"
+            return $false
+        }
+        throw $_ # Re-throw if other assemblies fail
+    }
+}
+
+# Import assemblies and store result
+$global:FormsAvailable = Import-RequiredAssemblies
 
 # ============================================================
 # E) XAML Layout Definition with Visual Enhancements
 # ============================================================
-# The Compliance section now shows combined certificate info (YubiKey and Microsoft Virtual Smart Card)
 $xamlString = @"
 <?xml version="1.0" encoding="utf-8"?>
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="SHOT - System Health Observation Tool"
+    Title="MITSI - MIT System Info"
     WindowStartupLocation="Manual"
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
@@ -262,7 +309,7 @@ $xamlString = @"
     <Border Grid.Row="0" Background="#0078D7" Padding="4" CornerRadius="2" Margin="0,0,0,4">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
         <Image Source="{Binding MainIconUri}" Width="20" Height="20" Margin="0,0,4,0"/>
-        <TextBlock Text="System Health Observation Tool"
+        <TextBlock Text="MIT System Info"
                    FontSize="14" FontWeight="Bold" Foreground="White"
                    VerticalAlignment="Center"/>
       </StackPanel>
@@ -296,6 +343,7 @@ $xamlString = @"
               <TextBlock x:Name="AnnouncementsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="2"/>
+              <TextBlock x:Name="AnnouncementsSourceText" FontSize="9" Foreground="Gray" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -319,6 +367,7 @@ $xamlString = @"
             <StackPanel>
               <TextBlock x:Name="SupportText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="2"/>
+              <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -334,10 +383,11 @@ $xamlString = @"
             <StackPanel>
               <TextBlock x:Name="EarlyAdopterText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <StackPanel x:Name="EarlyAdopterLinksPanel" Orientation="Vertical" Margin="2"/>
+              <TextBlock x:Name="EarlyAdopterSourceText" FontSize="9" Foreground="Gray" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Compliance Section (Modified: shows combined certificate info for YubiKey and Microsoft Virtual Smart Card) -->
+        <!-- Compliance Section -->
         <Expander x:Name="ComplianceExpander" ToolTip="Certificate Status" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
@@ -372,8 +422,8 @@ $xamlString = @"
             <StackPanel>
               <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
                 <TextBlock.Text><![CDATA[
-SHOT v1.1.0
-© 2025 SHOT. All rights reserved.
+MITSI v1.1.0
+© 2025 MITSI. All rights reserved.
 Built with PowerShell and WPF.
 
 Changelog:
@@ -388,7 +438,7 @@ Changelog:
       </StackPanel>
     </ScrollViewer>
     <!-- Footer Section -->
-    <TextBlock Grid.Row="2" Text="© 2025 SHOT" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+    <TextBlock Grid.Row="2" Text="© 2025 MITSI" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,4,0,0"/>
   </Grid>
 </Window>
 "@
@@ -429,20 +479,22 @@ try {
     $global:AnnouncementsText = $window.FindName("AnnouncementsText")
     $global:AnnouncementsDetailsText = $window.FindName("AnnouncementsDetailsText")
     $global:AnnouncementsLinksPanel = $window.FindName("AnnouncementsLinksPanel")
+    $global:AnnouncementsSourceText = $window.FindName("AnnouncementsSourceText")
     $global:SupportExpander = $window.FindName("SupportExpander")
     $global:SupportAlertIcon = $window.FindName("SupportAlertIcon")
     $global:SupportText = $window.FindName("SupportText")
     $global:SupportLinksPanel = $window.FindName("SupportLinksPanel")
+    $global:SupportSourceText = $window.FindName("SupportSourceText")
     $global:EarlyAdopterExpander = $window.FindName("EarlyAdopterExpander")
     $global:EarlyAdopterAlertIcon = $window.FindName("EarlyAdopterAlertIcon")
     $global:EarlyAdopterText = $window.FindName("EarlyAdopterText")
     $global:EarlyAdopterLinksPanel = $window.FindName("EarlyAdopterLinksPanel")
+    $global:EarlyAdopterSourceText = $window.FindName("EarlyAdopterSourceText")
     $global:PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
     $global:YubiKeyComplianceText = $window.FindName("YubiKeyComplianceText")
     $global:LogListView = $window.FindName("LogListView")
     $global:ExportLogsButton = $window.FindName("ExportLogsButton")
-	# Clear the red alert‐dot when the Expander is opened
-    #
+    # Clear the red alert-dot when the Expander is opened
     if ($global:AnnouncementsExpander) {
         $global:AnnouncementsExpander.Add_Expanded({
             $window.Dispatcher.Invoke({
@@ -479,11 +531,14 @@ try {
     Write-Log "SupportLinksPanel null? $($global:SupportLinksPanel -eq $null)" -Level "INFO"
     Write-Log "SupportExpander null? $($global:SupportExpander -eq $null)" -Level "INFO"
     Write-Log "SupportAlertIcon null? $($global:SupportAlertIcon -eq $null)" -Level "INFO"
+    Write-Log "SupportSourceText null? $($global:SupportSourceText -eq $null)" -Level "INFO"
     Write-Log "EarlyAdopterText null? $($global:EarlyAdopterText -eq $null)" -Level "INFO"
     Write-Log "EarlyAdopterLinksPanel null? $($global:EarlyAdopterLinksPanel -eq $null)" -Level "INFO"
     Write-Log "EarlyAdopterExpander null? $($global:EarlyAdopterExpander -eq $null)" -Level "INFO"
     Write-Log "EarlyAdopterAlertIcon null? $($global:EarlyAdopterAlertIcon -eq $null)" -Level "INFO"
+    Write-Log "EarlyAdopterSourceText null? $($global:EarlyAdopterSourceText -eq $null)" -Level "INFO"
     Write-Log "AnnouncementsText null? $($global:AnnouncementsText -eq $null)" -Level "INFO"
+    Write-Log "AnnouncementsSourceText null? $($global:AnnouncementsSourceText -eq $null)" -Level "INFO"
     Write-Log "PatchingUpdatesText null? $($global:PatchingUpdatesText -eq $null)" -Level "INFO"
 }
 catch {
@@ -498,9 +553,20 @@ if ($window -eq $null) {
 $window.Add_Closing({
     param($sender, $eventArgs)
     try {
-        $eventArgs.Cancel = $true
-        $window.Hide()
-        Write-Log "Dashboard hidden via window closing event. Visibility=$($window.Visibility), IsVisible=$($window.IsVisible)" -Level "INFO"
+        if ($global:FormsAvailable -and $global:TrayIcon) {
+            $eventArgs.Cancel = $true
+            $window.Hide()
+            Write-Log "Dashboard hidden via window closing event. Visibility=$($window.Visibility), IsVisible=$($window.IsVisible)" -Level "INFO"
+        }
+        else {
+            # Exit application if tray icon is unavailable
+            if ($global:DispatcherTimer) {
+                $global:DispatcherTimer.Stop()
+                Write-Log "DispatcherTimer stopped." -Level "INFO"
+            }
+            $window.Dispatcher.InvokeShutdown()
+            Write-Log "Application exited via window closing (no tray icon)." -Level "INFO"
+        }
     }
     catch {
         Handle-Error "Error handling window closing: $_" -Source "WindowClosing"
@@ -525,7 +591,10 @@ function Fetch-ContentData {
         Write-Log "Raw ContentDataUrl from config: '$url'" -Level "INFO"
         if ($global:LastContentFetch -and ((Get-Date) - $global:LastContentFetch).TotalSeconds -lt $config.ContentFetchInterval) {
             Write-Log "Using cached content data" -Level "INFO"
-            return $global:CachedContentData
+            return [PSCustomObject]@{
+                Data   = $global:CachedContentData
+                Source = "Cache"
+            }
         }
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         if ($url -match "^(?i)(http|https)://") {
@@ -552,11 +621,18 @@ function Fetch-ContentData {
         }
         $global:CachedContentData = $contentData
         $global:LastContentFetch = Get-Date
-        return $contentData
+        Write-Log "Content fetched from remote source: $url" -Level "INFO"
+        return [PSCustomObject]@{
+            Data   = $contentData
+            Source = "Remote"
+        }
     }
     catch {
         Write-Log "Failed to fetch content data from ${url}: $_" -Level "ERROR"
-        return $defaultContentData
+        return [PSCustomObject]@{
+            Data   = $defaultContentData
+            Source = "Default"
+        }
     }
 }
 
@@ -565,17 +641,43 @@ function Fetch-ContentData {
 # ------------------------------------------------------------
 function Get-YubiKeyCertExpiryDays {
     try {
-        if (-not (Test-Path "C:\Program Files\Yubico\Yubikey Manager\ykman.exe")) {
-            throw "ykman.exe not found at C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
+        $primaryPath = "C:\Program Files\Yubico\YubiKey Manager\ykman.exe"
+        $fallbackPaths = @(
+            "C:\Program Files\Yubico\YubiKey Manager\ykman.exe",
+            "C:\Program Files (x86)\Yubico\YubiKey Manager\ykman.exe",
+            "C:\Program Files\Yubico\ykman.exe",
+            "C:\Program Files (x86)\Yubico\ykman.exe"
+        )
+
+        $ykmanPath = $null
+        Write-Log "Checking for ykman.exe at primary path: $primaryPath" -Level "INFO"
+        if (Test-Path $primaryPath) {
+            $ykmanPath = $primaryPath
+            Write-Log "Found ykman.exe at primary path: $primaryPath" -Level "INFO"
         }
-        Write-Log "ykman.exe found at C:\Program Files\Yubico\Yubikey Manager\ykman.exe" -Level "INFO"
-        $yubiKeyInfo = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" info 2>$null
+        else {
+            Write-Log "Primary path not found: $primaryPath" -Level "WARNING"
+            foreach ($path in $fallbackPaths) {
+                Write-Log "Checking fallback path: $path" -Level "INFO"
+                if (Test-Path $path) {
+                    $ykmanPath = $path
+                    Write-Log "Fallback: Found ykman.exe at $path" -Level "INFO"
+                    break
+                }
+            }
+        }
+
+        if (-not $ykmanPath) {
+            throw "ykman.exe not found at primary path ($primaryPath) or any fallback paths"
+        }
+
+        $yubiKeyInfo = & $ykmanPath info 2>$null
         if (-not $yubiKeyInfo) {
             Write-Log "No YubiKey detected" -Level "INFO"
             return "YubiKey not present"
         }
         Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
-        $pivInfo = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" "piv" "info" 2>$null
+        $pivInfo = & $ykmanPath "piv" "info" 2>$null
         if ($pivInfo) {
             Write-Log "PIV info: $pivInfo" -Level "INFO"
         }
@@ -587,7 +689,7 @@ function Get-YubiKeyCertExpiryDays {
         $slotUsed = $null
         foreach ($slot in $slots) {
             Write-Log "Checking slot $slot for certificate" -Level "INFO"
-            $certPem = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" "piv" "certificates" "export" $slot "-" 2>$null
+            $certPem = & $ykmanPath "piv" "certificates" "export" $slot "-" 2>$null
             if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
                 $slotUsed = $slot
                 Write-Log "Certificate found in slot $slot" -Level "INFO"
@@ -607,18 +709,13 @@ function Get-YubiKeyCertExpiryDays {
         return "YubiKey Certificate (Slot $slotUsed): Expires: $expiryDateFormatted"
     }
     catch {
-        if ($_.Exception.Message -ne "No YubiKey detected by ykman") {
-            Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
-            return "YubiKey Certificate: Unable to determine expiry date - $_"
-        }
+        Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
+        return "YubiKey Certificate: Unable to determine expiry date - $_"
     }
 }
 
-
-# Updated Virtual Smart Card check function.
 function Get-VirtualSmartCardCertExpiry {
     try {
-        # Use a broader criteria that includes "Virtual", "VSC", "TPM", or "Identity Device"
         $criteria = "Virtual|VSC|TPM|Identity Device"
         $virtualCerts = @()
         foreach ($store in @("Cert:\CurrentUser\My", "Cert:\LocalMachine\My")) {
@@ -653,7 +750,7 @@ function Update-CertificateInfo {
         Write-Log "Certificate info updated: $combinedStatus" -Level "INFO"
     }
     catch {
-         Write-Log "Failed to update certificate info: $_" -Level "ERROR"
+        Write-Log "Failed to update certificate info: $_" -Level "ERROR"
     }
 }
 
@@ -662,11 +759,11 @@ function Update-CertificateInfo {
 # ------------------------------------------------------------
 function Update-Announcements {
     try {
-        # Grab current and last state
-        $current = $global:contentData.Announcements
-        $last    = $config.AnnouncementsLastState
+        $contentResult = $global:contentData
+        $current = $contentResult.Data.Announcements
+        $source = $contentResult.Source
+        $last = $config.AnnouncementsLastState
 
-        # If there was a previous state and the Text changed, show the red dot
         if ($last -and $current.Text -ne $last.Text -and -not $global:AnnouncementsExpander.IsExpanded) {
             $window.Dispatcher.Invoke({
                 if ($global:AnnouncementsAlertIcon) {
@@ -675,9 +772,8 @@ function Update-Announcements {
             })
         }
 
-        # Populate the UI
         $window.Dispatcher.Invoke({
-            $global:AnnouncementsText.Text        = $current.Text
+            $global:AnnouncementsText.Text = $current.Text
             $global:AnnouncementsDetailsText.Text = $current.Details
             $global:AnnouncementsLinksPanel.Children.Clear()
             foreach ($link in $current.Links) {
@@ -689,13 +785,15 @@ function Update-Announcements {
                 $tb.Inlines.Add($hp)
                 $global:AnnouncementsLinksPanel.Children.Add($tb)
             }
+            if ($global:AnnouncementsSourceText) {
+                $global:AnnouncementsSourceText.Text = "Source: $source"
+            }
         })
 
-        # Save new “last state”
         $config.AnnouncementsLastState = $current
         Save-Configuration -Config $config
 
-        Write-Log "Announcements updated." -Level "INFO"
+        Write-Log "Announcements updated from $source." -Level "INFO"
     }
     catch {
         Write-Log "Error updating Announcements: $_" -Level "ERROR"
@@ -704,8 +802,10 @@ function Update-Announcements {
 
 function Update-Support {
     try {
-        $current = $global:contentData.Support
-        $last    = $config.SupportLastState
+        $contentResult = $global:contentData
+        $current = $contentResult.Data.Support
+        $source = $contentResult.Source
+        $last = $config.SupportLastState
 
         if ($last -and $current.Text -ne $last.Text -and -not $global:SupportExpander.IsExpanded) {
             $window.Dispatcher.Invoke({
@@ -727,12 +827,15 @@ function Update-Support {
                 $tb.Inlines.Add($hp)
                 $global:SupportLinksPanel.Children.Add($tb)
             }
+            if ($global:SupportSourceText) {
+                $global:SupportSourceText.Text = "Source: $source"
+            }
         })
 
         $config.SupportLastState = $current
         Save-Configuration -Config $config
 
-        Write-Log "Support updated." -Level "INFO"
+        Write-Log "Support updated from $source." -Level "INFO"
     }
     catch {
         Write-Log "Error updating Support: $_" -Level "ERROR"
@@ -741,8 +844,10 @@ function Update-Support {
 
 function Update-EarlyAdopter {
     try {
-        $current = $global:contentData.EarlyAdopter
-        $last    = $config.EarlyAdopterLastState
+        $contentResult = $global:contentData
+        $current = $contentResult.Data.EarlyAdopter
+        $source = $contentResult.Source
+        $last = $config.EarlyAdopterLastState
 
         if ($last -and $current.Text -ne $last.Text -and -not $global:EarlyAdopterExpander.IsExpanded) {
             $window.Dispatcher.Invoke({
@@ -764,12 +869,15 @@ function Update-EarlyAdopter {
                 $tb.Inlines.Add($hp)
                 $global:EarlyAdopterLinksPanel.Children.Add($tb)
             }
+            if ($global:EarlyAdopterSourceText) {
+                $global:EarlyAdopterSourceText.Text = "Source: $source"
+            }
         })
 
         $config.EarlyAdopterLastState = $current
         Save-Configuration -Config $config
 
-        Write-Log "Early Adopter updated." -Level "INFO"
+        Write-Log "Early Adopter updated from $source." -Level "INFO"
     }
     catch {
         Write-Log "Error updating Early Adopter: $_" -Level "ERROR"
@@ -815,8 +923,26 @@ function Update-SystemInfo {
     try {
         $loggedOnUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[1]
         $machineType = (Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer
-        $osVersion = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName + " (Build " + (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuild + ")"
-        $uptime = (Get-Date) - (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+        $regProps = Get-ItemProperty $regPath
+        $buildNumber = [int]$regProps.CurrentBuild
+        $displayVersion = $regProps.DisplayVersion -or "Unknown"
+        $productName = $regProps.ProductName
+
+        # Determine Windows 11 based on build number
+        if ($buildNumber -ge 22000) {
+            $osVersion = "Microsoft Windows 11 (Build $buildNumber, $displayVersion)"
+        }
+        else {
+            $osVersion = "$productName (Build $buildNumber, $displayVersion)"
+        }
+
+        # Cross-check with CIM
+        $cimOS = Get-CimInstance -ClassName Win32_OperatingSystem
+        $cimCaption = $cimOS.Caption
+        Write-Log "OS Info - Registry: ProductName=$productName, Build=$buildNumber, DisplayVersion=$displayVersion; CIM: Caption=$cimCaption" -Level "INFO"
+
+        $uptime = (Get-Date) - $cimOS.LastBootUpTime
         $disk = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID='C:'"
         $usedSpace = "{0:N2} GB of {1:N2} GB" -f (($disk.Size - $disk.FreeSpace) / 1GB), ($disk.Size / 1GB)
         $ipAddresses = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { 
@@ -831,16 +957,16 @@ function Update-SystemInfo {
             if ($global:UsedDiskSpaceText) { $global:UsedDiskSpaceText.Text = "Used Disk Space: $usedSpace" }
             if ($global:IpAddressText) { $global:IpAddressText.Text = "IP Address(es): $ipAddresses" }
         })
-        Write-Log "System info updated: User=$loggedOnUser, Uptime=$($uptime.Days) days" -Level "INFO"
+        Write-Log "System info updated: User=$loggedOnUser, Uptime=$($uptime.Days) days, OS=$osVersion" -Level "INFO"
     }
     catch {
         Write-Log "Error updating system information: $_" -Level "ERROR"
     }
 }
 
-# ------------------------------------------------------------
+# ============================================================
 # I) Tray Icon Management
-# ------------------------------------------------------------
+# ============================================================
 function Get-Icon {
     param(
         [string]$Path,
@@ -864,38 +990,183 @@ function Get-Icon {
 
 function Update-TrayIcon {
     try {
-        if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
-            # Check if any section still has its red-dot visible
-            $hasAlert = $false
-            foreach ($icon in @(
-                $global:AnnouncementsAlertIcon,
-                $global:SupportAlertIcon,
-                $global:EarlyAdopterAlertIcon
-            )) {
-                if ($icon -and $icon.Visibility -eq 'Visible') {
-                    $hasAlert = $true
-                    break
-                }
-            }
-
-            # Choose healthy vs warning
-            $iconPath = if ($hasAlert) {
-                $config.IconPaths.Warning
-            } else {
-                $config.IconPaths.Main
-            }
-
-            $global:TrayIcon.Icon = Get-Icon -Path $iconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-            Write-Log "Tray icon updated to $iconPath" -Level "INFO"
+        if (-not $global:FormsAvailable -or -not $global:TrayIcon -or $global:TrayIcon.IsDisposed) {
+            Write-Log "Skipping tray icon update: Tray icon is unavailable or disposed." -Level "INFO"
+            return
         }
-        else {
-            Write-Log "TrayIcon is null or disposed" -Level "ERROR"
+
+        # Check if any section still has its red-dot visible
+        $hasAlert = $false
+        foreach ($icon in @(
+            $global:AnnouncementsAlertIcon,
+            $global:SupportAlertIcon,
+            $global:EarlyAdopterAlertIcon
+        )) {
+            if ($icon -and $icon.Visibility -eq 'Visible') {
+                $hasAlert = $true
+                break
+            }
         }
+
+        # Choose healthy vs warning
+        $iconPath = if ($hasAlert) {
+            $config.IconPaths.Warning
+        } else {
+            $config.IconPaths.Main
+        }
+
+        $global:TrayIcon.Icon = Get-Icon -Path $iconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
+        Write-Log "Tray icon updated to $iconPath" -Level "INFO"
     }
     catch {
         Write-Log "Error updating tray icon: $_" -Level "ERROR"
     }
 }
+
+function Set-TrayIconAlwaysShow {
+    param(
+        [string]$IconName = "MITSI v$ScriptVersion"
+    )
+    try {
+        $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer"
+        $regName = "EnableAutoTray"
+        $regPathNotify = "HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\TrayNotify"
+        $iconRegName = "MITSI_IconVisibility"
+
+        # Check if auto-tray is disabled (0 means all icons are shown)
+        if (Test-Path $regPath) {
+            $enableAutoTray = Get-ItemProperty -Path $regPath -Name $regName -ErrorAction SilentlyContinue
+            if ($enableAutoTray.EnableAutoTray -eq 0) {
+                Write-Log "Auto-tray is disabled; all icons are shown." -Level "INFO"
+                return
+            }
+        }
+
+        # Set icon-specific visibility (1 = Always Show)
+        if (-not (Test-Path $regPathNotify)) {
+            New-Item -Path $regPathNotify -Force | Out-Null
+        }
+        $existingValue = Get-ItemProperty -Path $regPathNotify -Name $iconRegName -ErrorAction SilentlyContinue
+        if ($existingValue.$iconRegName -ne 1) {
+            Set-ItemProperty -Path $regPathNotify -Name $iconRegName -Value 1 -Type DWord -Force
+            Write-Log "Set tray icon '$IconName' to Always Show in registry." -Level "INFO"
+        }
+        else {
+            Write-Log "Tray icon '$IconName' is already set to Always Show." -Level "INFO"
+        }
+    }
+    catch {
+        Write-Log "Error setting tray icon to Always Show: $_" -Level "ERROR"
+    }
+}
+
+# ============================================================
+# M) Create & Configure Tray Icon with Collapsible Menu
+# ============================================================
+function Initialize-TrayIcon {
+    try {
+        if (-not $global:FormsAvailable) {
+            Write-Log "Skipping tray icon initialization: System.Windows.Forms is unavailable." -Level "WARNING"
+            return
+        }
+
+        $global:TrayIcon = New-Object System.Windows.Forms.NotifyIcon
+        $iconPath = $config.IconPaths.Main
+        Write-Log "Initializing tray icon with: $iconPath" -Level "INFO"
+        $global:TrayIcon.Icon = Get-Icon -Path $iconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
+        $global:TrayIcon.Text = "MITSI v$ScriptVersion"
+        $global:TrayIcon.Visible = $true
+        Write-Log "Tray icon initialized with $iconPath" -Level "INFO"
+        Write-Log "Note: To ensure the MITSI tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Select which icons appear on the taskbar', and set 'MITSI' to 'On'." -Level "INFO"
+        
+        # Set tray icon to Always Show
+        Set-TrayIconAlwaysShow -IconName "MITSI v$ScriptVersion"
+    }
+    catch {
+        Write-Log "Error initializing tray icon: $_" -Level "ERROR"
+        $global:TrayIcon = $null
+        return
+    }
+
+    try {
+        $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
+        $MenuItemShow = New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard")
+        $MenuItemQuickActions = New-Object System.Windows.Forms.ToolStripMenuItem("Quick Actions")
+        $MenuItemRefresh = New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now")
+        $MenuItemExportLogs = New-Object System.Windows.Forms.ToolStripMenuItem("Export Logs")
+        $MenuItemExit = New-Object System.Windows.Forms.ToolStripMenuItem("Exit")
+        $MenuItemQuickActions.DropDownItems.Add($MenuItemRefresh)
+        $MenuItemQuickActions.DropDownItems.Add($MenuItemExportLogs)
+        $ContextMenuStrip.Items.Add($MenuItemShow) | Out-Null
+        $ContextMenuStrip.Items.Add($MenuItemQuickActions) | Out-Null
+        $ContextMenuStrip.Items.Add($MenuItemExit) | Out-Null
+        $global:TrayIcon.ContextMenuStrip = $ContextMenuStrip
+
+        $global:TrayIcon.add_MouseClick({
+            param($sender, $e)
+            try {
+                Write-Log "Tray icon clicked: Button=$($e.Button)" -Level "INFO"
+                if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+                    Toggle-WindowVisibility
+                }
+            }
+            catch {
+                Handle-Error "Error handling tray icon mouse click: $_" -Source "TrayIcon"
+            }
+        })
+
+        $MenuItemShow.add_Click({ Toggle-WindowVisibility })
+        $MenuItemRefresh.add_Click({ 
+            $global:contentData = Fetch-ContentData
+            & "Update-TrayIcon"
+            & "Update-SystemInfo"
+            & "Update-Logs"
+            & "Update-Announcements"
+            & "Update-Support"
+            & "Update-EarlyAdopter"
+            Update-CertificateInfo
+            Write-Log "Manual refresh triggered from tray menu" -Level "INFO"
+        })
+        $MenuItemExportLogs.add_Click({ Export-Logs })
+        $MenuItemExit.add_Click({
+            try {
+                Write-Log "Exit clicked by user." -Level "INFO"
+                if ($global:DispatcherTimer) {
+                    $global:DispatcherTimer.Stop()
+                    Write-Log "DispatcherTimer stopped." -Level "INFO"
+                }
+                if ($global:yubiKeyJob) {
+                    Stop-Job -Job $global:yubiKeyJob -ErrorAction SilentlyContinue
+                    Remove-Job -Job $global:yubiKeyJob -Force -ErrorAction SilentlyContinue
+                    Write-Log "YubiKey job stopped and removed." -Level "INFO"
+                }
+                if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
+                    $global:TrayIcon.Visible = $false
+                    $global:TrayIcon.Dispose()
+                    Write-Log "Tray icon disposed." -Level "INFO"
+                }
+                $global:TrayIcon = $null
+                $window.Dispatcher.InvokeShutdown()
+                Write-Log "Application exited via tray menu." -Level "INFO"
+            }
+            catch {
+                Handle-Error "Error during application exit: $_" -Source "Exit"
+            }
+        })
+        Write-Log "ContextMenuStrip initialized successfully" -Level "INFO"
+    }
+    catch {
+        Write-Log "Error setting up ContextMenuStrip: $_" -Level "ERROR"
+        if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
+            $global:TrayIcon.Visible = $false
+            $global:TrayIcon.Dispose()
+        }
+        $global:TrayIcon = $null
+    }
+}
+
+# Initialize tray icon if forms are available
+Initialize-TrayIcon
 
 # ============================================================
 # J) Enhanced Logs Management (ListView)
@@ -921,9 +1192,13 @@ function Update-Logs {
 
 function Export-Logs {
     try {
+        if (-not $global:FormsAvailable) {
+            Write-Log "Export-Logs requires System.Windows.Forms for SaveFileDialog. Feature unavailable." -Level "WARNING"
+            return
+        }
         $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
         $saveFileDialog.Filter = "Log Files (*.log)|*.log|All Files (*.*)|*.*"
-        $saveFileDialog.FileName = "SHOT.log"
+        $saveFileDialog.FileName = "MITSI.log"
         if ($saveFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             Copy-Item -Path $LogFilePath -Destination $saveFileDialog.FileName -Force
             Write-Log "Logs exported to $($saveFileDialog.FileName)" -Level "INFO"
@@ -943,7 +1218,17 @@ function Set-WindowPosition {
             $window.Width = 350
             $window.Height = 500
             $window.UpdateLayout()
-            $primary = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+            $primary = if ($global:FormsAvailable) {
+                [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+            } else {
+                # Fallback for when System.Windows.Forms is unavailable
+                [PSCustomObject]@{
+                    X = 0
+                    Y = 0
+                    Width = 1920  # Default to common resolution
+                    Height = 1080
+                }
+            }
             Write-Log "Primary screen: X=$($primary.X), Y=$($primary.Y), Width=$($primary.Width), Height=$($primary.Height)" -Level "INFO"
             $left = $primary.X + ($primary.Width - $window.ActualWidth) / 2
             $top = $primary.Y + ($primary.Height - $window.ActualHeight) / 2
@@ -1028,94 +1313,6 @@ if ($global:EarlyAdopterExpander) {
 }
 
 # ============================================================
-# M) Create & Configure Tray Icon with Collapsible Menu
-# ============================================================
-try {
-    $global:TrayIcon = New-Object System.Windows.Forms.NotifyIcon
-    $iconPath = $config.IconPaths.Main
-    Write-Log "Initializing tray icon with: $iconPath" -Level "INFO"
-    $global:TrayIcon.Icon = Get-Icon -Path $iconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-    $global:TrayIcon.Text = "SHOT v$ScriptVersion"
-    $global:TrayIcon.Visible = $true
-    Write-Log "Tray icon initialized with $iconPath" -Level "INFO"
-    Write-Log "Note: To ensure the SHOT tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Select which icons appear on the taskbar', and set 'SHOT' to 'On'." -Level "INFO"
-}
-catch {
-    Write-Log "Error initializing tray icon: $_" -Level "ERROR"
-}
-
-try {
-    $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
-    $MenuItemShow = New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard")
-    $MenuItemQuickActions = New-Object System.Windows.Forms.ToolStripMenuItem("Quick Actions")
-    $MenuItemRefresh = New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now")
-    $MenuItemExportLogs = New-Object System.Windows.Forms.ToolStripMenuItem("Export Logs")
-    $MenuItemExit = New-Object System.Windows.Forms.ToolStripMenuItem("Exit")
-    $MenuItemQuickActions.DropDownItems.Add($MenuItemRefresh)
-    $MenuItemQuickActions.DropDownItems.Add($MenuItemExportLogs)
-    $ContextMenuStrip.Items.Add($MenuItemShow) | Out-Null
-    $ContextMenuStrip.Items.Add($MenuItemQuickActions) | Out-Null
-    $ContextMenuStrip.Items.Add($MenuItemExit) | Out-Null
-    $global:TrayIcon.ContextMenuStrip = $ContextMenuStrip
-
-    $global:TrayIcon.add_MouseClick({
-        param($sender, $e)
-        try {
-            Write-Log "Tray icon clicked: Button=$($e.Button)" -Level "INFO"
-            if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
-                Toggle-WindowVisibility
-            }
-        }
-        catch {
-            Handle-Error "Error handling tray icon mouse click: $_" -Source "TrayIcon"
-        }
-    })
-
-    $MenuItemShow.add_Click({ Toggle-WindowVisibility })
-    $MenuItemRefresh.add_Click({ 
-        $global:contentData = Fetch-ContentData
-        & "Update-TrayIcon"
-        & "Update-SystemInfo"
-        & "Update-Logs"
-        & "Update-Announcements"
-        & "Update-Support"
-        & "Update-EarlyAdopter"
-        Update-CertificateInfo
-        Write-Log "Manual refresh triggered from tray menu" -Level "INFO"
-    })
-    $MenuItemExportLogs.add_Click({ Export-Logs })
-    $MenuItemExit.add_Click({
-        try {
-            Write-Log "Exit clicked by user." -Level "INFO"
-            if ($global:DispatcherTimer) {
-                $global:DispatcherTimer.Stop()
-                Write-Log "DispatcherTimer stopped." -Level "INFO"
-            }
-            if ($global:yubiKeyJob) {
-                Stop-Job -Job $global:yubiKeyJob -ErrorAction SilentlyContinue
-                Remove-Job -Job $global:yubiKeyJob -Force -ErrorAction SilentlyContinue
-                Write-Log "YubiKey job stopped and removed." -Level "INFO"
-            }
-            if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
-                $global:TrayIcon.Visible = $false
-                $global:TrayIcon.Dispose()
-                Write-Log "Tray icon disposed." -Level "INFO"
-            }
-            $global:TrayIcon = $null
-            $window.Dispatcher.InvokeShutdown()
-            Write-Log "Application exited via tray menu." -Level "INFO"
-        }
-        catch {
-            Handle-Error "Error during application exit: $_" -Source "Exit"
-        }
-    })
-    Write-Log "ContextMenuStrip initialized successfully" -Level "INFO"
-}
-catch {
-    Write-Log "Error setting up ContextMenuStrip: $_" -Level "ERROR"
-}
-
-# ============================================================
 # O) DispatcherTimer for Periodic Updates
 # ============================================================
 $global:DispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
@@ -1129,7 +1326,7 @@ $global:DispatcherTimer.add_Tick({
         & "Update-Announcements"
         & "Update-Support"
         & "Update-EarlyAdopter"
-		& "Update-PatchingUpdates"
+        & "Update-PatchingUpdates"
         Update-CertificateInfo
         Write-Log "Dispatcher tick completed" -Level "INFO"
     }
@@ -1161,14 +1358,14 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 # ============================================================
 try {
     $global:contentData = Fetch-ContentData
-    Write-Log "Initial contentData set: $($global:contentData | ConvertTo-Json -Depth 3)" -Level "INFO"
+    Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 3)" -Level "INFO"
     try { & "Update-SystemInfo" } catch { Handle-Error "Update-SystemInfo failed: $_" -Source "InitialUpdate" }
     try { & "Update-TrayIcon" } catch { Handle-Error "Update-TrayIcon failed: $_" -Source "InitialUpdate" }
     try { & "Update-Logs" } catch { Handle-Error "Update-Logs failed: $_" -Source "InitialUpdate" }
     try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $_" -Source "InitialUpdate" }
     try { Update-Support } catch { Handle-Error "Update-Support failed: $_" -Source "InitialUpdate" }
     try { Update-EarlyAdopter } catch { Handle-Error "Update-EarlyAdopter failed: $_" -Source "InitialUpdate" }
-	try { Update-PatchingUpdates }      catch { Handle-Error "Update-PatchingUpdates failed: $_" -Source "InitialUpdate" }
+    try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $_" -Source "InitialUpdate" }
     try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $_" -Source "InitialUpdate" }
     Log-DotNetVersion
     Write-Log "Initial update completed" -Level "INFO"
