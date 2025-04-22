@@ -47,9 +47,9 @@ Write-Log "Script directory resolved as: $ScriptDir" -Level "INFO"
 function Get-DefaultConfig {
     return @{
         RefreshInterval       = 90
-        LogRotationSizeMB     = 2
+        LogRotationSizeMB     = 5
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/MITSI/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/MITSI/main/ContentData.json"
         ContentFetchInterval  = 120
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -77,16 +77,14 @@ function Load-Configuration {
         try {
             $config = Get-Content $Path -Raw | ConvertFrom-Json
             Write-Log "Loaded config from $Path" -Level "INFO"
+            # Warn if ContentDataUrl contains query parameters
+            if ($config.ContentDataUrl -match "\?") {
+                Write-Log "Warning: ContentDataUrl contains query parameters ('$($config.ContentDataUrl)'). Remove parameters like '?token=' for reliable fetching. Consider updating MITSI.config.json." -Level "WARNING"
+            }
             foreach ($key in $defaultConfig.Keys) {
                 if (-not $config.PSObject.Properties.Match($key)) {
                     $config | Add-Member -NotePropertyName $key -NotePropertyValue $defaultConfig[$key]
                 }
-            }
-            # Update LogRotationSizeMB to 2 if using old value
-            if ($config.LogRotationSizeMB -ne 2) {
-                $config.LogRotationSizeMB = 2
-                Save-Configuration -Config $config -Path $Path
-                Write-Log "Updated LogRotationSizeMB to 2 in $Path" -Level "INFO"
             }
             return $config
         }
@@ -206,16 +204,6 @@ function Rotate-LogFile {
                 $archivePath = "$LogFilePath.$(Get-Date -Format 'yyyyMMddHHmmss').archive"
                 Rename-Item -Path $LogFilePath -NewName $archivePath
                 Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
-
-                # Limit to 5 most recent archive files
-                $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "MITSI.log.*.archive" | Sort-Object LastWriteTime -Descending
-                if ($archiveFiles.Count -gt 5) {
-                    $filesToDelete = $archiveFiles | Select-Object -Skip 5
-                    foreach ($file in $filesToDelete) {
-                        Remove-Item -Path $file.FullName -Force
-                        Write-Log "Deleted old archive: $($file.FullName)" -Level "INFO"
-                    }
-                }
             }
         }
     }
@@ -589,6 +577,13 @@ function Fetch-ContentData {
         Write-Log "Config object: $($config | ConvertTo-Json -Depth 3)" -Level "INFO"
         $url = $config.ContentDataUrl
         Write-Log "Raw ContentDataUrl from config: '$url'" -Level "INFO"
+
+        # Strip query parameters from URL
+        $cleanUrl = ($url -split '\?')[0]
+        if ($url -ne $cleanUrl) {
+            Write-Log "Stripped query parameters from URL: '$cleanUrl'" -Level "INFO"
+        }
+
         if ($global:LastContentFetch -and ((Get-Date) - $global:LastContentFetch).TotalSeconds -lt $config.ContentFetchInterval) {
             Write-Log "Using cached content data" -Level "INFO"
             return [PSCustomObject]@{
@@ -596,39 +591,65 @@ function Fetch-ContentData {
                 Source = "Cache"
             }
         }
-        Write-Log "Attempting to fetch content from: $url" -Level "INFO"
-        if ($url -match "^(?i)(http|https)://") {
+
+        Write-Log "Attempting to fetch content from: $cleanUrl" -Level "INFO"
+        if ($cleanUrl -match "^(?i)(http|https)://") {
             Write-Log "Detected HTTP/HTTPS URL, using Invoke-WebRequest" -Level "INFO"
-            $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
-            Write-Log "Raw content: $($response.Content)" -Level "INFO"
-            $contentString = $response.Content.Trim()
-            $contentData = $contentString | ConvertFrom-Json
-            Write-Log "Fetched content data from URL: $url" -Level "INFO"
+            try {
+                $response = Invoke-WebRequest -Uri $cleanUrl -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+                Write-Log "HTTP Status: $($response.StatusCode), Content-Length: $($response.Content.Length)" -Level "INFO"
+                $contentString = $response.Content.Trim()
+                $contentData = $contentString | ConvertFrom-Json
+                Write-Log "Fetched content data from URL: $cleanUrl" -Level "INFO"
+            }
+            catch {
+                if ($_.Exception.Response) {
+                    $statusCode = $_.Exception.Response.StatusCode.Value__
+                    Write-Log "HTTP Error: StatusCode=$statusCode, Message=$($_.Exception.Message)" -Level "ERROR"
+                    if ($statusCode -eq 404 -and $url -ne $cleanUrl) {
+                        Write-Log "Retrying with original URL due to 404: $url" -Level "INFO"
+                        $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+                        Write-Log "HTTP Status: $($response.StatusCode), Content-Length: $($response.Content.Length)" -Level "INFO"
+                        $contentString = $response.Content.Trim()
+                        $contentData = $contentString | ConvertFrom-Json
+                        Write-Log "Fetched content data from original URL: $url" -Level "INFO"
+                    }
+                    else {
+                        throw $_
+                    }
+                }
+                else {
+                    throw $_
+                }
+            }
         }
-        elseif ($url -match "^\\\\") {
+        elseif ($cleanUrl -match "^\\\\") {
             Write-Log "Detected network path" -Level "INFO"
-            if (-not (Test-Path $url)) { throw "Network path not accessible: $url" }
-            $rawContent = Get-Content -Path $url -Raw
+            if (-not (Test-Path $cleanUrl)) { throw "Network path not accessible: $cleanUrl" }
+            $rawContent = Get-Content -Path $cleanUrl -Raw
             $contentData = $rawContent | ConvertFrom-Json
+            Write-Log "Fetched content data from network path: $cleanUrl" -Level "INFO"
         }
         else {
             Write-Log "Assuming local file path" -Level "INFO"
-            $fullPath = if ([System.IO.Path]::IsPathRooted($url)) { $url } else { Join-Path $ScriptDir $url }
+            $fullPath = if ([System.IO.Path]::IsPathRooted($cleanUrl)) { $cleanUrl } else { Join-Path $ScriptDir $cleanUrl }
             Write-Log "Resolved full path: $fullPath" -Level "INFO"
             if (-not (Test-Path $fullPath)) { throw "Local path not found: $fullPath" }
             $rawContent = Get-Content -Path $fullPath -Raw
             $contentData = $rawContent | ConvertFrom-Json
+            Write-Log "Fetched content data from local path: $fullPath" -Level "INFO"
         }
         $global:CachedContentData = $contentData
         $global:LastContentFetch = Get-Date
-        Write-Log "Content fetched from remote source: $url" -Level "INFO"
+        Write-Log "Content fetched from remote source: $cleanUrl" -Level "INFO"
         return [PSCustomObject]@{
             Data   = $contentData
             Source = "Remote"
         }
     }
     catch {
-        Write-Log "Failed to fetch content data from ${url}: $_" -Level "ERROR"
+        Write-Log "Failed to fetch content data from ${cleanUrl}: $_" -Level "ERROR"
+        Write-Log "ContentDataUrl invalid or unreachable, using default content" -Level "ERROR"
         return [PSCustomObject]@{
             Data   = $defaultContentData
             Source = "Default"
@@ -641,43 +662,17 @@ function Fetch-ContentData {
 # ------------------------------------------------------------
 function Get-YubiKeyCertExpiryDays {
     try {
-        $primaryPath = "C:\Program Files\Yubico\YubiKey Manager\ykman.exe"
-        $fallbackPaths = @(
-            "C:\Program Files\Yubico\YubiKey Manager\ykman.exe",
-            "C:\Program Files (x86)\Yubico\YubiKey Manager\ykman.exe",
-            "C:\Program Files\Yubico\ykman.exe",
-            "C:\Program Files (x86)\Yubico\ykman.exe"
-        )
-
-        $ykmanPath = $null
-        Write-Log "Checking for ykman.exe at primary path: $primaryPath" -Level "INFO"
-        if (Test-Path $primaryPath) {
-            $ykmanPath = $primaryPath
-            Write-Log "Found ykman.exe at primary path: $primaryPath" -Level "INFO"
+        if (-not (Test-Path "C:\Program Files\Yubico\Yubikey Manager\ykman.exe")) {
+            throw "ykman.exe not found at C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         }
-        else {
-            Write-Log "Primary path not found: $primaryPath" -Level "WARNING"
-            foreach ($path in $fallbackPaths) {
-                Write-Log "Checking fallback path: $path" -Level "INFO"
-                if (Test-Path $path) {
-                    $ykmanPath = $path
-                    Write-Log "Fallback: Found ykman.exe at $path" -Level "INFO"
-                    break
-                }
-            }
-        }
-
-        if (-not $ykmanPath) {
-            throw "ykman.exe not found at primary path ($primaryPath) or any fallback paths"
-        }
-
-        $yubiKeyInfo = & $ykmanPath info 2>$null
+        Write-Log "ykman.exe found at C:\Program Files\Yubico\Yubikey Manager\ykman.exe" -Level "INFO"
+        $yubiKeyInfo = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" info 2>$null
         if (-not $yubiKeyInfo) {
             Write-Log "No YubiKey detected" -Level "INFO"
             return "YubiKey not present"
         }
         Write-Log "YubiKey detected: $yubiKeyInfo" -Level "INFO"
-        $pivInfo = & $ykmanPath "piv" "info" 2>$null
+        $pivInfo = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" "piv" "info" 2>$null
         if ($pivInfo) {
             Write-Log "PIV info: $pivInfo" -Level "INFO"
         }
@@ -689,7 +684,7 @@ function Get-YubiKeyCertExpiryDays {
         $slotUsed = $null
         foreach ($slot in $slots) {
             Write-Log "Checking slot $slot for certificate" -Level "INFO"
-            $certPem = & $ykmanPath "piv" "certificates" "export" $slot "-" 2>$null
+            $certPem = & "C:\Program Files\Yubico\Yubikey Manager\ykman.exe" "piv" "certificates" "export" $slot "-" 2>$null
             if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
                 $slotUsed = $slot
                 Write-Log "Certificate found in slot $slot" -Level "INFO"
@@ -709,8 +704,10 @@ function Get-YubiKeyCertExpiryDays {
         return "YubiKey Certificate (Slot $slotUsed): Expires: $expiryDateFormatted"
     }
     catch {
-        Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
-        return "YubiKey Certificate: Unable to determine expiry date - $_"
+        if ($_.Exception.Message -ne "No YubiKey detected by ykman") {
+            Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
+            return "YubiKey Certificate: Unable to determine expiry date - $_"
+        }
     }
 }
 
