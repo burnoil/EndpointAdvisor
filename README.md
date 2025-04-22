@@ -1,11 +1,11 @@
-# MITSI (MIT System Info) - Application Overview
+# LLNOTIFY - Application Overview
 ![Screenshot](https://github.com/user-attachments/assets/a6d74f84-c583-4776-aedc-1831c7b02bc4)
 
 **Version**: 1.1.0  
 
 ## Purpose
 
-MITSI (MIT System Info) is a PowerShell-based system monitoring application designed to provide real-time system health information, certificate status, and organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, MITSI enhances endpoint visibility and user support by delivering critical system metrics and IT communications directly to the desktop.
+LLNOTIFY is a PowerShell-based system monitoring application designed to provide real-time system health information, certificate status, and organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, MITSI enhances endpoint visibility and user support by delivering critical system metrics and IT communications directly to the desktop.
 
 ## Key Features
 
