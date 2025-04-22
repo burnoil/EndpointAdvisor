@@ -312,7 +312,7 @@ $xamlString = @"
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
-              <Button x:Name="PatchingSSAButton" Content="SSA" Width="30" Height="20" Margin="4,0,0,0" ToolTip="Open BigFix Self-Service Application"/>
+              <Button x:Name="PatchingSSAButton" Content="Launch Updates" Width="80" Height="20" Margin="4,0,0,0" ToolTip="Launch BigFix Self-Service Application for Updates"/>
             </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
@@ -426,16 +426,16 @@ try {
     if ($global:PatchingSSAButton) {
         $global:PatchingSSAButton.Add_Click({
             try {
-                $ssaPath = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\SSA.exe"
+                $ssaPath = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
                 if (Test-Path $ssaPath) {
                     Start-Process -FilePath $ssaPath
                     Write-Log "Launched BigFix Self-Service Application: $ssaPath" -Level "INFO"
                 } else {
-                    Write-Log "BigFix SSA.exe not found at $ssaPath" -Level "ERROR"
+                    Write-Log "BigFix BigFixSSA.exe not found at $ssaPath" -Level "ERROR"
                 }
             }
             catch {
-                Handle-Error "Error launching BigFix SSA.exe: $_" -Source "PatchingSSAButton"
+                Handle-Error "Error launching BigFix BigFixSSA.exe: $_" -Source "PatchingSSAButton"
             }
         })
     }
