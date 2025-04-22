@@ -1,4 +1,5 @@
 # MITSI (MIT System Info) - Application Overview
+![Screenshot](https://github.com/user-attachments/assets/a6d74f84-c583-4776-aedc-1831c7b02bc4)
 
 **Version**: 1.1.0  
 
