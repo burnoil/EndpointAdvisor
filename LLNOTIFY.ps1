@@ -1,4 +1,4 @@
-# MITSI.ps1 - MIT System Info
+# LLNOTIFY.ps1 - Lincoln Laboratory Notification System
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -19,7 +19,7 @@ function Write-Log {
         [ValidateSet("INFO", "WARNING", "ERROR")]
         [string]$Level = "INFO"
     )
-    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "MITSI.log" }
+    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "LLNOTIFY.log" }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] [$Level] $Message"
     try {
@@ -62,7 +62,6 @@ function Get-DefaultConfig {
         }
         AnnouncementsLastState = @{}
         SupportLastState       = @{}
-        EarlyAdopterLastState  = @{}
         Version               = $ScriptVersion
         PatchInfoFilePath     = "C:\temp\patch_fixlets.txt"
     }
@@ -70,7 +69,7 @@ function Get-DefaultConfig {
 
 function Load-Configuration {
     param(
-        [string]$Path = (Join-Path $ScriptDir "MITSI.config.json")
+        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
     )
     $defaultConfig = Get-DefaultConfig
     if (Test-Path $Path) {
@@ -79,7 +78,7 @@ function Load-Configuration {
             Write-Log "Loaded config from $Path" -Level "INFO"
             # Warn if ContentDataUrl contains query parameters
             if ($config.ContentDataUrl -match "\?") {
-                Write-Log "Warning: ContentDataUrl contains query parameters ('$($config.ContentDataUrl)'). Remove parameters like '?token=' for reliable fetching. Consider updating MITSI.config.json." -Level "WARNING"
+                Write-Log "Warning: ContentDataUrl contains query parameters ('$($config.ContentDataUrl)'). Remove parameters like '?token=' for reliable fetching. Consider updating LLNOTIFY.config.json." -Level "WARNING"
             }
             foreach ($key in $defaultConfig.Keys) {
                 if (-not $config.PSObject.Properties.Match($key)) {
@@ -103,7 +102,7 @@ function Load-Configuration {
 function Save-Configuration {
     param(
         [psobject]$Config,
-        [string]$Path = (Join-Path $ScriptDir "MITSI.config.json")
+        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
     )
     $Config | ConvertTo-Json -Depth 3 | Out-File $Path -Force
 }
@@ -111,39 +110,13 @@ function Save-Configuration {
 # ============================================================
 # MODULE: Performance Optimizations – Caching
 # ============================================================
-$global:StaticSystemInfo = $null
 $global:LastContentFetch = $null
 $global:CachedContentData = $null
-
-function Get-StaticSystemInfo {
-    $systemInfo = @{}
-    try {
-        $machine = Get-CimInstance -ClassName Win32_ComputerSystem
-        $systemInfo.MachineType = "$($machine.Manufacturer) $($machine.Model)"
-    }
-    catch {
-        $systemInfo.MachineType = "Unknown"
-    }
-    try {
-        $os = Get-CimInstance -ClassName Win32_OperatingSystem
-        $osVersion = "$($os.Caption) (Build $($os.BuildNumber))"
-        try {
-            $displayVersion = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name 'DisplayVersion' -ErrorAction SilentlyContinue).DisplayVersion
-            if ($displayVersion) { $osVersion += " $displayVersion" }
-        }
-        catch {}
-        $systemInfo.OSVersion = $osVersion
-    }
-    catch {
-        $systemInfo.OSVersion = "Unknown"
-    }
-    return $systemInfo
-}
 
 # ============================================================
 # B) External Configuration Setup
 # ============================================================
-$LogFilePath = Join-Path $ScriptDir "MITSI.log"
+$LogFilePath = Join-Path $ScriptDir "LLNOTIFY.log"
 $config = Load-Configuration
 
 # Use healthy.ico for the normal state, warning.ico when anything alerts.
@@ -168,13 +141,6 @@ $defaultContentData = @{
         Links   = @(
             @{ Name = "Announcement Link 1"; Url = "https://company.com/news1" },
             @{ Name = "Announcement Link 2"; Url = "https://company.com/news2" }
-        )
-    }
-    EarlyAdopter = @{
-        Text  = "Join our beta program!"
-        Links = @(
-            @{ Name = "Early Adopter Link 1"; Url = "https://beta.company.com/signup" },
-            @{ Name = "Early Adopter Link 2"; Url = "https://beta.company.com/info" }
         )
     }
     Support = @{
@@ -230,6 +196,25 @@ function Log-DotNetVersion {
     }
 }
 
+function Export-Logs {
+    try {
+        if (-not $global:FormsAvailable) {
+            Write-Log "Export-Logs requires System.Windows.Forms for SaveFileDialog. Feature unavailable." -Level "WARNING"
+            return
+        }
+        $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
+        $saveFileDialog.Filter = "Log Files (*.log)|*.log|All Files (*.*)|*.*"
+        $saveFileDialog.FileName = "LLNOTIFY.log"
+        if ($saveFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+            Copy-Item -Path $LogFilePath -Destination $saveFileDialog.FileName -Force
+            Write-Log "Logs exported to $($saveFileDialog.FileName)" -Level "INFO"
+        }
+    }
+    catch {
+        Handle-Error "Error exporting logs: $_" -Source "Export-Logs"
+    }
+}
+
 # ============================================================
 # D) Import Required Assemblies
 # ============================================================
@@ -277,7 +262,7 @@ $xamlString = @"
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="MITSI - MIT System Info"
+    Title="LLNOTIFY - Lincoln Laboratory Notification System"
     WindowStartupLocation="Manual"
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
@@ -297,7 +282,7 @@ $xamlString = @"
     <Border Grid.Row="0" Background="#0078D7" Padding="4" CornerRadius="2" Margin="0,0,0,4">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
         <Image Source="{Binding MainIconUri}" Width="20" Height="20" Margin="0,0,4,0"/>
-        <TextBlock Text="MIT System Info"
+        <TextBlock Text="Lincoln Laboratory Notification System"
                    FontSize="14" FontWeight="Bold" Foreground="White"
                    VerticalAlignment="Center"/>
       </StackPanel>
@@ -305,21 +290,8 @@ $xamlString = @"
     <!-- Content Area -->
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
       <StackPanel VerticalAlignment="Top">
-        <!-- Information Section -->
-        <Expander Header="Information" ToolTip="View system details" FontSize="12" Foreground="#00008B" IsExpanded="True" Margin="0,2,0,2">
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="LoggedOnUserText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock x:Name="MachineTypeText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock x:Name="OSVersionText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock x:Name="SystemUptimeText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock x:Name="UsedDiskSpaceText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <TextBlock x:Name="IpAddressText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-            </StackPanel>
-          </Border>
-        </Expander>
         <!-- Announcements Section -->
-        <Expander x:Name="AnnouncementsExpander" ToolTip="View latest announcements" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+        <Expander x:Name="AnnouncementsExpander" ToolTip="View latest announcements" FontSize="12" Foreground="#00008B" IsExpanded="True" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Announcements" VerticalAlignment="Center"/>
@@ -336,7 +308,13 @@ $xamlString = @"
           </Border>
         </Expander>
         <!-- Patching and Updates Section -->
-        <Expander Header="Patching and Updates" ToolTip="View patching status" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
+        <Expander x:Name="PatchingExpander" ToolTip="View patching status" FontSize="12" Foreground="#00008B" IsExpanded="True" Margin="0,2,0,2">
+          <Expander.Header>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
+              <Button x:Name="PatchingSSAButton" Content="SSA" Width="30" Height="20" Margin="4,0,0,0" ToolTip="Open BigFix Self-Service Application"/>
+            </StackPanel>
+          </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
@@ -359,22 +337,6 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Early Adopter Section -->
-        <Expander x:Name="EarlyAdopterExpander" ToolTip="Join beta program" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Open Early Adopter Testing" VerticalAlignment="Center"/>
-              <Ellipse x:Name="EarlyAdopterAlertIcon" Width="10" Height="10" Margin="4,0,0,0" Fill="Red" Visibility="Hidden"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="EarlyAdopterText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-              <StackPanel x:Name="EarlyAdopterLinksPanel" Orientation="Vertical" Margin="2"/>
-              <TextBlock x:Name="EarlyAdopterSourceText" FontSize="9" Foreground="Gray" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
-            </StackPanel>
-          </Border>
-        </Expander>
         <!-- Compliance Section -->
         <Expander x:Name="ComplianceExpander" ToolTip="Certificate Status" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
@@ -388,45 +350,10 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <!-- Logs Section -->
-        <Expander Header="Logs" ToolTip="View recent logs" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <ListView x:Name="LogListView" FontSize="10" Margin="2" Height="120" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling">
-                <ListView.View>
-                  <GridView>
-                    <GridViewColumn Header="Timestamp" Width="100" DisplayMemberBinding="{Binding Timestamp}" />
-                    <GridViewColumn Header="Message" Width="150" DisplayMemberBinding="{Binding Message}" />
-                  </GridView>
-                </ListView.View>
-              </ListView>
-              <Button x:Name="ExportLogsButton" Content="Export Logs" Width="80" Margin="2" HorizontalAlignment="Right" ToolTip="Save logs to a file"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <!-- About Section -->
-        <Expander Header="About" ToolTip="View app info and changelog" FontSize="12" Foreground="#00008B" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="AboutText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300">
-                <TextBlock.Text><![CDATA[
-MITSI v1.1.0
-© 2025 MITSI. All rights reserved.
-Built with PowerShell and WPF.
-
-Changelog:
-- v1.1.0: Added modular configuration management and caching for improved performance.
-         Compliance section now shows combined YubiKey and Microsoft Virtual Smart Card expiry data.
-- v1.0.0: Initial release
-                ]]></TextBlock.Text>
-              </TextBlock>
-            </StackPanel>
-          </Border>
-        </Expander>
       </StackPanel>
     </ScrollViewer>
     <!-- Footer Section -->
-    <TextBlock Grid.Row="2" Text="© 2025 MITSI" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+    <TextBlock Grid.Row="2" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" Margin="0,4,0,0"/>
   </Grid>
 </Window>
 "@
@@ -456,32 +383,22 @@ try {
         Write-Log "Error setting window icon URI: $_" -Level "ERROR"
     }
     # Access UI Elements
-    $global:LoggedOnUserText = $window.FindName("LoggedOnUserText")
-    $global:MachineTypeText = $window.FindName("MachineTypeText")
-    $global:OSVersionText = $window.FindName("OSVersionText")
-    $global:SystemUptimeText = $window.FindName("SystemUptimeText")
-    $global:UsedDiskSpaceText = $window.FindName("UsedDiskSpaceText")
-    $global:IpAddressText = $window.FindName("IpAddressText")
     $global:AnnouncementsExpander = $window.FindName("AnnouncementsExpander")
     $global:AnnouncementsAlertIcon = $window.FindName("AnnouncementsAlertIcon")
     $global:AnnouncementsText = $window.FindName("AnnouncementsText")
     $global:AnnouncementsDetailsText = $window.FindName("AnnouncementsDetailsText")
     $global:AnnouncementsLinksPanel = $window.FindName("AnnouncementsLinksPanel")
     $global:AnnouncementsSourceText = $window.FindName("AnnouncementsSourceText")
+    $global:PatchingExpander = $window.FindName("PatchingExpander")
+    $global:PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
+    $global:PatchingSSAButton = $window.FindName("PatchingSSAButton")
     $global:SupportExpander = $window.FindName("SupportExpander")
     $global:SupportAlertIcon = $window.FindName("SupportAlertIcon")
     $global:SupportText = $window.FindName("SupportText")
     $global:SupportLinksPanel = $window.FindName("SupportLinksPanel")
     $global:SupportSourceText = $window.FindName("SupportSourceText")
-    $global:EarlyAdopterExpander = $window.FindName("EarlyAdopterExpander")
-    $global:EarlyAdopterAlertIcon = $window.FindName("EarlyAdopterAlertIcon")
-    $global:EarlyAdopterText = $window.FindName("EarlyAdopterText")
-    $global:EarlyAdopterLinksPanel = $window.FindName("EarlyAdopterLinksPanel")
-    $global:EarlyAdopterSourceText = $window.FindName("EarlyAdopterSourceText")
-    $global:PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
+    $global:ComplianceExpander = $window.FindName("ComplianceExpander")
     $global:YubiKeyComplianceText = $window.FindName("YubiKeyComplianceText")
-    $global:LogListView = $window.FindName("LogListView")
-    $global:ExportLogsButton = $window.FindName("ExportLogsButton")
     # Clear the red alert-dot when the Expander is opened
     if ($global:AnnouncementsExpander) {
         $global:AnnouncementsExpander.Add_Expanded({
@@ -505,29 +422,40 @@ try {
         })
     }
 
-    if ($global:EarlyAdopterExpander) {
-        $global:EarlyAdopterExpander.Add_Expanded({
-            $window.Dispatcher.Invoke({
-                if ($global:EarlyAdopterAlertIcon) {
-                    $global:EarlyAdopterAlertIcon.Visibility = "Hidden"
+    # SSA Button Click Handler
+    if ($global:PatchingSSAButton) {
+        $global:PatchingSSAButton.Add_Click({
+            try {
+                $ssaPath = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\SSA.exe"
+                if (Test-Path $ssaPath) {
+                    Start-Process -FilePath $ssaPath
+                    Write-Log "Launched BigFix Self-Service Application: $ssaPath" -Level "INFO"
+                } else {
+                    Write-Log "BigFix SSA.exe not found at $ssaPath" -Level "ERROR"
                 }
-            })
-            Write-Log "EarlyAdopter expander expanded, alert dot cleared." -Level "INFO"
+            }
+            catch {
+                Handle-Error "Error launching BigFix SSA.exe: $_" -Source "PatchingSSAButton"
+            }
         })
     }
+
+    Write-Log "AnnouncementsText null? $($global:AnnouncementsText -eq $null)" -Level "INFO"
+    Write-Log "AnnouncementsDetailsText null? $($global:AnnouncementsDetailsText -eq $null)" -Level "INFO"
+    Write-Log "AnnouncementsLinksPanel null? $($global:AnnouncementsLinksPanel -eq $null)" -Level "INFO"
+    Write-Log "AnnouncementsSourceText null? $($global:AnnouncementsSourceText -eq $null)" -Level "INFO"
+    Write-Log "AnnouncementsExpander null? $($global:AnnouncementsExpander -eq $null)" -Level "INFO"
+    Write-Log "AnnouncementsAlertIcon null? $($global:AnnouncementsAlertIcon -eq $null)" -Level "INFO"
+    Write-Log "PatchingExpander null? $($global:PatchingExpander -eq $null)" -Level "INFO"
+    Write-Log "PatchingUpdatesText null? $($global:PatchingUpdatesText -eq $null)" -Level "INFO"
+    Write-Log "PatchingSSAButton null? $($global:PatchingSSAButton -eq $null)" -Level "INFO"
     Write-Log "SupportText null? $($global:SupportText -eq $null)" -Level "INFO"
     Write-Log "SupportLinksPanel null? $($global:SupportLinksPanel -eq $null)" -Level "INFO"
+    Write-Log "SupportSourceText null? $($global:SupportSourceText -eq $null)" -Level "INFO"
     Write-Log "SupportExpander null? $($global:SupportExpander -eq $null)" -Level "INFO"
     Write-Log "SupportAlertIcon null? $($global:SupportAlertIcon -eq $null)" -Level "INFO"
-    Write-Log "SupportSourceText null? $($global:SupportSourceText -eq $null)" -Level "INFO"
-    Write-Log "EarlyAdopterText null? $($global:EarlyAdopterText -eq $null)" -Level "INFO"
-    Write-Log "EarlyAdopterLinksPanel null? $($global:EarlyAdopterLinksPanel -eq $null)" -Level "INFO"
-    Write-Log "EarlyAdopterExpander null? $($global:EarlyAdopterExpander -eq $null)" -Level "INFO"
-    Write-Log "EarlyAdopterAlertIcon null? $($global:EarlyAdopterAlertIcon -eq $null)" -Level "INFO"
-    Write-Log "EarlyAdopterSourceText null? $($global:EarlyAdopterSourceText -eq $null)" -Level "INFO"
-    Write-Log "AnnouncementsText null? $($global:AnnouncementsText -eq $null)" -Level "INFO"
-    Write-Log "AnnouncementsSourceText null? $($global:AnnouncementsSourceText -eq $null)" -Level "INFO"
-    Write-Log "PatchingUpdatesText null? $($global:PatchingUpdatesText -eq $null)" -Level "INFO"
+    Write-Log "ComplianceExpander null? $($global:ComplianceExpander -eq $null)" -Level "INFO"
+    Write-Log "YubiKeyComplianceText null? $($global:YubiKeyComplianceText -eq $null)" -Level "INFO"
 }
 catch {
     Handle-Error "Failed to load the XAML layout: $_" -Source "XAML"
@@ -839,48 +767,6 @@ function Update-Support {
     }
 }
 
-function Update-EarlyAdopter {
-    try {
-        $contentResult = $global:contentData
-        $current = $contentResult.Data.EarlyAdopter
-        $source = $contentResult.Source
-        $last = $config.EarlyAdopterLastState
-
-        if ($last -and $current.Text -ne $last.Text -and -not $global:EarlyAdopterExpander.IsExpanded) {
-            $window.Dispatcher.Invoke({
-                if ($global:EarlyAdopterAlertIcon) {
-                    $global:EarlyAdopterAlertIcon.Visibility = "Visible"
-                }
-            })
-        }
-
-        $window.Dispatcher.Invoke({
-            $global:EarlyAdopterText.Text = $current.Text
-            $global:EarlyAdopterLinksPanel.Children.Clear()
-            foreach ($link in $current.Links) {
-                $tb = New-Object System.Windows.Controls.TextBlock
-                $hp = New-Object System.Windows.Documents.Hyperlink
-                $hp.NavigateUri = [Uri]$link.Url
-                $hp.Inlines.Add($link.Name)
-                $hp.Add_RequestNavigate({ param($s,$e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
-                $tb.Inlines.Add($hp)
-                $global:EarlyAdopterLinksPanel.Children.Add($tb)
-            }
-            if ($global:EarlyAdopterSourceText) {
-                $global:EarlyAdopterSourceText.Text = "Source: $source"
-            }
-        })
-
-        $config.EarlyAdopterLastState = $current
-        Save-Configuration -Config $config
-
-        Write-Log "Early Adopter updated from $source." -Level "INFO"
-    }
-    catch {
-        Write-Log "Error updating Early Adopter: $_" -Level "ERROR"
-    }
-}
-
 function Update-PatchingUpdates {
     try {
         $patchFilePath = if ([System.IO.Path]::IsPathRooted($config.PatchInfoFilePath)) {
@@ -910,54 +796,6 @@ function Update-PatchingUpdates {
         $errorMessage = "Error reading patch info file: $_"
         Write-Log $errorMessage -Level "ERROR"
         $window.Dispatcher.Invoke({ $global:PatchingUpdatesText.Text = $errorMessage })
-    }
-}
-
-# ------------------------------------------------------------
-# System Information Update
-# ------------------------------------------------------------
-function Update-SystemInfo {
-    try {
-        $loggedOnUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name.Split('\')[1]
-        $machineType = (Get-CimInstance -ClassName Win32_ComputerSystem).Manufacturer
-        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-        $regProps = Get-ItemProperty $regPath
-        $buildNumber = [int]$regProps.CurrentBuild
-        $displayVersion = $regProps.DisplayVersion -or "Unknown"
-        $productName = $regProps.ProductName
-
-        # Determine Windows 11 based on build number
-        if ($buildNumber -ge 22000) {
-            $osVersion = "Microsoft Windows 11 (Build $buildNumber, $displayVersion)"
-        }
-        else {
-            $osVersion = "$productName (Build $buildNumber, $displayVersion)"
-        }
-
-        # Cross-check with CIM
-        $cimOS = Get-CimInstance -ClassName Win32_OperatingSystem
-        $cimCaption = $cimOS.Caption
-        Write-Log "OS Info - Registry: ProductName=$productName, Build=$buildNumber, DisplayVersion=$displayVersion; CIM: Caption=$cimCaption" -Level "INFO"
-
-        $uptime = (Get-Date) - $cimOS.LastBootUpTime
-        $disk = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DeviceID='C:'"
-        $usedSpace = "{0:N2} GB of {1:N2} GB" -f (($disk.Size - $disk.FreeSpace) / 1GB), ($disk.Size / 1GB)
-        $ipAddresses = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { 
-            $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notmatch "^169\." 
-        }).IPAddress -join ", "
-
-        $window.Dispatcher.Invoke({
-            if ($global:LoggedOnUserText) { $global:LoggedOnUserText.Text = "Logged-in User: $loggedOnUser" }
-            if ($global:MachineTypeText) { $global:MachineTypeText.Text = "Machine Type: $machineType" }
-            if ($global:OSVersionText) { $global:OSVersionText.Text = "OS Version: $osVersion" }
-            if ($global:SystemUptimeText) { $global:SystemUptimeText.Text = "System Uptime: $($uptime.Days) days $($uptime.Hours) hours" }
-            if ($global:UsedDiskSpaceText) { $global:UsedDiskSpaceText.Text = "Used Disk Space: $usedSpace" }
-            if ($global:IpAddressText) { $global:IpAddressText.Text = "IP Address(es): $ipAddresses" }
-        })
-        Write-Log "System info updated: User=$loggedOnUser, Uptime=$($uptime.Days) days, OS=$osVersion" -Level "INFO"
-    }
-    catch {
-        Write-Log "Error updating system information: $_" -Level "ERROR"
     }
 }
 
@@ -996,8 +834,7 @@ function Update-TrayIcon {
         $hasAlert = $false
         foreach ($icon in @(
             $global:AnnouncementsAlertIcon,
-            $global:SupportAlertIcon,
-            $global:EarlyAdopterAlertIcon
+            $global:SupportAlertIcon
         )) {
             if ($icon -and $icon.Visibility -eq 'Visible') {
                 $hasAlert = $true
@@ -1022,13 +859,13 @@ function Update-TrayIcon {
 
 function Set-TrayIconAlwaysShow {
     param(
-        [string]$IconName = "MITSI v$ScriptVersion"
+        [string]$IconName = "LLNOTIFY v$ScriptVersion"
     )
     try {
         $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer"
         $regName = "EnableAutoTray"
         $regPathNotify = "HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\TrayNotify"
-        $iconRegName = "MITSI_IconVisibility"
+        $iconRegName = "LLNOTIFY_IconVisibility"
 
         # Check if auto-tray is disabled (0 means all icons are shown)
         if (Test-Path $regPath) {
@@ -1071,13 +908,13 @@ function Initialize-TrayIcon {
         $iconPath = $config.IconPaths.Main
         Write-Log "Initializing tray icon with: $iconPath" -Level "INFO"
         $global:TrayIcon.Icon = Get-Icon -Path $iconPath -DefaultIcon ([System.Drawing.SystemIcons]::Application)
-        $global:TrayIcon.Text = "MITSI v$ScriptVersion"
+        $global:TrayIcon.Text = "LLNOTIFY v$ScriptVersion"
         $global:TrayIcon.Visible = $true
         Write-Log "Tray icon initialized with $iconPath" -Level "INFO"
-        Write-Log "Note: To ensure the MITSI tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Select which icons appear on the taskbar', and set 'MITSI' to 'On'." -Level "INFO"
+        Write-Log "Note: To ensure the LLNOTIFY tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Select which icons appear on the taskbar', and set 'LLNOTIFY' to 'On'." -Level "INFO"
         
         # Set tray icon to Always Show
-        Set-TrayIconAlwaysShow -IconName "MITSI v$ScriptVersion"
+        Set-TrayIconAlwaysShow -IconName "LLNOTIFY v$ScriptVersion"
     }
     catch {
         Write-Log "Error initializing tray icon: $_" -Level "ERROR"
@@ -1090,10 +927,8 @@ function Initialize-TrayIcon {
         $MenuItemShow = New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard")
         $MenuItemQuickActions = New-Object System.Windows.Forms.ToolStripMenuItem("Quick Actions")
         $MenuItemRefresh = New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now")
-        $MenuItemExportLogs = New-Object System.Windows.Forms.ToolStripMenuItem("Export Logs")
         $MenuItemExit = New-Object System.Windows.Forms.ToolStripMenuItem("Exit")
         $MenuItemQuickActions.DropDownItems.Add($MenuItemRefresh)
-        $MenuItemQuickActions.DropDownItems.Add($MenuItemExportLogs)
         $ContextMenuStrip.Items.Add($MenuItemShow) | Out-Null
         $ContextMenuStrip.Items.Add($MenuItemQuickActions) | Out-Null
         $ContextMenuStrip.Items.Add($MenuItemExit) | Out-Null
@@ -1116,15 +951,12 @@ function Initialize-TrayIcon {
         $MenuItemRefresh.add_Click({ 
             $global:contentData = Fetch-ContentData
             & "Update-TrayIcon"
-            & "Update-SystemInfo"
-            & "Update-Logs"
             & "Update-Announcements"
             & "Update-Support"
-            & "Update-EarlyAdopter"
+            & "Update-PatchingUpdates"
             Update-CertificateInfo
             Write-Log "Manual refresh triggered from tray menu" -Level "INFO"
         })
-        $MenuItemExportLogs.add_Click({ Export-Logs })
         $MenuItemExit.add_Click({
             try {
                 Write-Log "Exit clicked by user." -Level "INFO"
@@ -1164,47 +996,6 @@ function Initialize-TrayIcon {
 
 # Initialize tray icon if forms are available
 Initialize-TrayIcon
-
-# ============================================================
-# J) Enhanced Logs Management (ListView)
-# ============================================================
-function Update-Logs {
-    try {
-        $logs = Get-Content $LogFilePath | ForEach-Object {
-            $parts = $_ -split " ", 3
-            [PSCustomObject]@{
-                Timestamp = "$($parts[0]) $($parts[1])"
-                Message   = $parts[2]
-            }
-        }
-        $window.Dispatcher.Invoke({
-            if ($global:LogListView) { $global:LogListView.ItemsSource = $logs }
-        })
-        Write-Log "Logs updated in GUI." -Level "INFO"
-    }
-    catch {
-        Write-Log "Error loading logs: $_" -Level "ERROR"
-    }
-}
-
-function Export-Logs {
-    try {
-        if (-not $global:FormsAvailable) {
-            Write-Log "Export-Logs requires System.Windows.Forms for SaveFileDialog. Feature unavailable." -Level "WARNING"
-            return
-        }
-        $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
-        $saveFileDialog.Filter = "Log Files (*.log)|*.log|All Files (*.*)|*.*"
-        $saveFileDialog.FileName = "MITSI.log"
-        if ($saveFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            Copy-Item -Path $LogFilePath -Destination $saveFileDialog.FileName -Force
-            Write-Log "Logs exported to $($saveFileDialog.FileName)" -Level "INFO"
-        }
-    }
-    catch {
-        Handle-Error "Error exporting logs: $_" -Source "Export-Logs"
-    }
-}
 
 # ============================================================
 # K) Window Visibility Management
@@ -1270,11 +1061,8 @@ function Toggle-WindowVisibility {
 }
 
 function Update-UIElements {
-    & "Update-SystemInfo"
-    & "Update-Logs"
     & "Update-Announcements"
     & "Update-Support"
-    & "Update-EarlyAdopter"
     & "Update-PatchingUpdates"
     Update-CertificateInfo
 }
@@ -1295,19 +1083,6 @@ if ($global:SupportExpander) {
         }
     })
 }
-if ($global:EarlyAdopterExpander) {
-    $global:EarlyAdopterExpander.Add_Expanded({
-        try {
-            $window.Dispatcher.Invoke({
-                if ($global:EarlyAdopterAlertIcon) { $global:EarlyAdopterAlertIcon.Visibility = "Hidden" }
-            })
-            Write-Log "EarlyAdopter expander expanded, alert cleared." -Level "INFO"
-        }
-        catch {
-            Write-Log "Error in EarlyAdopterExpander expanded event: $_" -Level "ERROR"
-        }
-    })
-}
 
 # ============================================================
 # O) DispatcherTimer for Periodic Updates
@@ -1318,11 +1093,8 @@ $global:DispatcherTimer.add_Tick({
     try {
         $global:contentData = Fetch-ContentData
         & "Update-TrayIcon"
-        & "Update-SystemInfo"
-        & "Update-Logs"
         & "Update-Announcements"
         & "Update-Support"
-        & "Update-EarlyAdopter"
         & "Update-PatchingUpdates"
         Update-CertificateInfo
         Write-Log "Dispatcher tick completed" -Level "INFO"
@@ -1356,12 +1128,9 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 try {
     $global:contentData = Fetch-ContentData
     Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 3)" -Level "INFO"
-    try { & "Update-SystemInfo" } catch { Handle-Error "Update-SystemInfo failed: $_" -Source "InitialUpdate" }
     try { & "Update-TrayIcon" } catch { Handle-Error "Update-TrayIcon failed: $_" -Source "InitialUpdate" }
-    try { & "Update-Logs" } catch { Handle-Error "Update-Logs failed: $_" -Source "InitialUpdate" }
     try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $_" -Source "InitialUpdate" }
     try { Update-Support } catch { Handle-Error "Update-Support failed: $_" -Source "InitialUpdate" }
-    try { Update-EarlyAdopter } catch { Handle-Error "Update-EarlyAdopter failed: $_" -Source "InitialUpdate" }
     try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $_" -Source "InitialUpdate" }
     try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $_" -Source "InitialUpdate" }
     Log-DotNetVersion
