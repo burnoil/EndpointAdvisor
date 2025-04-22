@@ -1,100 +1,69 @@
-# MITSI (MIT System Info)
-### MITSI (MIT System Info) is a PowerShell-based application designed to monitor system health, compliance, and provide real-time alerts. Built with WPF, it runs as a system tray utility, offering a lightweight yet powerful way to keep tabs on critical system metrics, YubiKey certificate status, and organizational announcements. This tool was written for MIT Lincoln Laboratory and is currently a work in progress.
+# MITSI (MIT System Info) - Application Overview
 
-![MITSI](https://github.com/user-attachments/assets/388e4f47-9bad-43ff-9238-69a4b2786f27)
+**Version**: 1.1.0  
+**Date**: April 22, 2025  
 
+## Purpose
 
+MITSI (MIT System Info) is a PowerShell-based system monitoring application designed to provide real-time system health information, certificate status, and organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, MITSI enhances endpoint visibility and user support by delivering critical system metrics and IT communications directly to the desktop.
 
-## Features
+## Key Features
 
-- System Monitoring: Tracks logged-in user, machine type, OS version, uptime, disk space, and IP addresses.
-- Compliance Checks: Monitors antivirus, BitLocker, BigFix, Code42, and FIPS status with a visual indicator.
-- Real-Time Alerts: Notifies users of YubiKey certificate expirations (configurable threshold, default 7 days) via tray       balloon tips.
-- Announcements: Displays updates with a red dot alert, fetched from a configurable JSON source.
-- Tray Integration: Collapsible context menu with quick actions (Show Dashboard, Refresh, Export Logs, Exit).
-- Logging: Detailed logs saved to MITSI.log with rotation support.
-- Async Operations: Non-blocking YubiKey certificate checks for smooth UI performance.
+1. **System Tray Integration**:
+   - Displays a system tray icon (`healthy.ico` or `warning.ico`) indicating system status.
+   - Provides a context menu with actions: Show Dashboard, Refresh Now, Export Logs, and Exit.
+   - Configured to "Always Show" in the notification area via registry settings.
 
-## Tech
+2. **Graphical User Interface**:
+   - A WPF-based dashboard with expandable sections for:
+     - **Information**: Displays system metrics (e.g., logged-in user, machine type, OS version, uptime, disk usage, IP addresses).
+     - **Announcements**: Shows organizational news with hyperlinks and source indicators (Cache, Remote, Default).
+     - **Patching and Updates**: Reports patch status from a local file (e.g., `C:\temp\patch_fixlets.txt`).
+     - **Support**: Provides IT contact details and links.
+     - **Early Adopter**: Promotes beta programs with links.
+     - **Compliance**: Monitors YubiKey and Microsoft Virtual Smart Card certificate expiry.
+     - **Logs**: Displays recent log entries with export functionality.
+     - **About**: Shows version, changelog, and copyright.
 
-- Written in Powershell and Windows Presentation Foundation (WPF)
-- Leverages .NET 4 or higher
+3. **Content Fetching**:
+   - Retrieves dynamic content (Announcements, Support, Early Adopter) from a configurable URL (e.g., GitHub raw JSON) or local/network path.
+   - Caches content to reduce network load, with a configurable fetch interval (`ContentFetchInterval`, default 120 seconds).
+   - Falls back to default content if fetching fails, ensuring continuity.
 
-## Prerequisites
-- Windows OS: Tested on Windows 10/11. 
-- PowerShell: Version 5.1 or later (pre-installed on Windows). 
-- YubiKey Manager: Optional, for YubiKey certificate monitoring (default path: C:\Program Files\Yubico\Yubikey       Manager\ykman.exe).
+4. **Certificate Monitoring**:
+   - Checks YubiKey certificate expiry using `ykman.exe`.
+   - Monitors Microsoft Virtual Smart Card certificates in user and machine stores.
+   - Displays combined expiry status in the Compliance section.
 
-## Running it
-- Icons: icon.ico (main) and warning.ico (non-healthy state) in the script directory.
-- Installation Place Icons: Copy icon.ico and warning.ico to the script directory (e.g., C:\MITSI). If missing, the app falls back to default system icons.
-- Run the Script: Open PowerShell as Administrator (recommended for full system access). Execute: powershell Unwrap Copy .\MITSI.ps1
-- Ensure Tray Visibility (Optional): Right-click the taskbar → "Taskbar settings" → "Notification area" → "Select which icons appear on the taskbar". Set "MITSI" to "On" for persistent visibility.
-- Usage Tray Icon: Displays icon.ico when healthy, warning.ico if issues are detected. Left-click to toggle the dashboard; right-click for the context menu. 
-- Dashboard: Expand sections (e.g., "Information", "Compliance") to view details. 
-- Announcements: Red dot appears on new updates; expand to clear. YubiKey Alerts: Balloon tip shown when certificate nears expiry (default: ≤7 days). 
-- Logs: View recent logs in the "Logs" section or export via the tray menu. Configuration The app uses MITSI.config.json for settings. Default configuration:
+5. **Logging and Diagnostics**:
+   - Logs all operations to `MITSI.log` with rotation at 5MB.
+   - Supports log export via a GUI button for troubleshooting.
+   - Includes detailed error handling and debugging information.
 
-# MITSI.config.json
-```json
-{
-    "LogRotationSizeMB":  5,
-    "YubiKeyLastCheck":  {
-                             "Date":  "2025-03-03 07:43:29",
-                             "Result":  "YubiKey Certificate: Unable to determine expiry date - No certificate found in slots 9a, 9c, 9d, or 9e"
-                         },
-    "DefaultLogLevel":  "INFO",
-    "IconPaths":  {
-                      "Main":  "icon.ico",
-                      "Warning":  "warning.ico"
-                  },
-    "Version":  "1.1.0",
-    "AnnouncementsLastState":  {
-                                   "Text":  "This is a test Announcement. Written on 3/3/2025.",
-                                   "Details":  "This space for rent. Inquire within.",
-                                   "Links":  {
-                                                 "Link1":  {
-                                                               "Name":  "MITLL Website",
-                                                               "Url":  "https://www.ll.mit.edu/"
-                                                           },
-                                                 "Link2":  {
-                                                               "Name":  "NIST Cyberframework Website",
-                                                               "Url":  "https://www.nist.gov/cyberframework"
-                                                           }
-                                             }
-                               },
-    "YubiKeyAlertDays":  7,
-    "RefreshInterval":  30,
-    "ContentDataUrl":  "https://Some_Hosted_Repository_On_Git/ContentData.json"
-}
-```
-# ContentData.json (Can be hosted in a GIT repository or some other share/URL)
-```json
-{
-  "Announcements": {
-    "Text": "System Monitor v1.1 released on 2025-03-01! This data is from the JSON on GIT.",
-    "Links": {
-      "Link1": { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
-      "Link2": { "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" }
-    }
-  },
-  "Support": {
-    "Text": "For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
-    "Links": {
-      "Link1": { "Name": "Knowledge Base", "Url": "https://support.company.com/knowledge-base" },
-      "Link2": { "Name": "Submit Ticket", "Url": "https://support.company.com/submit-ticket" }
-    }
-  },
-  "EarlyAdopter": {
-    "Text": "Join our Early Adopter Program to test upcoming features! Sign up now.",
-    "Links": {
-      "Link1": { "Name": "Register", "Url": "https://beta.company.com/register" },
-      "Link2": { "Name": "More Info", "Url": "https://beta.company.com/details" }
-    }
-  }
-}
-```
+## Functionality
 
-## License
+- **System Monitoring**: Collects and displays real-time system metrics using PowerShell cmdlets (e.g., `Get-CimInstance`, `Get-NetIPAddress`), ensuring accurate data like Windows 11 24H2 detection (fixed April 22, 2025).
+- **Content Updates**: Fetches external JSON content periodically, with source indicators to show whether data is from cache, remote, or default (added April 22, 2025).
+- **User Interaction**: Runs in the user context to display a system tray icon and GUI, with silent execution (`-WindowStyle Hidden`) for minimal disruption.
+- **Configuration**: Uses `MITSI.config.json` for customizable settings (e.g., `ContentDataUrl`, `ContentFetchInterval`), with defaults in the script for reliability.
+- **Deployment**: Designed for mass deployment via BigFix, with scripts to deploy files to `C:\ProgramData\MITSI` and run via a scheduled task at user logon.
+- **Updates**: Supports version upgrades (e.g., from 1.1.0 to 1.2.0) with BigFix Tasks to replace files while preserving `MITSI.config.json`.
 
-MIT
+## Use Case
+
+MITSI is ideal for enterprise environments with thousands of Windows endpoints, providing IT teams with a lightweight tool to:
+- Monitor system health and certificate compliance.
+- Communicate announcements and support details to users.
+- Integrate with BigFix for deployment and patch reporting (aligned with your March 14, 2025, BigFix usage).
+- Ensure reliable content delivery with caching and fallback mechanisms (addressing your April 22, 2025, URL issues).
+
+## Technical Requirements
+
+- **OS**: Windows 10/11.
+- **PowerShell**: Version 5.1 (Windows PowerShell) for `System.Windows.Forms` and WPF.
+- **Dependencies**: Icon files (`healthy.ico`, `warning.ico`), optional `MITSI.config.json`, and `ykman.exe` for YubiKey checks.
+- **Deployment**: BigFix for mass deployment to `C:\ProgramData\MITSI`.
+
+---
+
+**End of Overview**
