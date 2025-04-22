@@ -1,7 +1,6 @@
 # MITSI (MIT System Info) - Application Overview
 
 **Version**: 1.1.0  
-**Date**: April 22, 2025  
 
 ## Purpose
 
