@@ -76,8 +76,8 @@ function Get-DefaultConfig {
     return @{
         RefreshInterval       = 300
         LogRotationSizeMB     = 5
-        DefaultLogLevel       = "INFO" # Temporary for debugging
-        ContentDataUrl        = "https://lincolnlab.example.com/LLNOTIFY/ContentData.json" # Update to your URL
+        DefaultLogLevel       = "INFO"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/main/ContentData.json" # Remote URL
         ContentFetchInterval  = 600
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -148,6 +148,7 @@ $global:LastCertificateCheck = @{
     Timestamp = [DateTime]::MinValue
     Result = $null
 }
+$global:InitialLaunch = $true
 
 # ============================================================
 # B) External Configuration Setup
@@ -310,98 +311,102 @@ function Fetch-ContentData {
         }
 
         Write-Log "Attempting to fetch content from: $cleanUrl" -Level "INFO"
-        if ($cleanUrl -match "^(?i)(http|https)://") {
-            Write-Log "Detected HTTP/HTTPS URL, using Invoke-WebRequest" -Level "INFO"
-            $headers = @{}
-            if ($global:LastContentFetch) {
-                $headers["If-Modified-Since"] = $global:LastContentFetch.ToUniversalTime().ToString("R")
-            }
-            try {
-                $response = Invoke-WebRequest -Uri $cleanUrl -UseBasicParsing -TimeoutSec 30 -Headers $headers -ErrorAction Stop
-                Write-Log "HTTP Status: $($response.StatusCode), Content-Length: $($response.Content.Length)" -Level "INFO"
-                $contentString = $response.Content.Trim()
-                $contentHash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($contentString)) | ForEach-Object { $_.ToString("x2") }) -join ''
-                if ($contentHash -eq $global:LastContentHash) {
-                    Write-Log "Content unchanged based on hash, using cached data" -Level "INFO"
-                    $global:LastContentFetch = Get-Date
-                    return [PSCustomObject]@{
-                        Data   = $global:CachedContentData
-                        Source = "Cache"
-                    }
-                }
-                $contentData = $contentString | ConvertFrom-Json
-                $global:LastContentHash = $contentHash
-                Write-Log "Fetched content data from URL: $cleanUrl" -Level "INFO"
-            }
-            catch {
-                if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 304) {
-                    Write-Log "Content not modified since last fetch, using cached data" -Level "INFO"
-                    $global:LastContentFetch = Get-Date
-                    return [PSCustomObject]@{
-                        Data   = $global:CachedContentData
-                        Source = "Cache"
-                    }
-                }
-                if ($_.Exception.Response) {
-                    $statusCode = $_.Exception.Response.StatusCode.Value__
-                    $statusDescription = $_.Exception.Response.StatusDescription
-                    Write-Log "HTTP Error: StatusCode=$statusCode, Description=$statusDescription, Message=$($_.Exception.Message)" -Level "ERROR"
-                    if ($statusCode -eq 404 -and $url -ne $cleanUrl) {
-                        Write-Log "Retrying with original URL due to 404: $url" -Level "INFO"
-                        $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
-                        Write-Log "HTTP Status: $($response.StatusCode), Content-Length: $($response.Content.Length)" -Level "INFO"
-                        $contentString = $response.Content.Trim()
-                        $contentData = $contentString | ConvertFrom-Json
-                        $global:LastContentHash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($contentString)) | ForEach-Object { $_.ToString("x2") }) -join ''
-                        Write-Log "Fetched content data from original URL: $url" -Level "INFO"
-                    }
-                    else {
-                        throw $_
-                    }
-                }
-                else {
-                    Write-Log "Non-HTTP error during content fetch: $($_.Exception.Message)" -Level "ERROR"
-                    throw $_
-                }
-            }
+        if ($cleanUrl -notmatch "^(?i)(http|https)://") {
+            Write-Log "Invalid ContentDataUrl: $cleanUrl. Must be an HTTP/HTTPS URL." -Level "ERROR"
+            throw "ContentDataUrl must be an HTTP/HTTPS URL for remote fetching."
         }
-        elseif ($cleanUrl -match "^\\\\") {
-            Write-Log "Detected network path" -Level "INFO"
-            if (-not (Test-Path $cleanUrl)) { throw "Network path not accessible: $cleanUrl" }
-            $rawContent = Get-Content -Path $cleanUrl -Raw
-            $contentHash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($rawContent)) | ForEach-Object { $_.ToString("x2") }) -join ''
-            if ($contentHash -eq $global:LastContentHash) {
-                Write-Log "Content unchanged based on hash, using cached data" -Level "INFO"
+
+        Write-Log "Detected HTTP/HTTPS URL, using Invoke-WebRequest" -Level "INFO"
+        $headers = @{}
+        if ($global:LastContentFetch) {
+            $headers["If-Modified-Since"] = $global:LastContentFetch.ToUniversalTime().ToString("R")
+        }
+        try {
+            $response = Invoke-WebRequest -Uri $cleanUrl -UseBasicParsing -TimeoutSec 30 -Headers $headers -ErrorAction Stop
+            Write-Log "HTTP Status: $($response.StatusCode), Content-Length: $($response.Content.Length)" -Level "INFO"
+            Write-Log "HTTP Headers: $($response.Headers | Out-String)" -Level "INFO"
+            $rawContent = $response.Content.Trim()
+        }
+        catch {
+            if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 304) {
+                Write-Log "Content not modified since last fetch, using cached data" -Level "INFO"
                 $global:LastContentFetch = Get-Date
                 return [PSCustomObject]@{
                     Data   = $global:CachedContentData
                     Source = "Cache"
                 }
             }
-            $contentData = $rawContent | ConvertFrom-Json
-            $global:LastContentHash = $contentHash
-            Write-Log "Fetched content data from network path: $cleanUrl" -Level "INFO"
-        }
-        else {
-            Write-Log "Assuming local file path" -Level "INFO"
-            $fullPath = if ([System.IO.Path]::IsPathRooted($cleanUrl)) { $cleanUrl } else { Join-Path $ScriptDir $cleanUrl }
-            Write-Log "Resolved full path: $fullPath" -Level "INFO"
-            if (-not (Test-Path $fullPath)) { throw "Local path not found: $fullPath" }
-            $rawContent = Get-Content -Path $fullPath -Raw
-            $contentHash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($rawContent)) | ForEach-Object { $_.ToString("x2") }) -join ''
-            if ($contentHash -eq $global:LastContentHash) {
-                Write-Log "Content unchanged based on hash, using cached data" -Level "INFO"
-                $global:LastContentFetch = Get-Date
+            Write-Log "Fetch error details: Status=$($_.Exception.Response.StatusCode), Message=$($_.Exception.Message), StackTrace=$($_.Exception.StackTrace)" -Level "ERROR"
+            if ($global:CachedContentData) {
+                Write-Log "Preserving last valid cached content due to fetch failure" -Level "INFO"
                 return [PSCustomObject]@{
                     Data   = $global:CachedContentData
                     Source = "Cache"
                 }
             }
-            $contentData = $rawContent | ConvertFrom-Json
-            $global:LastContentHash = $contentHash
-            Write-Log "Fetched content data from local path: $fullPath" -Level "INFO"
+            throw $_
         }
+
+        Write-Log "Raw content length: $($rawContent.Length)" -Level "INFO"
+        Write-Log "Raw JSON content (first 500 chars): $($rawContent.Substring(0, [Math]::Min(500, $rawContent.Length)))" -Level "INFO"
+        if ([string]::IsNullOrWhiteSpace($rawContent)) {
+            Write-Log "Fetched content is empty" -Level "ERROR"
+            throw "Content is empty or invalid"
+        }
+
+        try {
+            $contentData = $rawContent | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            Write-Log "JSON parsing failed: $($_.Exception.Message)" -Level "ERROR"
+            if ($global:CachedContentData) {
+                Write-Log "Preserving last valid cached content due to parse failure" -Level "INFO"
+                return [PSCustomObject]@{
+                    Data   = $global:CachedContentData
+                    Source = "Cache"
+                }
+            }
+            throw $_
+        }
+
+        Write-Log "Parsed content structure: $($contentData | ConvertTo-Json -Depth 3)" -Level "INFO"
+
+        # Validate JSON structure
+        if (-not $contentData.Announcements -or -not $contentData.Support) {
+            Write-Log "ContentData.json missing required fields (Announcements, Support)" -Level "ERROR"
+            if ($global:CachedContentData) {
+                Write-Log "Preserving last valid cached content due to invalid structure" -Level "INFO"
+                return [PSCustomObject]@{
+                    Data   = $global:CachedContentData
+                    Source = "Cache"
+                }
+            }
+            return [PSCustomObject]@{
+                Data   = $defaultContentData
+                Source = "Default"
+            }
+        }
+
+        # Log unexpected fields
+        $expectedFields = @("Announcements", "Support")
+        $actualFields = $contentData.PSObject.Properties.Name
+        $unexpectedFields = $actualFields | Where-Object { $_ -notin $expectedFields }
+        if ($unexpectedFields) {
+            Write-Log "Ignoring unexpected fields in ContentData.json: $($unexpectedFields -join ', ')" -Level "INFO"
+        }
+
+        $contentHash = ([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($rawContent)) | ForEach-Object { $_.ToString("x2") }) -join ''
+        if ($contentHash -eq $global:LastContentHash) {
+            Write-Log "Content unchanged based on hash, using cached data" -Level "INFO"
+            $global:LastContentFetch = Get-Date
+            return [PSCustomObject]@{
+                Data   = $global:CachedContentData
+                Source = "Cache"
+            }
+        }
+
         $global:CachedContentData = $contentData
+        $global:LastContentHash = $contentHash
         $global:LastContentFetch = Get-Date
         Write-Log "Content fetched from source: $cleanUrl" -Level "INFO"
         return [PSCustomObject]@{
@@ -410,8 +415,10 @@ function Fetch-ContentData {
         }
     }
     catch {
-        Write-Log "Failed to fetch content data from ${cleanUrl}: $($_.Exception.Message)" -Level "ERROR"
-        Write-Log "ContentDataUrl invalid or unreachable, using default content. Please set a valid ContentDataUrl in LLNOTIFY.config.json." -Level "WARNING"
+        $global:LastContentHash = ""
+        $global:CachedContentData = $null
+        Write-Log "Failed to fetch or parse content data from ${cleanUrl}: $($_.Exception.Message)" -Level "ERROR"
+        Write-Log "Using default content due to fetch/parse failure" -Level "WARNING"
         return [PSCustomObject]@{
             Data   = $defaultContentData
             Source = "Default"
@@ -464,7 +471,7 @@ function Get-YubiKeyCertExpiryDays {
     }
     catch {
         if ($_.Exception.Message -ne "No YubiKey detected by ykman") {
-            Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
+            Write-Log "Error retrieving YubiKey certificate expiry: $_"listenLevel "ERROR"
             return "YubiKey Certificate: Unable to determine expiry date - $_"
         }
     }
@@ -511,8 +518,9 @@ function Update-CertificateInfo {
         $window.Dispatcher.Invoke({
             if ($global:YubiKeyComplianceText) { 
                 $global:YubiKeyComplianceText.Text = $combinedStatus 
+                Write-Log "Set YubiKeyComplianceText to: $combinedStatus" -Level "INFO"
             } else {
-                Write-Log "YubiKeyComplianceText is null" -Level "WARNING"
+                Write-Log "YubiKeyComplianceText is null during update" -Level "ERROR"
             }
         })
     }
@@ -522,13 +530,21 @@ function Update-CertificateInfo {
 }
 
 function Update-Announcements {
+    param (
+        [bool]$InitialLaunch = $false
+    )
     try {
         $contentResult = $global:contentData
         $current = $contentResult.Data.Announcements
         $source = $contentResult.Source
-        $last = $config.AnnouncementsLastState
 
-        if ($last -and $current.Text -eq $last.Text) {
+        if (-not $current.Text -or -not $current.Links) {
+            Write-Log "Announcements missing required properties (Text, Links)" -Level "ERROR"
+            return
+        }
+
+        $last = $config.AnnouncementsLastState
+        if (-not $InitialLaunch -and $last -and $current.Text -eq $last.Text) {
             Write-Log "Announcements unchanged, skipping update" -Level "INFO"
             return
         }
@@ -538,23 +554,47 @@ function Update-Announcements {
         }
 
         $window.Dispatcher.Invoke({
-            if ($global:AnnouncementsText) { $global:AnnouncementsText.Text = $current.Text }
-            if ($global:AnnouncementsDetailsText) { $global:AnnouncementsDetailsText.Text = $current.Details }
+            if ($global:AnnouncementsText) {
+                $global:AnnouncementsText.Text = $current.Text
+                Write-Log "Set AnnouncementsText to: $($current.Text)" -Level "INFO"
+            } else {
+                Write-Log "AnnouncementsText is null during update" -Level "ERROR"
+            }
+            if ($global:AnnouncementsDetailsText) {
+                $global:AnnouncementsDetailsText.Text = $current.Details
+                Write-Log "Set AnnouncementsDetailsText to: $($current.Details)" -Level "INFO"
+            } else {
+                Write-Log "AnnouncementsDetailsText is null during update" -Level "ERROR"
+            }
             if ($global:AnnouncementsLinksPanel) {
                 $global:AnnouncementsLinksPanel.Children.Clear()
                 foreach ($link in $current.Links) {
-                    $tb = New-Object System.Windows.Controls.TextBlock
-                    $hp = New-Object System.Windows.Documents.Hyperlink
-                    $hp.NavigateUri = [Uri]$link.Url
-                    $hp.Inlines.Add($link.Name)
-                    $hp.Add_RequestNavigate({ param($s,$e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
-                    $tb.Inlines.Add($hp)
-                    $global:AnnouncementsLinksPanel.Children.Add($tb)
+                    try {
+                        $tb = New-Object System.Windows.Controls.TextBlock
+                        $hp = New-Object System.Windows.Documents.Hyperlink
+                        $hp.NavigateUri = [Uri]$link.Url
+                        $hp.Inlines.Add($link.Name)
+                        $hp.Add_RequestNavigate({ param($s, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+                        $tb.Inlines.Add($hp)
+                        $global:AnnouncementsLinksPanel.Children.Add($tb)
+                        Write-Log "Added hyperlink: $($link.Name) -> $($link.Url)" -Level "INFO"
+                    }
+                    catch {
+                        Write-Log "Error creating hyperlink for URL $($link.Url): $_" -Level "ERROR"
+                    }
                 }
+            } else {
+                Write-Log "AnnouncementsLinksPanel is null during update" -Level "ERROR"
             }
-            if ($global:AnnouncementsSourceText) { $global:AnnouncementsSourceText.Text = "Source: $source" }
+            if ($global:AnnouncementsSourceText) {
+                $global:AnnouncementsSourceText.Text = "Source: $source"
+                Write-Log "Set AnnouncementsSourceText to: Source: $source" -Level "INFO"
+            } else {
+                Write-Log "AnnouncementsSourceText is null during update" -Level "ERROR"
+            }
             if ($global:announcementAlertActive -and $global:AnnouncementsAlertIcon) {
                 $global:AnnouncementsAlertIcon.Visibility = "Visible"
+                Write-Log "Set AnnouncementsAlertIcon to Visible" -Level "INFO"
             }
         })
 
@@ -569,13 +609,21 @@ function Update-Announcements {
 }
 
 function Update-Support {
+    param (
+        [bool]$InitialLaunch = $false
+    )
     try {
         $contentResult = $global:contentData
         $current = $contentResult.Data.Support
         $source = $contentResult.Source
-        $last = $config.SupportLastState
 
-        if ($last -and $current.Text -eq $last.Text) {
+        if (-not $current.Text -or -not $current.Links) {
+            Write-Log "Support missing required properties (Text, Links)" -Level "ERROR"
+            return
+        }
+
+        $last = $config.SupportLastState
+        if (-not $InitialLaunch -and $last -and $current.Text -eq $last.Text) {
             Write-Log "Support unchanged, skipping update" -Level "INFO"
             return
         }
@@ -584,25 +632,46 @@ function Update-Support {
             $window.Dispatcher.Invoke({
                 if ($global:SupportAlertIcon) {
                     $global:SupportAlertIcon.Visibility = "Visible"
+                    Write-Log "Set SupportAlertIcon to Visible" -Level "INFO"
+                } else {
+                    Write-Log "SupportAlertIcon is null during update" -Level "ERROR"
                 }
             })
         }
 
         $window.Dispatcher.Invoke({
-            if ($global:SupportText) { $global:SupportText.Text = $current.Text }
+            if ($global:SupportText) {
+                $global:SupportText.Text = $current.Text
+                Write-Log "Set SupportText to: $($current.Text)" -Level "INFO"
+            } else {
+                Write-Log "SupportText is null during update" -Level "ERROR"
+            }
             if ($global:SupportLinksPanel) {
                 $global:SupportLinksPanel.Children.Clear()
                 foreach ($link in $current.Links) {
-                    $tb = New-Object System.Windows.Controls.TextBlock
-                    $hp = New-Object System.Windows.Documents.Hyperlink
-                    $hp.NavigateUri = [Uri]$link.Url
-                    $hp.Inlines.Add($link.Name)
-                    $hp.Add_RequestNavigate({ param($s,$e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
-                    $tb.Inlines.Add($hp)
-                    $global:SupportLinksPanel.Children.Add($tb)
+                    try {
+                        $tb = New-Object System.Windows.Controls.TextBlock
+                        $hp = New-Object System.Windows.Documents.Hyperlink
+                        $hp.NavigateUri = [Uri]$link.Url
+                        $hp.Inlines.Add($link.Name)
+                        $hp.Add_RequestNavigate({ param($s, $e) Start-Process $e.Uri.AbsoluteUri; $e.Handled = $true })
+                        $tb.Inlines.Add($hp)
+                        $global:SupportLinksPanel.Children.Add($tb)
+                        Write-Log "Added hyperlink: $($link.Name) -> $($link.Url)" -Level "INFO"
+                    }
+                    catch {
+                        Write-Log "Error creating hyperlink for URL $($link.Url): $_" -Level "ERROR"
+                    }
                 }
+            } else {
+                Write-Log "SupportLinksPanel is null during update" -Level "ERROR"
             }
-            if ($global:SupportSourceText) { $global:SupportSourceText.Text = "Source: $source" }
+            if ($global:SupportSourceText) {
+                $global:SupportSourceText.Text = "Source: $source"
+                Write-Log "Set SupportSourceText to: Source: $source" -Level "INFO"
+            } else {
+                Write-Log "SupportSourceText is null during update" -Level "ERROR"
+            }
         })
 
         $config.SupportLastState = $current
@@ -646,8 +715,9 @@ function Update-PatchingUpdates {
         $window.Dispatcher.Invoke({
             if ($global:PatchingUpdatesText) { 
                 $global:PatchingUpdatesText.Text = $patchText 
+                Write-Log "Set PatchingUpdatesText to: $patchText" -Level "INFO"
             } else {
-                Write-Log "PatchingUpdatesText is null" -Level "WARNING"
+                Write-Log "PatchingUpdatesText is null during update" -Level "ERROR"
             }
         })
         Write-Log "Patching status updated: $patchText" -Level "INFO"
@@ -656,7 +726,12 @@ function Update-PatchingUpdates {
         $errorMessage = "Error reading patch info file: $_"
         Write-Log $errorMessage -Level "ERROR"
         $window.Dispatcher.Invoke({
-            if ($global:PatchingUpdatesText) { $global:PatchingUpdatesText.Text = $errorMessage }
+            if ($global:PatchingUpdatesText) { 
+                $global:PatchingUpdatesText.Text = $errorMessage 
+                Write-Log "Set PatchingUpdatesText to: $errorMessage" -Level "INFO"
+            } else {
+                Write-Log "PatchingUpdatesText is null during update" -Level "ERROR"
+            }
         })
     }
 }
@@ -694,9 +769,44 @@ function Update-TrayIcon {
 }
 
 function Update-UIElements {
+    param(
+        [bool]$InitialLaunch = $false
+    )
     try {
+        # Check if window and controls are initialized
+        if (-not $global:AnnouncementsText -or -not $global:SupportText -or -not $global:PatchingUpdatesText) {
+            Write-Log "UI controls not initialized, retrying update" -Level "WARNING"
+            $window.Dispatcher.InvokeAsync({ Update-UIElements -InitialLaunch $InitialLaunch }, [System.Windows.Threading.DispatcherPriority]::Background)
+            return
+        }
+
+        # Check if window is visible
+        if (-not $window.IsVisible) {
+            Write-Log "Window not visible, scheduling UI update retry" -Level "INFO"
+            $window.Dispatcher.InvokeAsync({ Update-UIElements -InitialLaunch $InitialLaunch }, [System.Windows.Threading.DispatcherPriority]::Background)
+            return
+        }
+
         $updates = @{}
         $contentResult = $global:contentData
+        if (-not $contentResult -or -not $contentResult.Data -or -not $contentResult.Data.Announcements -or -not $contentResult.Data.Announcements.Text) {
+            $contentResult = [PSCustomObject]@{
+                Data   = $defaultContentData
+                Source = "Default"
+            }
+            Write-Log "Invalid content data, forcing default content" -Level "WARNING"
+        }
+
+        Write-Log "UI content source: $($contentResult.Source)" -Level "INFO"
+
+        # Log unexpected fields
+        $expectedFields = @("Announcements", "Support")
+        $actualFields = $contentResult.Data.PSObject.Properties.Name
+        $unexpectedFields = $actualFields | Where-Object { $_ -notin $expectedFields }
+        if ($unexpectedFields) {
+            Write-Log "Ignoring unexpected fields in ContentData.json: $($unexpectedFields -join ', ')" -Level "INFO"
+        }
+
         if ($contentResult.Source -ne "Cache") {
             $updates.Announcements = $true
             $updates.Support = $true
@@ -719,13 +829,37 @@ function Update-UIElements {
         }
 
         Write-Log "Updating UI elements: $($updates | ConvertTo-Json -Depth 1)" -Level "INFO"
+        $start = Get-Date
         $window.Dispatcher.Invoke({
-            if ($updates.Announcements -and $global:AnnouncementsText) { Update-Announcements }
-            if ($updates.Support -and $global:SupportText) { Update-Support }
-            if ($updates.PatchingUpdates -and $global:PatchingUpdatesText) { Update-PatchingUpdates }
-            if ($updates.CertificateInfo -and $global:YubiKeyComplianceText) { Update-CertificateInfo }
+            # Preload default content for initial launch
+            if ($InitialLaunch) {
+                if ($global:AnnouncementsText) {
+                    $global:AnnouncementsText.Text = $defaultContentData.Announcements.Text
+                    Write-Log "Set AnnouncementsText to default: $($defaultContentData.Announcements.Text)" -Level "INFO"
+                }
+                if ($global:AnnouncementsDetailsText) {
+                    $global:AnnouncementsDetailsText.Text = $defaultContentData.Announcements.Details
+                    Write-Log "Set AnnouncementsDetailsText to default: $($defaultContentData.Announcements.Details)" -Level "INFO"
+                }
+                if ($global:SupportText) {
+                    $global:SupportText.Text = $defaultContentData.Support.Text
+                    Write-Log "Set SupportText to default: $($defaultContentData.Support.Text)" -Level "INFO"
+                }
+                if ($global:PatchingUpdatesText) {
+                    $global:PatchingUpdatesText.Text = "Loading patch info..."
+                    Write-Log "Set PatchingUpdatesText to: Loading patch info..." -Level "INFO"
+                }
+            }
+            # Batch updates
+            $updates.GetEnumerator() | ForEach-Object {
+                if ($_.Key -eq "Announcements" -and $_.Value -and $global:AnnouncementsText) { Update-Announcements -InitialLaunch $InitialLaunch }
+                if ($_.Key -eq "Support" -and $_.Value -and $global:SupportText) { Update-Support -InitialLaunch $InitialLaunch }
+                if ($_.Key -eq "PatchingUpdates" -and $_.Value -and $global:PatchingUpdatesText) { Update-PatchingUpdates }
+                if ($_.Key -eq "CertificateInfo" -and $_.Value -and $global:YubiKeyComplianceText -and -not $InitialLaunch) { Update-CertificateInfo }
+            }
             if (($updates.ContainsKey("Announcements") -or $updates.ContainsKey("Support")) -and $global:TrayIcon) { Update-TrayIcon }
         })
+        Write-Log "UI update took $((Get-Date) - $start).TotalSeconds seconds" -Level "INFO"
     }
     catch {
         Write-Log "Error in Update-UIElements: $_" -Level "ERROR"
@@ -888,6 +1022,7 @@ try {
             $window.Dispatcher.Invoke({
                 if ($global:AnnouncementsAlertIcon) {
                     $global:AnnouncementsAlertIcon.Visibility = "Hidden"
+                    Write-Log "Cleared AnnouncementsAlertIcon visibility" -Level "INFO"
                 }
             })
             Write-Log "Announcements expander expanded, alert dot cleared." -Level "INFO"
@@ -899,6 +1034,7 @@ try {
             $window.Dispatcher.Invoke({
                 if ($global:SupportAlertIcon) {
                     $global:SupportAlertIcon.Visibility = "Hidden"
+                    Write-Log "Cleared SupportAlertIcon visibility" -Level "INFO"
                 }
             })
             Write-Log "Support expander expanded, alert dot cleared." -Level "INFO"
@@ -1168,6 +1304,8 @@ function Toggle-WindowVisibility {
                 $window.Topmost = $true
                 Start-Sleep -Milliseconds 500
                 $window.Topmost = $false
+                Update-UIElements -InitialLaunch $true
+                $global:InitialLaunch = $false
                 Write-Log "Dashboard shown via Toggle-WindowVisibility at Left=$($window.Left), Top=$($window.Top), Visibility=$($window.Visibility), State=$($window.WindowState)" -Level "INFO"
             }
         }, "Normal")
@@ -1220,6 +1358,9 @@ $global:DispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
 $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterval)
 $global:DispatcherTimer.add_Tick({
     try {
+        $delay = Get-Random -Minimum 30 -Maximum 60
+        Write-Log "Delaying periodic content fetch by $delay seconds" -Level "INFO"
+        Start-Sleep -Seconds $delay
         $global:contentData = Fetch-ContentData
         Update-UIElements
         Write-Log "Dispatcher tick completed" -Level "INFO"
@@ -1228,45 +1369,32 @@ $global:DispatcherTimer.add_Tick({
         Handle-Error "Error during timer tick: $_" -Source "DispatcherTimer"
     }
 })
-$global:DispatcherTimer.Start()
-Write-Log "DispatcherTimer started with interval $($config.RefreshInterval) seconds" -Level "INFO"
 
 # ============================================================
-# L) Dispatcher Exception Handling
-# ============================================================
-function Handle-DispatcherUnhandledException {
-    param(
-        [object]$sender,
-        [System.Windows.Threading.DispatcherUnhandledExceptionEventArgs]$args
-    )
-    Handle-Error "Unhandled Dispatcher exception: $($args.Exception.Message)" -Source "Dispatcher"
-    Flush-LogBuffer
-}
-
-Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledException -Action {
-    param($sender, $args)
-    Handle-DispatcherUnhandledException -sender $sender -args $args
-}
-
-# ============================================================
-# M) Initial Update & Start Dispatcher
+# L) Main Execution
 # ============================================================
 try {
-    $delay = Get-Random -Minimum 0 -Maximum 60
-    Write-Log "Delaying initial content fetch by $delay seconds" -Level "INFO"
-    Start-Sleep -Seconds $delay
-
-    $global:contentData = Fetch-ContentData
-    Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 3)" -Level "INFO"
-    Update-UIElements
     Log-DotNetVersion
-    Write-Log "Initial update completed" -Level "INFO"
+    $global:contentData = Fetch-ContentData
+    Update-UIElements -InitialLaunch $true
+    $global:DispatcherTimer.Start()
+    Write-Log "Application started successfully. DispatcherTimer running with interval: $($config.RefreshInterval) seconds" -Level "INFO"
+    [System.Windows.Application]::new().Run($window)
 }
 catch {
-    Handle-Error "Error during initial update setup: $_" -Source "InitialUpdate"
+    Handle-Error "Application startup failed: $_" -Source "Main"
+    Flush-LogBuffer
+    exit
 }
-
-Write-Log "About to call Dispatcher.Run()..." -Level "INFO"
-[System.Windows.Threading.Dispatcher]::Run()
-Write-Log "Dispatcher ended; script exiting." -Level "INFO"
-Flush-LogBuffer
+finally {
+    if ($global:DispatcherTimer) {
+        $global:DispatcherTimer.Stop()
+        Write-Log "DispatcherTimer stopped in finally block." -Level "INFO"
+    }
+    if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
+        $global:TrayIcon.Visible = $false
+        $global:TrayIcon.Dispose()
+        Write-Log "Tray icon disposed in finally block." -Level "INFO"
+    }
+    Flush-LogBuffer
+}
