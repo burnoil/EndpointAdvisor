@@ -1,21 +1,15 @@
 {
   "Announcements":  {
-    "Text":  "This is TEST data from the MITLL Git repository for this app. Released on 2025-04-24. Check out the new features and updates.",
+    "Text":  "This is TEST data from the MITLL Git repository for this app. Released on 2025-04-25. Check out the new features and updates.",
     "Details":  "All systems are running normally. Please review the latest updates.",
     "Links":  [
-      {
-        "Name":  "",
-        "Url":  null
-      }
-    ]
-  },
-  "Support":  {
-    "Text":  "Call the ISD Support Center at 781-981-4357 (HELP).",
-    "Links":  [
-      {
-        "Name":  "",
-        "Url":  null
-      }
-    ]
-  }
+    
+  ]
+},
+"Support":  {
+  "Text":  "Call the ISD Support Center at 781-981-4357 (HELP).",
+  "Links":  [
+  
+]
+}
 }
