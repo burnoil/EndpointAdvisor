@@ -1,25 +1,24 @@
 {
-"Announcements": {
-"Text": "System Monitor v1.1.0 released on 2025-04-24. Work in progress.",
-"Details": "All systems are running normally. Please review the latest updates.",
-"Links": [
-{ "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
-{ "Name": "NIST Cyber Framework", "Url": "https://www.nist.gov/cyberframework" },
-{ "Name": "Test Link", "Url": "https://www.nist.gov/cyberframework" }
-]
-},
-"Support": {
-"Text": "Updated on 2025-04-04. For assistance, contact IT Support at support@company.com or call 1-800-555-1234.",
-"Links": [
-{ "Name": "Test Knowledge Base", "Url": "https://support.company.com/help" },
-{ "Name": "Test Submit Ticket", "Url": "https://support.company.com/tickets" }
-]
-},
-"EarlyAdopter": {
-"Text": "Join our Early Adopter Program to test upcoming features! Sign up now.",
-"Links": [
-{ "Name": "Register", "Url": "https://beta.company.com/register" },
-{ "Name": "More Info", "Url": "https://beta.company.com/details" }
-]
-}
+  "Announcements": {
+    "Text": "This is TEST data from the MITLL Git repository for this app. Released on 2025-04-18. Check out the new features and updates.",
+    "Details": "All systems are running normally. Please review the latest updates.",
+    "Links": [
+      { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
+      { "Name": "LL Announcements List", "Url": "https://c3.llan.ll.mit.edu/wps/myportal/intranet?1dmy&current=true&urile=wcm:path:/mitll/home/announcements/announcements-list" }
+      ]
+  },
+  "Support": {
+    "Text": "Call the ISD Support Center at 781-981-4357 (HELP).",
+    "Links": [
+      { "Name": "Knowledge Base", "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2" },
+      { "Name": "Submit Ticket", "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no" }
+    ]
+  },
+  "Placeholder": {
+    "Text": "Placeholder text.",
+    "Links": [
+      { "Name": "Register", "Url": "https://www.ll.mit.edu/" },
+      { "Name": "More Info", "Url": "https://www.ll.mit.edu/" }
+    ]
+  }
 }
