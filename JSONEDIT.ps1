@@ -1,5 +1,5 @@
 # PowerShell GUI for editing JSON content in a Git repository
-# Requires Git and WinGet for Git installation if not present
+# Requires Git installed at C:\Program Files\Git
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName System.Windows.Forms
@@ -16,75 +16,25 @@ function Write-Log {
 
 Write-Log "Starting JsonEditorGui.ps1"
 
-# Function to check if Git is installed
+# Function to check if Git is installed at C:\Program Files\Git
 function Test-GitInstalled {
     try {
-        git --version | Out-Null
-        Write-Log "Git is installed."
-        return $true
-    }
-    catch {
-        Write-Log "Git not found: $($_.Exception.Message)"
-        return $false
-    }
-}
-
-# Function to install Git using WinGet
-function Install-Git {
-    param ($StatusTextBlock)
-    try {
-        $StatusTextBlock.Text = "Installing Git via WinGet..."
-        Write-Log "Installing Git via WinGet..."
-        winget install --id Git.Git --silent --accept-package-agreements --accept-source-agreements | ForEach-Object {
-            Write-Log "WinGet output: $_"
-            $StatusTextBlock.Text = "Installing Git: $_"
-            [System.Windows.Forms.Application]::DoEvents() # Update GUI
-        }
-        # Refresh environment to ensure git is available
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-        if (Test-GitInstalled) {
-            $StatusTextBlock.Text = "Git installed successfully."
-            Write-Log "Git installed successfully."
+        $gitPath = "C:\Program Files\Git\bin\git.exe"
+        if (Test-Path $gitPath) {
+            # Ensure Git is in the PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + "C:\Program Files\Git\bin"
+            git --version | Out-Null
+            Write-Log "Git is installed at $gitPath."
             return $true
         }
         else {
-            $StatusTextBlock.Text = "Git installation completed but git command not found."
-            Write-Log "Git installation completed but git command not found."
+            Write-Log "Git not found at $gitPath."
             return $false
         }
     }
     catch {
-        $StatusTextBlock.Text = "Failed to install Git: $($_.Exception.Message)"
-        Write-Log "Failed to install Git: $($_.Exception.Message)"
+        Write-Log "Git check failed: $($_.Exception.Message)"
         return $false
-    }
-}
-
-# Function to ensure WinGet is available
-function Ensure-WinGet {
-    param ($StatusTextBlock)
-    try {
-        winget --version | Out-Null
-        Write-Log "WinGet is available."
-        return $true
-    }
-    catch {
-        try {
-            $StatusTextBlock.Text = "Installing WinGet..."
-            Write-Log "Installing WinGet..."
-            $progressPreference = 'SilentlyContinue'
-            Install-PackageProvider -Name NuGet -Force | Out-Null
-            Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
-            Repair-WinGetPackageManager | Out-Null
-            $StatusTextBlock.Text = "WinGet installed successfully."
-            Write-Log "WinGet installed successfully."
-            return $true
-        }
-        catch {
-            $StatusTextBlock.Text = "Failed to install WinGet: $($_.Exception.Message)"
-            Write-Log "Failed to install WinGet: $($_.Exception.Message)"
-            return $false
-        }
     }
 }
 
@@ -410,11 +360,11 @@ function Validate-DataGridRows {
     return $true
 }
 
-# WPF XAML for GUI with colored sections
+# WPF XAML for GUI with colored sections and highlighted headers
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="LLNOTIFY JSON Content Editor" Height="700" Width="800">
+        Title="JSON Content Editor" Height="600" Width="800">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -438,7 +388,10 @@ $xaml = @"
         <Grid Grid.Row="3" x:Name="ContentGrid" Margin="5">
             <ScrollViewer x:Name="SectionView" VerticalScrollBarVisibility="Auto" Visibility="Visible">
                 <StackPanel>
-                    <Expander Header="Announcements" IsExpanded="True" Margin="5">
+                    <Expander Margin="5" IsExpanded="True">
+                        <Expander.Header>
+                            <TextBlock Text="Announcements" FontWeight="Bold" Foreground="#005B9A" Background="#F5F5F5" Padding="5"/>
+                        </Expander.Header>
                         <StackPanel Margin="10" Background="#E6F0FA">
                             <TextBlock Text="Text:" Margin="0,0,0,5"/>
                             <TextBox x:Name="AnnouncementsTextBox" AcceptsReturn="True" AcceptsTab="True" Height="80" TextWrapping="Wrap"/>
@@ -453,7 +406,10 @@ $xaml = @"
                             </DataGrid>
                         </StackPanel>
                     </Expander>
-                    <Expander Header="Support" IsExpanded="True" Margin="5">
+                    <Expander Margin="5" IsExpanded="True">
+                        <Expander.Header>
+                            <TextBlock Text="Support" FontWeight="Bold" Foreground="#006400" Background="#F5F5F5" Padding="5"/>
+                        </Expander.Header>
                         <StackPanel Margin="10" Background="#E6FAE6">
                             <TextBlock Text="Text:" Margin="0,0,0,5"/>
                             <TextBox x:Name="SupportTextBox" AcceptsReturn="True" AcceptsTab="True" Height="80" TextWrapping="Wrap"/>
@@ -524,24 +480,17 @@ if (Test-GitInstalled) {
     $statusTextBlock.Text = "Git is installed."
 }
 else {
-    $statusTextBlock.Text = "Git not found. Will install when loading JSON."
+    $statusTextBlock.Text = "Git not found at C:\Program Files\Git. Please install Git manually."
 }
 
 # Event handlers
 $loadButton.Add_Click({
-    # Check for WinGet and Git
-    if (-not (Ensure-WinGet -StatusTextBlock $statusTextBlock)) {
-        Write-Log "WinGet installation failed."
-        [System.Windows.MessageBox]::Show("WinGet installation failed. Cannot proceed. Check the log at $logFile for details.", "Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
-        return
-    }
-
+    # Check for Git
     if (-not (Test-GitInstalled)) {
-        if (-not (Install-Git -StatusTextBlock $statusTextBlock)) {
-            Write-Log "Git installation failed."
-            [System.Windows.MessageBox]::Show("Git installation failed. Cannot proceed. Check the log at $logFile for details.", "Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
-            return
-        }
+        Write-Log "Git not found at C:\Program Files\Git."
+        $statusTextBlock.Text = "Error: Git not found."
+        [System.Windows.MessageBox]::Show("Git not found at C:\Program Files\Git. Please install Git manually and try again.", "Error", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+        return
     }
 
     # Configure Git identity
