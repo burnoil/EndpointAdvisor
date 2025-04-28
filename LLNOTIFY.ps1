@@ -317,6 +317,7 @@ $xamlString = @"
           </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
+              <TextBlock x:Name="PatchingDescriptionText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
@@ -350,6 +351,8 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
+        <!-- Windows Build Number -->
+        <TextBlock x:Name="WindowsBuildText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300" HorizontalAlignment="Center"/>
       </StackPanel>
     </ScrollViewer>
     <!-- Footer Section -->
@@ -390,6 +393,7 @@ try {
     $global:AnnouncementsLinksPanel = $window.FindName("AnnouncementsLinksPanel")
     $global:AnnouncementsSourceText = $window.FindName("AnnouncementsSourceText")
     $global:PatchingExpander = $window.FindName("PatchingExpander")
+    $global:PatchingDescriptionText = $window.FindName("PatchingDescriptionText")
     $global:PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
     $global:PatchingSSAButton = $window.FindName("PatchingSSAButton")
     $global:SupportExpander = $window.FindName("SupportExpander")
@@ -399,6 +403,7 @@ try {
     $global:SupportSourceText = $window.FindName("SupportSourceText")
     $global:ComplianceExpander = $window.FindName("ComplianceExpander")
     $global:YubiKeyComplianceText = $window.FindName("YubiKeyComplianceText")
+    $global:WindowsBuildText = $window.FindName("WindowsBuildText")
     # Clear the red alert-dot when the Expander is opened
     if ($global:AnnouncementsExpander) {
         $global:AnnouncementsExpander.Add_Expanded({
@@ -427,15 +432,59 @@ try {
         $global:PatchingSSAButton.Add_Click({
             try {
                 $ssaPath = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
+                $bigFixLogDir = "$env:LOCALAPPDATA\BigFix\BigFixSSA\logs"
+
+                # Create temporary log directory to satisfy BigFixSSA.exe
+                if (-not (Test-Path $bigFixLogDir)) {
+                    New-Item -Path $bigFixLogDir -ItemType Directory -Force | Out-Null
+                    Write-Log "Created temporary BigFix log directory: $bigFixLogDir" -Level "INFO"
+                }
+
                 if (Test-Path $ssaPath) {
-                    Start-Process -FilePath $ssaPath
-                    Write-Log "Launched BigFix Self-Service Application: $ssaPath" -Level "INFO"
+                    # Launch BigFixSSA.exe and wait for it to exit
+                    $process = Start-Process -FilePath $ssaPath -PassThru -RedirectStandardOutput "$env:TEMP\BigFixSSA_output.txt" -RedirectStandardError "$env:TEMP\BigFixSSA_error.txt" -NoNewWindow
+                    Write-Log "Launched BigFix Self-Service Application: $ssaPath (PID: $($process.Id))" -Level "INFO"
+                    
+                    # Wait for the process to exit (with a timeout to prevent hanging)
+                    $timeoutSeconds = 30
+                    if ($process.WaitForExit($timeoutSeconds * 1000)) {
+                        Write-Log "BigFixSSA.exe exited with code: $($process.ExitCode)" -Level "INFO"
+                    } else {
+                        Write-Log "BigFixSSA.exe did not exit within $timeoutSeconds seconds" -Level "WARNING"
+                    }
+
+                    # Clean up any log files in the BigFix log directory
+                    $logFiles = Get-ChildItem -Path $bigFixLogDir -Filter "*.log" -ErrorAction SilentlyContinue
+                    foreach ($logFile in $logFiles) {
+                        try {
+                            Remove-Item -Path $logFile.FullName -Force -ErrorAction Stop
+                            Write-Log "Deleted BigFix log file: $($logFile.FullName)" -Level "INFO"
+                        }
+                        catch {
+                            Write-Log "Failed to delete BigFix log file $($logFile.FullName): $_" -Level "WARNING"
+                        }
+                    }
+
+                    # Clean up redirected output files
+                    $tempFiles = @("$env:TEMP\BigFixSSA_output.txt", "$env:TEMP\BigFixSSA_error.txt")
+                    foreach ($tempFile in $tempFiles) {
+                        if (Test-Path $tempFile) {
+                            Remove-Item -Path $tempFile -Force -ErrorAction SilentlyContinue
+                            Write-Log "Deleted temporary file: $tempFile" -Level "INFO"
+                        }
+                    }
                 } else {
                     Write-Log "BigFix BigFixSSA.exe not found at $ssaPath" -Level "ERROR"
+                    if ($global:FormsAvailable -and $global:TrayIcon) {
+                        $global:TrayIcon.ShowBalloonTip(5000, "LLNOTIFY Error", "BigFix Self-Service Application not found. Contact IT support.", "Error")
+                    }
                 }
             }
             catch {
                 Handle-Error "Error launching BigFix BigFixSSA.exe: $_" -Source "PatchingSSAButton"
+                if ($global:FormsAvailable -and $global:TrayIcon) {
+                    $global:TrayIcon.ShowBalloonTip(5000, "LLNOTIFY Error", "Failed to launch BigFix Self-Service Application: $_", "Error")
+                }
             }
         })
     }
@@ -447,6 +496,7 @@ try {
     Write-Log "AnnouncementsExpander null? $($global:AnnouncementsExpander -eq $null)" -Level "INFO"
     Write-Log "AnnouncementsAlertIcon null? $($global:AnnouncementsAlertIcon -eq $null)" -Level "INFO"
     Write-Log "PatchingExpander null? $($global:PatchingExpander -eq $null)" -Level "INFO"
+    Write-Log "PatchingDescriptionText null? $($global:PatchingDescriptionText -eq $null)" -Level "INFO"
     Write-Log "PatchingUpdatesText null? $($global:PatchingUpdatesText -eq $null)" -Level "INFO"
     Write-Log "PatchingSSAButton null? $($global:PatchingSSAButton -eq $null)" -Level "INFO"
     Write-Log "SupportText null? $($global:SupportText -eq $null)" -Level "INFO"
@@ -456,6 +506,7 @@ try {
     Write-Log "SupportAlertIcon null? $($global:SupportAlertIcon -eq $null)" -Level "INFO"
     Write-Log "ComplianceExpander null? $($global:ComplianceExpander -eq $null)" -Level "INFO"
     Write-Log "YubiKeyComplianceText null? $($global:YubiKeyComplianceText -eq $null)" -Level "INFO"
+    Write-Log "WindowsBuildText null? $($global:WindowsBuildText -eq $null)" -Level "INFO"
 }
 catch {
     Handle-Error "Failed to load the XAML layout: $_" -Source "XAML"
@@ -680,6 +731,70 @@ function Update-CertificateInfo {
 }
 
 # ------------------------------------------------------------
+# Windows Build Number Functions
+# ------------------------------------------------------------
+function Get-WindowsBuildNumber {
+    try {
+        $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+        $buildInfo = Get-ItemProperty -Path $regPath -ErrorAction Stop
+        
+        # Log raw registry values for debugging
+        $productName = $buildInfo.ProductName
+        $currentBuildNumber = $buildInfo.CurrentBuildNumber
+        $displayVersion = $buildInfo.DisplayVersion
+        Write-Log "Raw registry values - ProductName: $productName, CurrentBuildNumber: $currentBuildNumber, DisplayVersion: $displayVersion" -Level "INFO"
+        
+        # Determine Windows version using CurrentBuildNumber
+        $windowsVersion = if ($currentBuildNumber -ge 22000) {
+            "Windows 11"
+        } else {
+            # Fallback to ProductName parsing for older versions
+            if ($productName -match "Windows (10|11)") {
+                $matches[0]
+            } else {
+                "Windows Unknown"
+            }
+        }
+        
+        # Get build number (e.g., "23H2")
+        $displayVersion = $buildInfo.DisplayVersion
+        if (-not $displayVersion) {
+            $displayVersion = $buildInfo.ReleaseId
+        }
+        if (-not $displayVersion) {
+            $displayVersion = $buildInfo.CurrentBuild
+        }
+        
+        Write-Log "Retrieved Windows version: $windowsVersion, build number: $displayVersion" -Level "INFO"
+        return "$windowsVersion Build: $displayVersion"
+    }
+    catch {
+        Write-Log "Error retrieving Windows version and build number: $_" -Level "ERROR"
+        return "Windows Version: Unable to determine, Build: Unable to determine"
+    }
+}
+
+function Update-WindowsBuild {
+    try {
+        $buildText = Get-WindowsBuildNumber
+        $window.Dispatcher.Invoke({
+            if ($global:WindowsBuildText) {
+                $global:WindowsBuildText.Text = $buildText
+            }
+        })
+        Write-Log "Windows version and build updated: $buildText" -Level "INFO"
+    }
+    catch {
+        Write-Log "Error updating Windows version and build: $_" -Level "ERROR"
+        $window.Dispatcher.Invoke({
+            if ($global:WindowsBuildText) {
+                $global:WindowsBuildText.Text = "Windows Version: Error retrieving, Build: Error retrieving"
+            }
+        })
+    }
+}
+
+# ------------------------------------------------------------
 # Update Functions for Additional UI Sections
 # ------------------------------------------------------------
 function Update-Announcements {
@@ -776,6 +891,10 @@ function Update-PatchingUpdates {
             Join-Path $ScriptDir $config.PatchInfoFilePath
         }
         Write-Log "Resolved patch file path: $patchFilePath" -Level "INFO"
+
+        # Set the description text for the Patching and Updates section
+        $descriptionText = "Lists available software updates for your system. Updates marked (R) require a system restart to complete installation, while those marked (NR) do not."
+
         if (Test-Path $patchFilePath -PathType Leaf) {
             $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
             $patchText = if ([string]::IsNullOrWhiteSpace($patchContent)) { 
@@ -789,13 +908,29 @@ function Update-PatchingUpdates {
             $patchText = "Patch info file not found at $patchFilePath."
             Write-Log "Patch info file not found: $patchFilePath" -Level "WARNING"
         }
-        $window.Dispatcher.Invoke({ $global:PatchingUpdatesText.Text = $patchText })
+
+        $window.Dispatcher.Invoke({
+            if ($global:PatchingDescriptionText) {
+                $global:PatchingDescriptionText.Text = $descriptionText
+            }
+            if ($global:PatchingUpdatesText) {
+                $global:PatchingUpdatesText.Text = $patchText
+            }
+        })
+
         Write-Log "Patching status updated: $patchText" -Level "INFO"
     }
     catch {
         $errorMessage = "Error reading patch info file: $_"
         Write-Log $errorMessage -Level "ERROR"
-        $window.Dispatcher.Invoke({ $global:PatchingUpdatesText.Text = $errorMessage })
+        $window.Dispatcher.Invoke({
+            if ($global:PatchingDescriptionText) {
+                $global:PatchingDescriptionText.Text = $descriptionText
+            }
+            if ($global:PatchingUpdatesText) {
+                $global:PatchingUpdatesText.Text = $errorMessage
+            }
+        })
     }
 }
 
@@ -911,7 +1046,7 @@ function Initialize-TrayIcon {
         $global:TrayIcon.Text = "LLNOTIFY v$ScriptVersion"
         $global:TrayIcon.Visible = $true
         Write-Log "Tray icon initialized with $iconPath" -Level "INFO"
-        Write-Log "Note: To ensure the LLNOTIFY tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Select which icons appear on the taskbar', and set 'LLNOTIFY' to 'On'." -Level "INFO"
+        Write-Log "Note: To ensure the LLNOTIFY tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Class which icons appear on the taskbar', and set 'LLNOTIFY' to 'On'." -Level "INFO"
         
         # Set tray icon to Always Show
         Set-TrayIconAlwaysShow -IconName "LLNOTIFY v$ScriptVersion"
@@ -955,6 +1090,7 @@ function Initialize-TrayIcon {
             & "Update-Support"
             & "Update-PatchingUpdates"
             Update-CertificateInfo
+            Update-WindowsBuild
             Write-Log "Manual refresh triggered from tray menu" -Level "INFO"
         })
         $MenuItemExit.add_Click({
@@ -1065,6 +1201,7 @@ function Update-UIElements {
     & "Update-Support"
     & "Update-PatchingUpdates"
     Update-CertificateInfo
+    Update-WindowsBuild
 }
 
 # ============================================================
@@ -1097,6 +1234,7 @@ $global:DispatcherTimer.add_Tick({
         & "Update-Support"
         & "Update-PatchingUpdates"
         Update-CertificateInfo
+        Update-WindowsBuild
         Write-Log "Dispatcher tick completed" -Level "INFO"
     }
     catch {
@@ -1133,6 +1271,7 @@ try {
     try { Update-Support } catch { Handle-Error "Update-Support failed: $_" -Source "InitialUpdate" }
     try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $_" -Source "InitialUpdate" }
     try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $_" -Source "InitialUpdate" }
+    try { Update-WindowsBuild } catch { Handle-Error "Update-WindowsBuild failed: $_" -Source "InitialUpdate" }
     Log-DotNetVersion
     Write-Log "Initial update completed" -Level "INFO"
 }
