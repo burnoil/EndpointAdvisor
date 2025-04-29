@@ -10,6 +10,9 @@ if ($MyInvocation.MyCommand.Path) {
 # Define version
 $ScriptVersion = "1.1.0"
 
+# Global flag to prevent recursive logging during rotation
+$global:IsRotatingLog = $false
+
 # ============================================================
 # A) Advanced Logging & Error Handling
 # ============================================================
@@ -19,14 +22,89 @@ function Write-Log {
         [ValidateSet("INFO", "WARNING", "ERROR")]
         [string]$Level = "INFO"
     )
+    # Skip logging if currently rotating to prevent recursion
+    if ($global:IsRotatingLog) {
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Level] $Message (Skipped due to log rotation)"
+        return
+    }
+
     $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "LLNOTIFY.log" }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] [$Level] $Message"
+    
+    # Retry logic for writing to log file
+    $maxRetries = 3
+    $retryDelayMs = 100
+    $attempt = 0
+    $success = $false
+    
+    while ($attempt -lt $maxRetries -and -not $success) {
+        try {
+            $attempt++
+            # Use StreamWriter for controlled file access
+            $writer = [System.IO.StreamWriter]::new($logPath, $true, [System.Text.Encoding]::UTF8)
+            $writer.WriteLine($logEntry)
+            $writer.Flush()
+            $writer.Close()
+            $success = $true
+        }
+        catch {
+            if ($attempt -eq $maxRetries) {
+                Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
+            } else {
+                Start-Sleep -Milliseconds $retryDelayMs
+            }
+        }
+        finally {
+            if ($writer) {
+                $writer.Dispose()
+            }
+        }
+    }
+}
+
+function Rotate-LogFile {
     try {
-        Add-Content -Path $logPath -Value $logEntry -ErrorAction Stop
+        if (Test-Path $LogFilePath) {
+            $fileInfo = Get-Item $LogFilePath
+            $maxSizeBytes = $config.LogRotationSizeMB * 1MB
+            if ($fileInfo.Length -gt $maxSizeBytes) {
+                $archivePath = "$LogFilePath.$(Get-Date -Format 'yyyyMMddHHmmss').archive"
+                
+                # Set recursion guard
+                $global:IsRotatingLog = $true
+                
+                # Retry logic for renaming file
+                $maxRetries = 3
+                $retryDelayMs = 100
+                $attempt = 0
+                $success = $false
+                
+                while ($attempt -lt $maxRetries -and -not $success) {
+                    try {
+                        $attempt++
+                        Rename-Item -Path $LogFilePath -NewName $archivePath -ErrorAction Stop
+                        $success = $true
+                        # Log to console to avoid recursion
+                        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [INFO] Log file rotated. Archived as $archivePath"
+                    }
+                    catch {
+                        if ($attempt -eq $maxRetries) {
+                            Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [ERROR] Failed to rotate log file after $maxRetries attempts: $($_.Exception.Message)"
+                        } else {
+                            Start-Sleep -Milliseconds $retryDelayMs
+                        }
+                    }
+                }
+            }
+        }
     }
     catch {
-        Write-Host "[$timestamp] [$Level] $Message (Failed to write to log: $_)"
+        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [ERROR] Error checking log file size for rotation: $($_.Exception.Message)"
+    }
+    finally {
+        # Clear recursion guard
+        $global:IsRotatingLog = $false
     }
 }
 
@@ -88,7 +166,7 @@ function Load-Configuration {
             return $config
         }
         catch {
-            Write-Log "Error loading config, reverting to default: $_" -Level "ERROR"
+            Write-Log "Error loading config, reverting to default: $($_.Exception.Message)" -Level "ERROR"
             return $defaultConfig
         }
     }
@@ -161,22 +239,7 @@ if (-not (Test-Path $LogDirectory)) {
     Write-Log "Created log directory: $LogDirectory" -Level "INFO"
 }
 
-function Rotate-LogFile {
-    try {
-        if (Test-Path $LogFilePath) {
-            $fileInfo = Get-Item $LogFilePath
-            $maxSizeBytes = $config.LogRotationSizeMB * 1MB
-            if ($fileInfo.Length -gt $maxSizeBytes) {
-                $archivePath = "$LogFilePath.$(Get-Date -Format 'yyyyMMddHHmmss').archive"
-                Rename-Item -Path $LogFilePath -NewName $archivePath
-                Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
-            }
-        }
-    }
-    catch {
-        Write-Log "Failed to rotate log file: $_" -Level "ERROR"
-    }
-}
+# Initial log rotation check (still performed at startup)
 Rotate-LogFile
 
 function Log-DotNetVersion {
@@ -188,11 +251,11 @@ function Log-DotNetVersion {
             Write-Log ".NET Framework Description: $frameworkDescription" -Level "INFO"
         }
         catch {
-            Write-Log "RuntimeInformation not available." -Level "WARNING"
+            Write-Log "RuntimeInformation not available: $($_.Exception.Message)" -Level "WARNING"
         }
     }
     catch {
-        Write-Log "Error capturing .NET version: $_" -Level "ERROR"
+        Write-Log "Error capturing .NET version: $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -211,7 +274,7 @@ function Export-Logs {
         }
     }
     catch {
-        Handle-Error "Error exporting logs: $_" -Source "Export-Logs"
+        Handle-Error "Error exporting logs: $($_.Exception.Message)" -Source "Export-Logs"
     }
 }
 
@@ -242,7 +305,7 @@ function Import-RequiredAssemblies {
         return $true
     }
     catch {
-        Write-Log "Failed to load required assemblies: $_" -Level "ERROR"
+        Write-Log "Failed to load required assemblies: $($_.Exception.Message)" -Level "ERROR"
         if ($_.Exception.Message -match "System.Windows.Forms") {
             Write-Log "System.Windows.Forms is unavailable. Tray icon functionality will be disabled." -Level "WARNING"
             return $false
@@ -383,7 +446,7 @@ try {
         Write-Log "Window icon URI valid: $([Uri]::IsWellFormedUriString($mainIconUri, [UriKind]::Absolute))" -Level "INFO"
     }
     catch {
-        Write-Log "Error setting window icon URI: $_" -Level "ERROR"
+        Write-Log "Error setting window icon URI: $($_.Exception.Message)" -Level "ERROR"
     }
     # Access UI Elements
     $global:AnnouncementsExpander = $window.FindName("AnnouncementsExpander")
@@ -461,7 +524,7 @@ try {
                             Write-Log "Deleted BigFix log file: $($logFile.FullName)" -Level "INFO"
                         }
                         catch {
-                            Write-Log "Failed to delete BigFix log file $($logFile.FullName): $_" -Level "WARNING"
+                            Write-Log "Failed to delete BigFix log file $($logFile.FullName): $($_.Exception.Message)" -Level "WARNING"
                         }
                     }
 
@@ -481,9 +544,9 @@ try {
                 }
             }
             catch {
-                Handle-Error "Error launching BigFix BigFixSSA.exe: $_" -Source "PatchingSSAButton"
+                Handle-Error "Error launching BigFix BigFixSSA.exe: $($_.Exception.Message)" -Source "PatchingSSAButton"
                 if ($global:FormsAvailable -and $global:TrayIcon) {
-                    $global:TrayIcon.ShowBalloonTip(5000, "LLNOTIFY Error", "Failed to launch BigFix Self-Service Application: $_", "Error")
+                    $global:TrayIcon.ShowBalloonTip(5000, "LLNOTIFY Error", "Failed to launch BigFix Self-Service Application: $($_.Exception.Message)", "Error")
                 }
             }
         })
@@ -509,7 +572,7 @@ try {
     Write-Log "WindowsBuildText null? $($global:WindowsBuildText -eq $null)" -Level "INFO"
 }
 catch {
-    Handle-Error "Failed to load the XAML layout: $_" -Source "XAML"
+    Handle-Error "Failed to load the XAML layout: $($_.Exception.Message)" -Source "XAML"
     exit
 }
 if ($window -eq $null) {
@@ -536,7 +599,7 @@ $window.Add_Closing({
         }
     }
     catch {
-        Handle-Error "Error handling window closing: $_" -Source "WindowClosing"
+        Handle-Error "Error handling window closing: $($_.Exception.Message)" -Source "WindowClosing"
     }
 })
 
@@ -627,7 +690,7 @@ function Fetch-ContentData {
         }
     }
     catch {
-        Write-Log "Failed to fetch content data from ${cleanUrl}: $_" -Level "ERROR"
+        Write-Log "Failed to fetch content data from ${cleanUrl}: $($_.Exception.Message)" -Level "ERROR"
         Write-Log "ContentDataUrl invalid or unreachable, using default content" -Level "ERROR"
         return [PSCustomObject]@{
             Data   = $defaultContentData
@@ -684,8 +747,8 @@ function Get-YubiKeyCertExpiryDays {
     }
     catch {
         if ($_.Exception.Message -ne "No YubiKey detected by ykman") {
-            Write-Log "Error retrieving YubiKey certificate expiry: $_" -Level "ERROR"
-            return "YubiKey Certificate: Unable to determine expiry date - $_"
+            Write-Log "Error retrieving YubiKey certificate expiry: $($_.Exception.Message)" -Level "ERROR"
+            return "YubiKey Certificate: Unable to determine expiry date - $($_.Exception.Message)"
         }
     }
 }
@@ -708,7 +771,7 @@ function Get-VirtualSmartCardCertExpiry {
         return "Microsoft Virtual Smart Card Certificate: Expires: $expiryDateFormatted"
     }
     catch {
-        Write-Log "Error retrieving Microsoft Virtual Smart Card certificate expiry: $_" -Level "ERROR"
+        Write-Log "Error retrieving Microsoft Virtual Smart Card certificate expiry: $($_.Exception.Message)" -Level "ERROR"
         return "Microsoft Virtual Smart Card Certificate: Unable to determine expiry date"
     }
 }
@@ -726,7 +789,7 @@ function Update-CertificateInfo {
         Write-Log "Certificate info updated: $combinedStatus" -Level "INFO"
     }
     catch {
-        Write-Log "Failed to update certificate info: $_" -Level "ERROR"
+        Write-Log "Failed to update certificate info: $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -769,7 +832,7 @@ function Get-WindowsBuildNumber {
         return "$windowsVersion Build: $displayVersion"
     }
     catch {
-        Write-Log "Error retrieving Windows version and build number: $_" -Level "ERROR"
+        Write-Log "Error retrieving Windows version and build number: $($_.Exception.Message)" -Level "ERROR"
         return "Windows Version: Unable to determine, Build: Unable to determine"
     }
 }
@@ -785,7 +848,7 @@ function Update-WindowsBuild {
         Write-Log "Windows version and build updated: $buildText" -Level "INFO"
     }
     catch {
-        Write-Log "Error updating Windows version and build: $_" -Level "ERROR"
+        Write-Log "Error updating Windows version and build: $($_.Exception.Message)" -Level "ERROR"
         $window.Dispatcher.Invoke({
             if ($global:WindowsBuildText) {
                 $global:WindowsBuildText.Text = "Windows Version: Error retrieving, Build: Error retrieving"
@@ -836,7 +899,7 @@ function Update-Announcements {
         Write-Log "Announcements updated from $source." -Level "INFO"
     }
     catch {
-        Write-Log "Error updating Announcements: $_" -Level "ERROR"
+        Write-Log "Error updating Announcements: $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -878,7 +941,7 @@ function Update-Support {
         Write-Log "Support updated from $source." -Level "INFO"
     }
     catch {
-        Write-Log "Error updating Support: $_" -Level "ERROR"
+        Write-Log "Error updating Support: $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -921,7 +984,7 @@ function Update-PatchingUpdates {
         Write-Log "Patching status updated: $patchText" -Level "INFO"
     }
     catch {
-        $errorMessage = "Error reading patch info file: $_"
+        $errorMessage = "Error reading patch info file: $($_.Exception.Message)"
         Write-Log $errorMessage -Level "ERROR"
         $window.Dispatcher.Invoke({
             if ($global:PatchingDescriptionText) {
@@ -953,7 +1016,7 @@ function Get-Icon {
         return $icon
     }
     catch {
-        Write-Log "Error loading icon from ${Path}: $_" -Level "ERROR"
+        Write-Log "Error loading icon from ${Path}: $($_.Exception.Message)" -Level "ERROR"
         return $DefaultIcon
     }
 }
@@ -988,7 +1051,7 @@ function Update-TrayIcon {
         Write-Log "Tray icon updated to $iconPath" -Level "INFO"
     }
     catch {
-        Write-Log "Error updating tray icon: $_" -Level "ERROR"
+        Write-Log "Error updating tray icon: $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -1025,7 +1088,7 @@ function Set-TrayIconAlwaysShow {
         }
     }
     catch {
-        Write-Log "Error setting tray icon to Always Show: $_" -Level "ERROR"
+        Write-Log "Error setting tray icon to Always Show: $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -1046,13 +1109,13 @@ function Initialize-TrayIcon {
         $global:TrayIcon.Text = "LLNOTIFY v$ScriptVersion"
         $global:TrayIcon.Visible = $true
         Write-Log "Tray icon initialized with $iconPath" -Level "INFO"
-        Write-Log "Note: To ensure the LLNOTIFY tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Class which icons appear on the taskbar', and set 'LLNOTIFY' to 'On'." -Level "INFO"
+        Write-Log "Note: To ensure the LLNOTIFY tray icon is always visible, right-click the taskbar, select 'Taskbar settings', scroll to 'Notification area', click 'Select which icons appear on the taskbar', and set 'LLNOTIFY' to 'On'." -Level "INFO"
         
         # Set tray icon to Always Show
         Set-TrayIconAlwaysShow -IconName "LLNOTIFY v$ScriptVersion"
     }
     catch {
-        Write-Log "Error initializing tray icon: $_" -Level "ERROR"
+        Write-Log "Error initializing tray icon: $($_.Exception.Message)" -Level "ERROR"
         $global:TrayIcon = $null
         return
     }
@@ -1078,7 +1141,7 @@ function Initialize-TrayIcon {
                 }
             }
             catch {
-                Handle-Error "Error handling tray icon mouse click: $_" -Source "TrayIcon"
+                Handle-Error "Error handling tray icon mouse click: $($_.Exception.Message)" -Source "TrayIcon"
             }
         })
 
@@ -1115,13 +1178,13 @@ function Initialize-TrayIcon {
                 Write-Log "Application exited via tray menu." -Level "INFO"
             }
             catch {
-                Handle-Error "Error during application exit: $_" -Source "Exit"
+                Handle-Error "Error during application exit: $($_.Exception.Message)" -Source "Exit"
             }
         })
         Write-Log "ContextMenuStrip initialized successfully" -Level "INFO"
     }
     catch {
-        Write-Log "Error setting up ContextMenuStrip: $_" -Level "ERROR"
+        Write-Log "Error setting up ContextMenuStrip: $($_.Exception.Message)" -Level "ERROR"
         if ($global:TrayIcon -and -not $global:TrayIcon.IsDisposed) {
             $global:TrayIcon.Visible = $false
             $global:TrayIcon.Dispose()
@@ -1167,7 +1230,7 @@ function Set-WindowPosition {
         })
     }
     catch {
-        Handle-Error "Error setting window position: $_" -Source "Set-WindowPosition"
+        Handle-Error "Error setting window position: $($_.Exception.Message)" -Source "Set-WindowPosition"
     }
 }
 
@@ -1192,7 +1255,7 @@ function Toggle-WindowVisibility {
         }, "Normal")
     }
     catch {
-        Handle-Error "Error toggling window visibility: $_" -Source "Toggle-WindowVisibility"
+        Handle-Error "Error toggling window visibility: $($_.Exception.Message)" -Source "Toggle-WindowVisibility"
     }
 }
 
@@ -1216,7 +1279,7 @@ if ($global:SupportExpander) {
             Write-Log "Support expander expanded, alert cleared." -Level "INFO"
         }
         catch {
-            Write-Log "Error in SupportExpander expanded event: $_" -Level "ERROR"
+            Write-Log "Error in SupportExpander expanded event: $($_.Exception.Message)" -Level "ERROR"
         }
     })
 }
@@ -1235,10 +1298,11 @@ $global:DispatcherTimer.add_Tick({
         & "Update-PatchingUpdates"
         Update-CertificateInfo
         Update-WindowsBuild
+        Rotate-LogFile  # Check log rotation periodically
         Write-Log "Dispatcher tick completed" -Level "INFO"
     }
     catch {
-        Handle-Error "Error during timer tick: $_" -Source "DispatcherTimer"
+        Handle-Error "Error during timer tick: $($_.Exception.Message)" -Source "DispatcherTimer"
     }
 })
 $global:DispatcherTimer.Start()
@@ -1266,17 +1330,17 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 try {
     $global:contentData = Fetch-ContentData
     Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 3)" -Level "INFO"
-    try { & "Update-TrayIcon" } catch { Handle-Error "Update-TrayIcon failed: $_" -Source "InitialUpdate" }
-    try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $_" -Source "InitialUpdate" }
-    try { Update-Support } catch { Handle-Error "Update-Support failed: $_" -Source "InitialUpdate" }
-    try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $_" -Source "InitialUpdate" }
-    try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $_" -Source "InitialUpdate" }
-    try { Update-WindowsBuild } catch { Handle-Error "Update-WindowsBuild failed: $_" -Source "InitialUpdate" }
+    try { & "Update-TrayIcon" } catch { Handle-Error "Update-TrayIcon failed: $($_.Exception.Message)" -Source "InitialUpdate" }
+    try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $($_.Exception.Message)" -Source "InitialUpdate" }
+    try { Update-Support } catch { Handle-Error "Update-Support failed: $($_.Exception.Message)" -Source "InitialUpdate" }
+    try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $($_.Exception.Message)" -Source "InitialUpdate" }
+    try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $($_.Exception.Message)" -Source "InitialUpdate" }
+    try { Update-WindowsBuild } catch { Handle-Error "Update-WindowsBuild failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     Log-DotNetVersion
     Write-Log "Initial update completed" -Level "INFO"
 }
 catch {
-    Handle-Error "Error during initial update setup: $_" -Source "InitialUpdate"
+    Handle-Error "Error during initial update setup: $($_.Exception.Message)" -Source "InitialUpdate"
 }
 
 Write-Log "About to call Dispatcher.Run()..." -Level "INFO"
