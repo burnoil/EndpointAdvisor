@@ -85,7 +85,6 @@ function Rotate-LogFile {
                         $attempt++
                         Rename-Item -Path $LogFilePath -NewName $archivePath -ErrorAction Stop
                         $success = $true
-                        # Log to console to avoid recursion
                         Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [INFO] Log file rotated. Archived as $archivePath"
                     }
                     catch {
@@ -93,6 +92,34 @@ function Rotate-LogFile {
                             Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [ERROR] Failed to rotate log file after $maxRetries attempts: $($_.Exception.Message)"
                         } else {
                             Start-Sleep -Milliseconds $retryDelayMs
+                        }
+                    }
+                }
+
+                # Cap archived logs at 3
+                if ($success) {
+                    $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "LLNOTIFY.log.*.archive" | Sort-Object CreationTime
+                    $maxArchives = 3
+                    if ($archiveFiles.Count -gt $maxArchives) {
+                        $filesToDelete = $archiveFiles | Select-Object -First ($archiveFiles.Count - $maxArchives)
+                        foreach ($file in $filesToDelete) {
+                            $deleteAttempt = 0
+                            $deleteSuccess = $false
+                            while ($deleteAttempt -lt $maxRetries -and -not $deleteSuccess) {
+                                try {
+                                    $deleteAttempt++
+                                    Remove-Item -Path $file.FullName -Force -ErrorAction Stop
+                                    $deleteSuccess = $true
+                                    Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [INFO] Deleted old archive: $($file.FullName)"
+                                }
+                                catch {
+                                    if ($deleteAttempt -eq $maxRetries) {
+                                        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [ERROR] Failed to delete old archive $($file.FullName) after $maxRetries attempts: $($_.Exception.Message)"
+                                    } else {
+                                        Start-Sleep -Milliseconds $retryDelayMs
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -956,7 +983,7 @@ function Update-PatchingUpdates {
         Write-Log "Resolved patch file path: $patchFilePath" -Level "INFO"
 
         # Set the description text for the Patching and Updates section
-        $descriptionText = "Lists available software updates for your system. Updates marked (R) require a system restart to complete installation, while those marked (NR) do not."
+        $descriptionText = "Lists available software updates for your system. Updates marked (R) require a system restart to complete installation."
 
         if (Test-Path $patchFilePath -PathType Leaf) {
             $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
