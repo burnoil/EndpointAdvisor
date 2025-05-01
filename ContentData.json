@@ -21,7 +21,7 @@
         "Url":  "https://llesm.servicenowservices.com/sp?id=kb_view2"
       },
       {
-        "Name":  "Submit Ticket for help",
+        "Name":  "Submit Ticket",
         "Url":  "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
       }
     ]
