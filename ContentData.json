@@ -1,17 +1,29 @@
 {
-  "Announcements": {
-    "Text": "This is TEST data from the MITLL Git repository for this app. Released on 2025-04-18. Check out the new features and updates.",
-    "Details": "All systems are running normally. Please review the latest updates.",
-    "Links": [
-      { "Name": "MIT Lincoln Lab", "Url": "https://www.ll.mit.edu/" },
-      { "Name": "LL Announcements List", "Url": "https://c3.llan.ll.mit.edu/wps/myportal/intranet?1dmy&current=true&urile=wcm:path:/mitll/home/announcements/announcements-list" }
-      ]
+  "Announcements":  {
+    "Text":  "This is TEST data from the MITLL Git repository for this app. Released on 2025-04-24. Check out the new features and updates.",
+    "Details":  "NOTICE! Your machine will be restarted on 5/21/2025 at 0900 local time!",
+    "Links":  [
+      {
+        "Name":  "MIT Lincoln Lab Main Page",
+        "Url":  "https://www.ll.mit.edu/"
+      },
+      {
+        "Name":  "LL Announcements List",
+        "Url":  "https://c3.llan.ll.mit.edu/wps/myportal/intranet?1dmy&current=true&urile=wcm:path:/mitll/home/announcements/announcements-list"
+      }
+    ]
   },
-  "Support": {
-    "Text": "Call the ISD Support Center at 781-981-4357 (HELP).",
-    "Links": [
-      { "Name": "Knowledge Base", "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2" },
-      { "Name": "Submit Ticket", "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no" }
+  "Support":  {
+    "Text":  "Call the ISD Support Center at 781-981-4357 (HELP).",
+    "Links":  [
+      {
+        "Name":  "Knowledge Base",
+        "Url":  "https://llesm.servicenowservices.com/sp?id=kb_view2"
+      },
+      {
+        "Name":  "Submit Ticket",
+        "Url":  "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+      }
     ]
   }
 }
