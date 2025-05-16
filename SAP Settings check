@@ -1,0 +1,20 @@
+Reg Key for SAP checking from the UI
+
+- Preinstall Configurations - Use profile enumeration:
+1.	Copy C:\Users\<LLID>\AppData\Roaming\SAP\Common to C:\Users\<LLID>\AppData\Roaming\SAP\GUI_Backup_Files
+2.	Delete C:\Users\<LLID>\AppData\Roaming\SAP\Common
+
+- After successful install of MS Edge WebView2 Runtime, perform the following:
+  - Use profile enumeration to update these Registry keys:
+a.	\HKEY_CURRENT_USER\SOFTWARE\SAP\General\BrowserControl	REG_DWORD 1 (hexadecimal)
+b.	\HKEY_CURRENT_USER\SOFTWARE\SAP\General\SAPDockAllowMoveSave REG_DWORD 0 (hexadecimal)
+c.	\HKEY_CURRENT_USER\SOFTWARE\SAP\General\SAPGUIControlPlugin REG_DWORD 0 (hexadecimal)
+d.	\HKEY_CURRENT_USER\SOFTWARE\SAP\General\Language REG_SZ EN
+
+- After successful install, perform the following:
+  - Use profile enumeration to update these Registry keys:
+a.	\HKEY_CURRENT_USER\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData\ImportedToSQLite REG_DWORD  1
+b.	\HKEY_CURRENT_USER\Software\SAP\SAPLogon\Options\LandscapeFileOnServer REG_EXPAND_SZ https://PLACEHOLDER
+c.	\HKEY_CURRENT_USER\Software\SAP\SAPLogon\Options\AllowCachingServerConfigFiles REG_DWORD 1
+d.	\HKEY_CURRENT_USER\Software\SAP\General\Appearance\SelectedTheme REG_DWORD 1
+e.	\HKEY_CURRENT_USER\Software\SAP\General\Appearance\SelectedFallbackTheme REG_DWORD 1
