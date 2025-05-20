@@ -132,8 +132,11 @@ function Install-ADTDeployment
 		$processes = @("NwSapSetupUserNotificationTool", "NwSapAutoWorkstationUpdateService", "saplogon", "sbus", "sbustrace")
 		foreach ($process in $processes) {
 			if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
+				Write-ADTLogEntry -Message "Stopping the process '$process'..." -Source $adtSession.InstallPhase
                 Stop-Process -Name $process -Force -ErrorAction SilentlyContinue
+				Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
 			} else {
+				Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
 			}
 		}
 
@@ -177,10 +180,10 @@ function Install-ADTDeployment
 		If (Test-Path $DESKTOPICONPATH)
 		{
 			Remove-Item $DESKTOPICONPATH -Force
+			Write-ADTLogEntry -Message "$DESKTOPICONPATH found.  Removing ..." -Source $adtSession.InstallPhase
 		}
 
         ## User Profile Enumeration for File and Registry Operations
-        # Debug: Log script version and PowerShell version
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -209,12 +212,15 @@ function Install-ADTDeployment
             # Find matching SID
             $profile = $profileList | Where-Object { $_.ProfileImagePath -eq $userPath }
             if ($profile) {
-                $userSID = $profile.PSChildName
+                $rawSID = $profile.PSChildName
                 # Validate SID format (should match S-1-5-...)
-                if (-not $userSID -or $userSID -notmatch '^S-1-5-[\d-]+$') {
+                if (-not $rawSID -or $rawSID -notmatch '^S-1-5-[\d-]+$') {
                     continue
                 }
-                $userSID = $userSID -replace '[^\w\-]', '' # Sanitize SID
+                $userSID = $rawSID -replace '[^\w\-]', '' # Sanitize SID
+                if (-not $userSID) {
+                    continue
+                }
 
                 ## File Operations
                 $sourcePath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\Common"
@@ -228,14 +234,13 @@ function Install-ADTDeployment
                         }
                         # Copy Common folder to backup location
                         Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
-
                         # Delete original Common folder
                         Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
                     }
                     catch {
+                        # Continue to next profile on error
+                        continue
                     }
-                }
-                else {
                 }
 
                 ## Registry Operations
@@ -244,12 +249,15 @@ function Install-ADTDeployment
                     $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
+                        if (-not $adtSession.InstallPhase) {
+                            continue
+                        }
                         $maxRetries = 3
                         $retryCount = 0
                         $hiveLoaded = $false
 
                         while (-not $hiveLoaded -and $retryCount -lt $maxRetries) {
-                            $regLoadResult = reg load "${tempHive}" $hivePath 2>&1
+                            $regLoadResult = reg load "$tempHive" $hivePath 2>&1
                             if ($LASTEXITCODE -eq 0) {
                                 $hiveLoaded = $true
                             }
@@ -260,7 +268,7 @@ function Install-ADTDeployment
                         }
 
                         if (-not $hiveLoaded) {
-                            throw "Failed to load registry hive for user '$userName' after $maxRetries attempts: $regLoadResult"
+                            continue
                         }
 
                         # Grant full control to Administrators on the hive
@@ -279,123 +287,95 @@ function Install-ADTDeployment
                             $regKey.Close()
                         }
                         catch {
+                            # Continue on permission setting failure
                         }
 
                         # Registry Key Set 1
                         $regKeys1 = @(
-                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "BrowserControl"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "SAPDockAllowMoveSave"; Type = "DWORD"; Value = 0 },
-                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "SAPGUIControlPlugin"; Type = "DWORD"; Value = 0 },
-                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "Language"; Type = "String"; Value = "EN" }
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "BrowserControl"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPDockAllowMoveSave"; Type = "DWORD"; Value = 0 },
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPGUIControlPlugin"; Type = "DWORD"; Value = 0 },
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "Language"; Type = "String"; Value = "EN" }
                         )
 
                         foreach ($key in $regKeys1) {
-    # Build the full registry path under HKEY_USERS
-    $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\\'
-    $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
-
-    # Unconditionally create the key (and any missing intermediate folders)
-    reg add "$regPath" /f | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create or open registry key '$regPath'"
-    }
-
-    # Now create or overwrite the value
-    switch ($key.Type) {
-        'DWORD'         { $type = 'REG_DWORD'     }
-        'String'        { $type = 'REG_SZ'        }
-        'ExpandString'  { $type = 'REG_EXPAND_SZ' }
-        default         { throw "Unsupported registry type '$($key.Type)' for $regPath" }
-    }
-
-    reg add "$regPath" /v "$keyName" /t $type /d $($key.Value) /f | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to set '$keyName' in '$regPath'"
-    }
-}
+                            # Convert and sanitize PowerShell path to reg command path
+                            $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
+                            $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
+                            try {
+                                # Create key path
+                                reg add "$regPath" /f | Out-Null
+                                if ($LASTEXITCODE -ne 0) {
+                                    continue
+                                }
+                                # Set registry value
+                                if ($key.Type -eq "DWORD") {
+                                    reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
+                                }
+                                else {
+                                    reg add "$regPath" /v "$keyName" /t REG_SZ /d "$($key.Value)" /f | Out-Null
+                                }
+                                if ($LASTEXITCODE -ne 0) {
+                                    continue
+                                }
                             }
-                            # Set registry value
-                            if ($key.Type -eq "DWORD") {
-                                reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
-                            }
-                            else {
-                                reg add "$regPath" /v "$keyName" /t REG_SZ /d "$($key.Value)" /f | Out-Null
-                            }
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "Failed to set registry value '$keyName' in '$regPath' for user '$userName': $LASTEXITCODE"
+                            catch {
+                                continue
                             }
                         }
 
                         # Registry Key Set 2
                         $regKeys2 = @(
-                            @{ Path = "${tempHive}\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "${tempHive}\Software\SAP\SAPLogon\Options"; Name = "LandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
-                            @{ Path = "${tempHive}\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "${tempHive}\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "${tempHive}\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
+                            @{ Path = "$tempHive\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "CoreLandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
+                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
                         )
 
                         foreach ($key in $regKeys2) {
-    # Build the full registry path under HKEY_USERS
-    $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\\'
-    $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
-
-    # Unconditionally create the key (and any missing intermediate folders)
-    reg add "$regPath" /f | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to create or open registry key '$regPath'"
-    }
-
-    # Now create or overwrite the value
-    switch ($key.Type) {
-        'DWORD'         { $type = 'REG_DWORD'     }
-        'String'        { $type = 'REG_SZ'        }
-        'ExpandString'  { $type = 'REG_EXPAND_SZ' }
-        default         { throw "Unsupported registry type '$($key.Type)' for $regPath" }
-    }
-
-    reg add "$regPath" /v "$keyName" /t $type /d $($key.Value) /f | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to set '$keyName' in '$regPath'"
-    }
-}
+                            # Convert and sanitize PowerShell path to reg command path
+                            $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
+                            $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
+                            try {
+                                # Create key path
+                                reg add "$regPath" /f | Out-Null
+                                if ($LASTEXITCODE -ne 0) {
+                                    continue
+                                }
+                                # Set registry value
+                                if ($key.Type -eq "DWORD") {
+                                    reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
+                                }
+                                elseif ($key.Type -eq "ExpandString") {
+                                    reg add "$regPath" /v "$keyName" /t REG_EXPAND_SZ /d "$($key.Value)" /f | Out-Null
+                                }
+                                if ($LASTEXITCODE -ne 0) {
+                                    continue
+                                }
                             }
-                            # Set registry value
-                            if ($key.Type -eq "DWORD") {
-                                reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
-                            }
-                            elseif ($key.Type -eq "ExpandString") {
-                                reg add "$regPath" /v "$keyName" /t REG_EXPAND_SZ /d "$($key.Value)" /f | Out-Null
-                            }
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "Failed to set registry value '$keyName' in '$regPath' for user '$userName': $LASTEXITCODE"
+                            catch {
+                                continue
                             }
                         }
 
                         # Unload registry hive
                         [gc]::Collect()
-                        $regUnloadResult = reg unload "${tempHive}" 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                        }
-                        else {
-                        }
-                    }
-                    else {
+                        reg unload "$tempHive" | Out-Null
                     }
                 }
                 catch {
                     # Attempt to unload hive if it was loaded
                     try {
-                        if (Test-Path -Path "${tempHive}") {
+                        if (Test-Path -Path "$tempHive") {
                             [gc]::Collect()
-                            reg unload "${tempHive}" | Out-Null
+                            reg unload "$tempHive" | Out-Null
                         }
                     }
                     catch {
+                        # Continue to next profile
                     }
                 }
-            }
-            else {
             }
         }
 
@@ -425,8 +405,11 @@ function Uninstall-ADTDeployment
 		$processes = @("NwSapSetupUserNotificationTool", "NwSapAutoWorkstationUpdateService", "saplogon", "sbus", "sbustrace")
 		foreach ($process in $processes) {
 			if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
+				Write-ADTLogEntry -Message "Stopping the process '$process'..." -Source $adtSession.InstallPhase
                 Stop-Process -Name $process -Force -ErrorAction SilentlyContinue
+				Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
 			} else {
+				Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
 			}
 		}
 
@@ -563,6 +546,7 @@ try
 }
 catch
 {
+    Write-ADTLogEntry -Message ($mainErrorMessage = Resolve-ADTErrorRecord -ErrorRecord $_) -Severity 3
     Show-ADTDialogBox -Text $mainErrorMessage -Icon Stop | Out-Null
     Close-ADTSession -ExitCode 60001
 }
