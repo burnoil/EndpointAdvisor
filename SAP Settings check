@@ -184,8 +184,6 @@ function Install-ADTDeployment
 		}
 
         ## User Profile Enumeration for File and Registry Operations
-        # Log script version
-        Write-Output "Running script version 2025-05-20-v11. PowerShell version: $($PSVersionTable.PSVersion.ToString())"
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -203,14 +201,12 @@ function Install-ADTDeployment
 
         foreach ($profileDir in $userProfileDirs) {
             if (-not $profileDir -or -not $profileDir.FullName) {
-                Write-Output "Invalid or null profile directory encountered for '$($profileDir.Name)'. Skipping."
                 continue
             }
             $userPath = $profileDir.FullName
             $userName = $profileDir.Name
             # Skip logged-in users
             if ($loggedInUsers -contains $userName) {
-                Write-Output "User '$userName' is currently logged in. Skipping profile to avoid hive lock."
                 continue
             }
             # Find matching SID
@@ -219,15 +215,12 @@ function Install-ADTDeployment
                 $rawSID = $profile.PSChildName
                 # Validate SID format (should match S-1-5-...)
                 if (-not $rawSID -or $rawSID -notmatch '^S-1-5-[\d-]+$') {
-                    Write-Output "Invalid or empty SID '$rawSID' for user '$userName'. Skipping profile."
                     continue
                 }
                 $userSID = $rawSID -replace '[^\w\-]', '' # Sanitize SID
                 if (-not $userSID) {
-                    Write-Output "Sanitized SID is empty for user '$userName'. Skipping profile."
                     continue
                 }
-                Write-Output "Processing user profile for '$userName' (SID: '$userSID')..."
 
                 ## File Operations
                 $sourcePath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\Common"
@@ -241,18 +234,13 @@ function Install-ADTDeployment
                         }
                         # Copy Common folder to backup location
                         Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
-                        Write-Output "Successfully copied '$sourcePath' to '$backupPath' for user '$userName'."
-
                         # Delete original Common folder
                         Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
-                        Write-Output "Successfully deleted '$sourcePath' for user '$userName'."
                     }
                     catch {
-                        Write-Output "Failed to perform file operations for user '$userName': $_"
+                        # Continue to next profile on error
+                        continue
                     }
-                }
-                else {
-                    Write-Output "Source path '$sourcePath' does not exist for user '$userName'. Skipping file operations."
                 }
 
                 ## Registry Operations
@@ -262,7 +250,6 @@ function Install-ADTDeployment
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
                         if (-not $adtSession.InstallPhase) {
-                            Write-Output "Invalid InstallPhase for user '$userName'. Skipping registry operations."
                             continue
                         }
                         $maxRetries = 3
@@ -270,22 +257,19 @@ function Install-ADTDeployment
                         $hiveLoaded = $false
 
                         while (-not $hiveLoaded -and $retryCount -lt $maxRetries) {
-                            Write-Output "Attempting to load registry hive for user '$userName' on attempt $($retryCount + 1)."
                             $regLoadResult = reg load "$tempHive" $hivePath 2>&1
                             if ($LASTEXITCODE -eq 0) {
                                 $hiveLoaded = $true
                             }
                             else {
                                 $retryCount++
-                                Write-Output "Failed to load registry hive for user '$userName' on attempt $retryCount: $regLoadResult"
                                 Start-Sleep -Seconds 2
                             }
                         }
 
                         if (-not $hiveLoaded) {
-                            throw "Failed to load registry hive for user '$userName' after $maxRetries attempts: $regLoadResult"
+                            continue
                         }
-                        Write-Output "Loaded registry hive for user '$userName' at '$tempHive'."
 
                         # Grant full control to Administrators on the hive
                         try {
@@ -300,11 +284,10 @@ function Install-ADTDeployment
                             )
                             $acl.SetAccessRule($rule)
                             $regKey.SetAccessControl($acl)
-                            Write-Output "Granted full control to Administrators on hive '$tempHive' for user '$userName'."
                             $regKey.Close()
                         }
                         catch {
-                            Write-Output "Warning: Failed to set permissions on hive '$tempHive' for user '$userName': $_"
+                            # Continue on permission setting failure
                         }
 
                         # Registry Key Set 1
@@ -319,27 +302,26 @@ function Install-ADTDeployment
                             # Convert and sanitize PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
                             $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
-                            # Create key if it doesn't exist
-                            $regQueryResult = reg query "$regPath" 2>&1
-                            if ($LASTEXITCODE -ne 0) {
-                                Write-Output "Creating registry key '$regPath' for user '$userName'."
+                            try {
+                                # Create key path
                                 reg add "$regPath" /f | Out-Null
                                 if ($LASTEXITCODE -ne 0) {
-                                    throw "Failed to create registry key '$regPath' for user '$userName': $regQueryResult"
+                                    continue
+                                }
+                                # Set registry value
+                                if ($key.Type -eq "DWORD") {
+                                    reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
+                                }
+                                else {
+                                    reg add "$regPath" /v "$keyName" /t REG_SZ /d "$($key.Value)" /f | Out-Null
+                                }
+                                if ($LASTEXITCODE -ne 0) {
+                                    continue
                                 }
                             }
-                            # Set registry value
-                            Write-Output "Setting registry value '$keyName' in '$regPath' to '$($key.Value)' (Type: $($key.Type)) for user '$userName'."
-                            if ($key.Type -eq "DWORD") {
-                                reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
+                            catch {
+                                continue
                             }
-                            else {
-                                reg add "$regPath" /v "$keyName" /t REG_SZ /d "$($key.Value)" /f | Out-Null
-                            }
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "Failed to set registry value '$keyName' in '$regPath' for user '$userName': $LASTEXITCODE"
-                            }
-                            Write-Output "Successfully set registry key '$($key.Path)\$keyName' to '$($key.Value)' for user '$userName'."
                         }
 
                         # Registry Key Set 2
@@ -347,7 +329,7 @@ function Install-ADTDeployment
                             @{ Path = "$tempHive\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
                             @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "CoreLandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
                             @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "$tempHive\Software\SAP\ TETGeneral\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
                             @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
                         )
 
@@ -355,45 +337,34 @@ function Install-ADTDeployment
                             # Convert and sanitize PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
                             $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
-                            # Create key if it doesn't exist
-                            $regQueryResult = reg query "$regPath" 2>&1
-                            if ($LASTEXITCODE -ne 0) {
-                                Write-Output "Creating registry key '$regPath' for user '$userName'."
+                            try {
+                                # Create key path
                                 reg add "$regPath" /f | Out-Null
                                 if ($LASTEXITCODE -ne 0) {
-                                    throw "Failed to create registry key '$regPath' for user '$userName': $regQueryResult"
+                                    continue
+                                }
+                                # Set registry value
+                                if ($key.Type -eq "DWORD") {
+                                    reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
+                                }
+                                elseif ($key.Type -eq "ExpandString") {
+                                    reg add "$regPath" /v "$keyName" /t REG_EXPAND_SZ /d "$($key.Value)" /f | Out-Null
+                                }
+                                if ($LASTEXITCODE -ne 0) {
+                                    continue
                                 }
                             }
-                            # Set registry value
-                            Write-Output "Setting registry value '$keyName' in '$regPath' to '$($key.Value)' (Type: $($key.Type)) for user '$userName'."
-                            if ($key.Type -eq "DWORD") {
-                                reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
+                            catch {
+                                continue
                             }
-                            elseif ($key.Type -eq "ExpandString") {
-                                reg add "$regPath" /v "$keyName" /t REG_EXPAND_SZ /d "$($key.Value)" /f | Out-Null
-                            }
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "Failed to set registry value '$keyName' in '$regPath' for user '$userName': $LASTEXITCODE"
-                            }
-                            Write-Output "Successfully set registry key '$($key.Path)\$keyName' to '$($key.Value)' for user '$userName'."
                         }
 
                         # Unload registry hive
                         [gc]::Collect()
-                        $regUnloadResult = reg unload "$tempHive" 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Output "Warning: Failed to unload registry hive for user '$userName': $regUnloadResult"
-                        }
-                        else {
-                            Write-Output "Unloaded registry hive for user '$userName'."
-                        }
-                    }
-                    else {
-                        Write-Output "NTUSER.DAT not found at '$hivePath' for user '$userName'. Skipping registry operations."
+                        reg unload "$tempHive" | Out-Null
                     }
                 }
                 catch {
-                    Write-Output "Failed to process registry for user '$userName': $_"
                     # Attempt to unload hive if it was loaded
                     try {
                         if (Test-Path -Path "$tempHive") {
@@ -402,12 +373,9 @@ function Install-ADTDeployment
                         }
                     }
                     catch {
-                        Write-Output "Failed to unload registry hive for user '$userName': $_"
+                        # Continue to next profile
                     }
                 }
-            }
-            else {
-                Write-Output "No SID found for user profile '$userName'. Skipping."
             }
         }
 
