@@ -85,13 +85,11 @@ param
     [System.Management.Automation.SwitchParameter]$DisableLogging
 )
 
-
 ##================================================
 ## MARK: Variables
 ##================================================
 
 $adtSession = @{
-    # App variables.
     AppVendor = ''
     AppName = ''
     AppVersion = ''
@@ -103,19 +101,69 @@ $adtSession = @{
     AppScriptVersion = '1.0.0'
     AppScriptDate = '2000-12-31'
     AppScriptAuthor = '<author name>'
-
-    # Install Titles (Only set here to override defaults set by the toolkit).
     InstallName = ''
     InstallTitle = ''
-
-    # Script variables.
     DeployAppScriptFriendlyName = $MyInvocation.MyCommand.Name
     DeployAppScriptVersion = '4.0.6'
     DeployAppScriptParameters = $PSBoundParameters
 }
 
-function Install-ADTDeployment
-{
+##================================================
+## MARK: Helper Function
+##================================================
+
+function Process-UserProfileFiles {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$UserPath,
+        [Parameter(Mandatory = $true)]
+        [string]$UserName,
+        [Parameter(Mandatory = $true)]
+        [string]$Phase,
+        [Parameter(Mandatory = $true)]
+        [string[]]$LoggedInUsers
+    )
+
+    if ($LoggedInUsers -contains $UserName) {
+        return
+    }
+
+    $sourcePath = Join-Path -Path $UserPath -ChildPath "AppData\Roaming\SAP\Common"
+    $backupPath = Join-Path -Path $UserPath -ChildPath "AppData\Roaming\SAP\GUI_Backup"
+    $destinationPath = Join-Path -Path $UserPath -ChildPath "AppData\Roaming\SAP\Common"
+
+    if ($Phase -eq "Pre-Install") {
+        if (Test-Path -Path $sourcePath -ErrorAction SilentlyContinue) {
+            try {
+                if (-not (Test-Path -Path $backupPath)) {
+                    New-Item -Path $backupPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
+                }
+                Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
+                Write-ADTLogEntry -Message "Copied '$sourcePath' to '$backupPath' for user '$UserName'." -Source $adtSession.InstallPhase
+                Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
+                Write-ADTLogEntry -Message "Deleted '$sourcePath' for user '$UserName'." -Source $adtSession.InstallPhase
+            }
+            catch {
+                Write-ADTLogEntry -Message "Failed to perform file operations for user '$UserName': $_" -Source $adtSession.InstallPhase -Severity 3
+            }
+        }
+    }
+    elseif ($Phase -eq "Post-Install") {
+        if (Test-Path -Path $backupPath -ErrorAction SilentlyContinue) {
+            try {
+                if (-not (Test-Path -Path $destinationPath)) {
+                    New-Item -Path $destinationPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
+                }
+                Copy-Item -Path "$backupPath\*" -Destination $destinationPath -Recurse -Force -ErrorAction Stop
+            }
+            catch {
+                # Continue silently
+            }
+        }
+    }
+}
+
+function Install-ADTDeployment {
     ##================================================
     ## MARK: Pre-Install
     ##================================================
@@ -155,53 +203,13 @@ function Install-ADTDeployment
         }
         $userPath = $profileDir.FullName
         $userName = $profileDir.Name
-        # Skip logged-in users
-        if ($loggedInUsers -contains $userName) {
-            continue
-        }
-        $sourcePath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\Common"
-        $backupPath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\GUI_Backup"
-
-        if (Test-Path -Path $sourcePath -ErrorAction SilentlyContinue) {
-            try {
-                # Create backup directory if it doesn't exist
-                if (-not (Test-Path -Path $backupPath)) {
-                    New-Item -Path $backupPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
-                }
-                # Copy Common folder to GUI_Backup
-                Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
-                Write-ADTLogEntry -Message "Copied '$sourcePath' to '$backupPath' for user '$userName'." -Source $adtSession.InstallPhase
-                # Delete original Common folder
-                Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
-                Write-ADTLogEntry -Message "Deleted '$sourcePath' for user '$userName'." -Source $adtSession.InstallPhase
-            }
-            catch {
-                Write-ADTLogEntry -Message "Failed to perform file operations for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
-                continue
-            }
-        }
+        Process-UserProfileFiles -UserPath $userPath -UserName $userName -Phase "Pre-Install" -LoggedInUsers $loggedInUsers
     }
 
     ##================================================
     ## MARK: Install
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
-
-    <## Handle Zero-Config MSI installations.
-    if ($adtSession.UseDefaultMsi)
-    {
-        $ExecuteDefaultMSISplat = @{ Action = $adtSession.DeploymentType; FilePath = $adtSession.DefaultMsiFile }
-        if ($adtSession.DefaultMstFile)
-        {
-            $ExecuteDefaultMSISplat.Add('Transform', $adtSession.DefaultMstFile)
-        }
-        Start-ADTMsiProcess @ExecuteDefaultMSISplat
-        if ($adtSession.DefaultMspFiles)
-        {
-            $adtSession.DefaultMspFiles | Start-ADTMsiProcess -Action Patch
-        }
-    }
-    #>
 
     ## <Perform Installation tasks here>
     Start-ADTProcess -Filepath 'GUI800_10-80006342.EXE' -Argumentlist '/Silent'
@@ -239,29 +247,13 @@ function Install-ADTDeployment
             if (-not $rawSID -or $rawSID -notmatch '^S-1-5-[\d-]+$') {
                 continue
             }
-            $userSID = $rawSID -replace '[^\w\-]', '' # Sanitize SID
+            $userSID = $rawSID -replace '[^\w\-]', ''
             if (-not $userSID) {
                 continue
             }
 
             ## File Operations
-            $backupPath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\GUI_Backup"
-            $destinationPath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\Common"
-
-            if (Test-Path -Path $backupPath -ErrorAction SilentlyContinue) {
-                try {
-                    # Create destination Common folder if it doesn't exist
-                    if (-not (Test-Path -Path $destinationPath)) {
-                        New-Item -Path $destinationPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
-                    }
-                    # Copy contents of GUI_Backup to Common
-                    Copy-Item -Path "$backupPath\*" -Destination $destinationPath -Recurse -Force -ErrorAction Stop
-                }
-                catch {
-                    # Continue to next profile on error
-                    continue
-                }
-            }
+            Process-UserProfileFiles -UserPath $userPath -UserName $userName -Phase "Post-Install" -LoggedInUsers $loggedInUsers
 
             ## Registry Operations
             try {
@@ -379,20 +371,20 @@ function Install-ADTDeployment
                 }
             }
         }
+    }
 
-        # Create HKLM registry key
-        try {
-            $hklmPath = "HKEY_LOCAL_MACHINE\Software\Policies\SAP\SecureLogin"
-            reg add "$hklmPath" /f | Out-Null
-            reg add "$hklmPath" /v "EnableKerberosProfile" /t REG_DWORD /d 1 /f | Out-Null
-        }
-        catch {
-            # Continue on error
-        }
+    # Create HKLM registry key
+    try {
+        $hklmPath = "HKEY_LOCAL_MACHINE\Software\Policies\SAP\SecureLogin"
+        reg add "$hklmPath" /f | Out-Null
+        reg add "$hklmPath" /v "EnableKerberosProfile" /t REG_DWORD /d 1 /f | Out-Null
+    }
+    catch {
+        # Continue on error
+    }
 }
 
-function Uninstall-ADTDeployment
-{
+function Uninstall-ADTDeployment {
     ##================================================
     ## MARK: Pre-Uninstall
     ##================================================
@@ -421,18 +413,6 @@ function Uninstall-ADTDeployment
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
 
-    <## Handle Zero-Config MSI uninstallations.
-    if ($adtSession.UseDefaultMsi)
-    {
-        $ExecuteDefaultMSISplat = @{ Action = $adtSession.DeploymentType; FilePath = $adtSession.DefaultMsiFile }
-        if ($adtSession.DefaultMstFile)
-        {
-            $ExecuteDefaultMSISplat.Add('Transform', $adtSession.DefaultMstFile)
-        }
-        Start-ADTMsiProcess @ExecuteDefaultMSISplat
-    }
-    #>
-
     ## <Perform Uninstallation tasks here>
     Start-ADTProcess -Filepath 'C:\Program Files (x86)\SAP\SapSetup\Setup\nwsapsetup.exe' -Argumentlist '/product="PdfPrintGui+SCRIPTED+SCE+SAPDTS+KW+GUIISHMED+JNet+CALSYNC+RFC64+SAPGUI+SAPBI+SLC" /TitleComponent:"SAPGUI" /IgnoreMissingProducts /uninstall /silent'
 
@@ -444,8 +424,7 @@ function Uninstall-ADTDeployment
     ## <Perform Post-Uninstallation tasks here>
 }
 
-function Repair-ADTDeployment
-{
+function Repair-ADTDeployment {
     ##================================================
     ## MARK: Pre-Repair
     ##================================================
@@ -463,18 +442,6 @@ function Repair-ADTDeployment
     ## MARK: Repair
     ##================================================
     $adtSession.InstallPhase = $adtSession.DeploymentType
-
-    <## Handle Zero-Config MSI repairs.
-    if ($adtSession.UseDefaultMsi)
-    {
-        $ExecuteDefaultMSISplat = @{ Action = $adtSession.DeploymentType; FilePath = $adtSession.DefaultMsiFile }
-        if ($adtSession.DefaultMstFile)
-        {
-            $ExecuteDefaultMSISplat.Add('Transform', $adtSession.DefaultMstFile)
-        }
-        Start-ADTMsiProcess @ExecuteDefaultMSISplat
-    }
-    #>
 
     ## <Perform Repair tasks here>
 
@@ -496,31 +463,25 @@ $ProgressPreference = [System.Management.Automation.ActionPreference]::SilentlyC
 Set-StrictMode -Version 1
 
 # Import the module and instantiate a new session.
-try
-{
-    $moduleName = if ([System.IO.File]::Exists("$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"))
-    {
+try {
+    $moduleName = if ([System.IO.File]::Exists("$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1")) {
         Get-ChildItem -LiteralPath $PSScriptRoot\PSAppDeployToolkit -Recurse -File | Unblock-File -ErrorAction Ignore
         "$PSScriptRoot\PSAppDeployToolkit\PSAppDeployToolkit.psd1"
     }
-    else
-    {
+    else {
         'PSAppDeployToolkit'
     }
     Import-Module -FullyQualifiedName @{ ModuleName = $moduleName; Guid = '8c3c366b-8606-4576-9f2d-4051144f7ca2'; ModuleVersion = '4.0.6' } -Force
-    try
-    {
+    try {
         $iadtParams = Get-ADTBoundParametersAndDefaultValues -Invocation $MyInvocation
         $adtSession = Open-ADTSession -SessionState $ExecutionContext.SessionState @adtSession @iadtParams -PassThru
     }
-    catch
-    {
+    catch {
         Remove-Module -Name PSAppDeployToolkit* -Force
         throw
     }
 }
-catch
-{
+catch {
     $Host.UI.WriteErrorLine((Out-String -InputObject $_ -Width ([System.Int32]::MaxValue)))
     exit 60008
 }
@@ -529,11 +490,9 @@ catch
 ## MARK: Invocation
 ##================================================
 
-try
-{
+try {
     Get-Item -Path $PSScriptRoot\PSAppDeployToolkit.* | & {
-        process
-        {
+        process {
             Get-ChildItem -LiteralPath $_.FullName -Recurse -File | Unblock-File -ErrorAction Ignore
             Import-Module -Name $_.FullName -Force
         }
@@ -541,13 +500,11 @@ try
     & "$($adtSession.DeploymentType)-ADTDeployment"
     Close-ADTSession
 }
-catch
-{
+catch {
     Write-ADTLogEntry -Message ($mainErrorMessage = Resolve-ADTErrorRecord -ErrorRecord $_) -Severity 3
     Show-ADTDialogBox -Text $mainErrorMessage -Icon Stop | Out-Null
     Close-ADTSession -ExitCode 60001
 }
-finally
-{
+finally {
     Remove-Module -Name PSAppDeployToolkit* -Force
 }
