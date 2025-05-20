@@ -1,3 +1,4 @@
+```powershell
 <#
 .SYNOPSIS
 PSAppDeployToolkit - This script performs the installation or uninstallation of an application(s).
@@ -55,7 +56,7 @@ None. This script does not generate any output.
 Toolkit Exit Code Ranges:
 - 60000 - 68999: Reserved for built-in exit codes in Invoke-AppDeployToolkit.ps1, and Invoke-AppDeployToolkit.exe
 - 69000 - 69999: Recommended for user customized exit codes in Invoke-AppDeployToolkit.ps1
-- 70000 - 79999: Recommended for user customized exit codes in PSAppDeployToolkit.Extensions module.
+- 70000 - 79999: Recommended for user customized exit codes in PSMAppDeployToolkit.Extensions module.
 
 .LINK
 https://psappdeploytoolkit.com
@@ -257,10 +258,10 @@ function Install-ADTDeployment
                                 New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
                             }
                             if ($key.Type -eq "DWORD") {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type DWord -Force -ErrorAction Stop
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop
                             }
                             else {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type String -Force -ErrorAction Stop
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType String -Force -ErrorAction Stop
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
@@ -279,10 +280,10 @@ function Install-ADTDeployment
                                 New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
                             }
                             if ($key.Type -eq "DWORD") {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type DWord -Force -ErrorAction Stop
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop
                             }
                             elseif ($key.Type -eq "ExpandString") {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type ExpandString -Force -ErrorAction Stop
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType ExpandString -Force -ErrorAction Stop
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
@@ -490,3 +491,4 @@ finally
 {
     Remove-Module -Name PSAppDeployToolkit* -Force
 }
+```
