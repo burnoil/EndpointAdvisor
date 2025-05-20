@@ -184,8 +184,8 @@ function Install-ADTDeployment
 		}
 
         ## User Profile Enumeration for File and Registry Operations
-        # Debug: Log script version and PowerShell version
-        Write-ADTLogEntry -Message "Running script version 2025-05-20-v8. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
+        # Log script version
+        Write-ADTLogEntry -Message "Running script version 2025-05-20-v10. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -217,7 +217,6 @@ function Install-ADTDeployment
             $profile = $profileList | Where-Object { $_.ProfileImagePath -eq $userPath }
             if ($profile) {
                 $rawSID = $profile.PSChildName
-                Write-ADTLogEntry -Message "Debug: Raw SID for user '$userName': '$rawSID'" -Source $adtSession.InstallPhase
                 # Validate SID format (should match S-1-5-...)
                 if (-not $rawSID -or $rawSID -notmatch '^S-1-5-[\d-]+$') {
                     Write-ADTLogEntry -Message "Invalid or empty SID '$rawSID' for user '$userName'. Skipping profile." -Source $adtSession.InstallPhase -Severity 2
@@ -262,22 +261,15 @@ function Install-ADTDeployment
                     $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
-                        # Validate variables
                         if (-not $adtSession.InstallPhase) {
                             Write-ADTLogEntry -Message "Invalid InstallPhase for user '$userName'. Skipping registry operations." -Source "Unknown" -Severity 3
                             continue
                         }
-                        Write-ADTLogEntry -Message "Debug: Preparing to load registry hive for user '$userName'." -Source $adtSession.InstallPhase
-                        Write-ADTLogEntry -Message "Debug: SID = '$userSID'" -Source $adtSession.InstallPhase
-                        Write-ADTLogEntry -Message "Debug: TempHive = '$tempHive'" -Source $adtSession.InstallPhase
-                        Write-ADTLogEntry -Message "Debug: HivePath = '$hivePath'" -Source $adtSession.InstallPhase
                         $maxRetries = 3
                         $retryCount = 0
                         $hiveLoaded = $false
 
                         while (-not $hiveLoaded -and $retryCount -lt $maxRetries) {
-                            # Use Write-Output as fallback logging
-                            Write-Output "Attempting to load registry hive for user '$userName' on attempt $($retryCount + 1)."
                             $regLoadResult = reg load "$tempHive" $hivePath 2>&1
                             if ($LASTEXITCODE -eq 0) {
                                 $hiveLoaded = $true
@@ -326,18 +318,15 @@ function Install-ADTDeployment
                             # Convert and sanitize PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
                             $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
-                            Write-ADTLogEntry -Message "Debug: Processing registry key '$regPath' with value '$keyName' for user '$userName'." -Source $adtSession.InstallPhase
                             # Create key if it doesn't exist
                             $regQueryResult = reg query "$regPath" 2>&1
                             if ($LASTEXITCODE -ne 0) {
-                                Write-ADTLogEntry -Message "Debug: Creating registry key '$regPath' for user '$userName'." -Source $adtSession.InstallPhase
                                 reg add "$regPath" /f | Out-Null
                                 if ($LASTEXITCODE -ne 0) {
                                     throw "Failed to create registry key '$regPath' for user '$userName': $regQueryResult"
                                 }
                             }
                             # Set registry value
-                            Write-ADTLogEntry -Message "Debug: Setting registry value '$keyName' in '$regPath' to '$($key.Value)' (Type: $($key.Type)) for user '$userName'." -Source $adtSession.InstallPhase
                             if ($key.Type -eq "DWORD") {
                                 reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
                             }
@@ -353,7 +342,7 @@ function Install-ADTDeployment
                         # Registry Key Set 2
                         $regKeys2 = @(
                             @{ Path = "$tempHive\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "LandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
+                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "CoreLandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
                             @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
                             @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
                             @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
@@ -363,18 +352,15 @@ function Install-ADTDeployment
                             # Convert and sanitize PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
                             $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
-                            Write-ADTLogEntry -Message "Debug: Processing registry key '$regPath' with value '$keyName' for user '$userName'." -Source $adtSession.InstallPhase
                             # Create key if it doesn't exist
                             $regQueryResult = reg query "$regPath" 2>&1
                             if ($LASTEXITCODE -ne 0) {
-                                Write-ADTLogEntry -Message "Debug: Creating registry key '$regPath' for user '$userName'." -Source $adtSession.InstallPhase
                                 reg add "$regPath" /f | Out-Null
                                 if ($LASTEXITCODE -ne 0) {
                                     throw "Failed to create registry key '$regPath' for user '$userName': $regQueryResult"
                                 }
                             }
                             # Set registry value
-                            Write-ADTLogEntry -Message "Debug: Setting registry value '$keyName' in '$regPath' to '$($key.Value)' (Type: $($key.Type)) for user '$userName'." -Source $adtSession.InstallPhase
                             if ($key.Type -eq "DWORD") {
                                 reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
                             }
