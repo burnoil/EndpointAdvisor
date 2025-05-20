@@ -170,11 +170,13 @@ function Install-ADTDeployment
                 }
                 # Copy Common folder to GUI_Backup
                 Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
+                Write-ADTLogEntry -Message "Copied '$sourcePath' to '$backupPath' for user '$userName'." -Source $adtSession.InstallPhase
                 # Delete original Common folder
                 Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
+                Write-ADTLogEntry -Message "Deleted '$sourcePath' for user '$userName'." -Source $adtSession.InstallPhase
             }
             catch {
-                # Continue to next profile on error
+                Write-ADTLogEntry -Message "Failed to perform file operations for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
                 continue
             }
         }
@@ -202,9 +204,7 @@ function Install-ADTDeployment
     #>
 
     ## <Perform Installation tasks here>
-
-        #Start-ADTMsiProcess -Action 'Install' -FilePath 'googlechromestandaloneenterprise64.msi'
-        Start-ADTProcess -Filepath 'GUI800_10-80006342.EXE' -Argumentlist '/Silent'
+    Start-ADTProcess -Filepath 'GUI800_10-80006342.EXE' -Argumentlist '/Silent'
 
     ##================================================
     ## MARK: Post-Install
@@ -212,7 +212,6 @@ function Install-ADTDeployment
     $adtSession.InstallPhase = "Post-$($adtSession.DeploymentType)"
 
     ## <Perform Post-Installation tasks here>
-
     # Remove shortcut from All Users Desktop (if found)
     $DESKTOPICONPATH = "$envCommonDesktop\Google Chrome.lnk"
     If (Test-Path $DESKTOPICONPATH)
@@ -222,21 +221,6 @@ function Install-ADTDeployment
     }
 
     ## User Profile Enumeration for File and Registry Operations
-
-    # Define system profiles to exclude
-    $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
-    # Get all user profile directories and filter for valid profiles
-    $userProfileDirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | 
-        Where-Object { 
-            $excludeProfiles -notcontains $_.Name -and 
-            (Test-Path -Path (Join-Path -Path $_.FullName -ChildPath "NTUSER.DAT") -ErrorAction SilentlyContinue)
-        }
-    # Get profile SIDs from registry
-    $profileList = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\*" -ErrorAction SilentlyContinue | 
-        Where-Object { $_.ProfileImagePath -like "C:\Users\*" }
-    # Get logged-in users
-    $loggedInUsers = Get-WmiObject -Class Win32_ComputerSystem | Select-Object -ExpandProperty UserName | ForEach-Object { $_ -replace '.*\\', '' }
-
     foreach ($profileDir in $userProfileDirs) {
         if (-not $profileDir -or -not $profileDir.FullName) {
             continue
@@ -405,12 +389,6 @@ function Install-ADTDeployment
         catch {
             # Continue on error
         }
-
-    ## Display a message at the end of the install.
-    #if (!$adtSession.UseDefaultMsi)
-    #{
-    #    Show-ADTInstallationPrompt -Message 'Installation has completed successfully.' -ButtonRightText 'OK' -Icon Information -NoWait -Timeout 5
-    #}
 }
 
 function Uninstall-ADTDeployment
@@ -427,8 +405,6 @@ function Uninstall-ADTDeployment
     Show-ADTInstallationProgress
 
     ## <Perform Pre-Uninstallation tasks here>
-
-    #Kill Processes.  Add each process name into the processes variable.  Add as many needed.
     $processes = @("NwSapSetupUserNotificationTool", "NwSapAutoWorkstationUpdateService", "saplogon", "sbus", "sbustrace")
     foreach ($process in $processes) {
         if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
@@ -458,9 +434,7 @@ function Uninstall-ADTDeployment
     #>
 
     ## <Perform Uninstallation tasks here>
-
-        #Start-ADTMsiProcess -Action 'UnInstall' -FilePath 'googlechromestandaloneenterprise64.msi'
-        Start-ADTProcess -Filepath 'C:\Program Files (x86)\SAP\SapSetup\Setup\nwsapsetup.exe' -Argumentlist '/product="PdfPrintGui+SCRIPTED+SCE+SAPDTS+KW+GUIISHMED+JNet+CALSYNC+RFC64+SAPGUI+SAPBI+SLC" /TitleComponent:"SAPGUI" /IgnoreMissingProducts /uninstall /silent'
+    Start-ADTProcess -Filepath 'C:\Program Files (x86)\SAP\SapSetup\Setup\nwsapsetup.exe' -Argumentlist '/product="PdfPrintGui+SCRIPTED+SCE+SAPDTS+KW+GUIISHMED+JNet+CALSYNC+RFC64+SAPGUI+SAPBI+SLC" /TitleComponent:"SAPGUI" /IgnoreMissingProducts /uninstall /silent'
 
     ##================================================
     ## MARK: Post-Uninstallation
@@ -485,7 +459,6 @@ function Repair-ADTDeployment
 
     ## <Perform Pre-Repair tasks here>
 
-
     ##================================================
     ## MARK: Repair
     ##================================================
@@ -505,7 +478,6 @@ function Repair-ADTDeployment
 
     ## <Perform Repair tasks here>
 
-
     ##================================================
     ## MARK: Post-Repair
     ##================================================
@@ -513,7 +485,6 @@ function Repair-ADTDeployment
 
     ## <Perform Post-Repair tasks here>
 }
-
 
 ##================================================
 ## MARK: Initialization
@@ -553,7 +524,6 @@ catch
     $Host.UI.WriteErrorLine((Out-String -InputObject $_ -Width ([System.Int32]::MaxValue)))
     exit 60008
 }
-
 
 ##================================================
 ## MARK: Invocation
