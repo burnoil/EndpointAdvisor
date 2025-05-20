@@ -185,7 +185,7 @@ function Install-ADTDeployment
 
         ## User Profile Enumeration for File and Registry Operations
         # Debug: Log script version and PowerShell version
-        Write-ADTLogEntry -Message "Running script version 2025-05-20-v3. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
+        Write-ADTLogEntry -Message "Running script version 2025-05-20-v4. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -198,6 +198,8 @@ function Install-ADTDeployment
         # Get profile SIDs from registry
         $profileList = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\*" -ErrorAction SilentlyContinue | 
             Where-Object { $_.ProfileImagePath -like "C:\Users\*" }
+        # Get logged-in users
+        $loggedInUsers = Get-WmiObject -Class Win32_ComputerSystem | Select-Object -ExpandProperty UserName | ForEach-Object { $_ -replace '.*\\', '' }
 
         foreach ($profileDir in $userProfileDirs) {
             if (-not $profileDir -or -not $profileDir.FullName) {
@@ -206,6 +208,11 @@ function Install-ADTDeployment
             }
             $userPath = $profileDir.FullName
             $userName = $profileDir.Name
+            # Skip logged-in users
+            if ($loggedInUsers -contains $userName) {
+                Write-ADTLogEntry -Message "User '$userName' is currently logged in. Skipping profile to avoid hive lock." -Source $adtSession.InstallPhase -Severity 2
+                continue
+            }
             # Find matching SID
             $profile = $profileList | Where-Object { $_.ProfileImagePath -eq $userPath }
             if ($profile) {
@@ -240,16 +247,51 @@ function Install-ADTDeployment
 
                 ## Registry Operations
                 try {
-                    # Load user's registry hive
+                    # Load user's registry hive with retry
                     $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
-                        Write-ADTLogEntry -Message "Debug: About to load registry hive for user '$userName' at '$tempHive'. Hive path: '$hivePath'" -Source $adtSession.InstallPhase
-                        $regLoadResult = reg load $tempHive $hivePath 2>&1
-                        if ($LASTEXITCODE -ne 0) {
-                            throw "Failed to load registry hive for user '$userName': $regLoadResult"
+                        $maxRetries = 3
+                        $retryCount = 0
+                        $hiveLoaded = $false
+
+                        while (-not $hiveLoaded -and $retryCount -lt $maxRetries) {
+                            Write-ADTLogEntry -Message "Debug: Attempting to load registry hive for user '$userName' at '$tempHive' (Attempt $($retryCount + 1)). Hive path: '$hivePath'" -Source $adtSession.InstallPhase
+                            $regLoadResult = reg load $tempHive $hivePath 2>&1
+                            if ($LASTEXITCODE -eq 0) {
+                                $hiveLoaded = $true
+                            }
+                            else {
+                                $retryCount++
+                                Write-ADTLogEntry -Message "Warning: Failed to load registry hive for user '$userName' on attempt $retryCount: $regLoadResult" -Source $adtSession.InstallPhase -Severity 2
+                                Start-Sleep -Seconds 2
+                            }
+                        }
+
+                        if (-not $hiveLoaded) {
+                            throw "Failed to load registry hive for user '$userName' after $maxRetries attempts: $regLoadResult"
                         }
                         Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '$tempHive'." -Source $adtSession.InstallPhase
+
+                        # Grant full control to Administrators on the hive
+                        try {
+                            $regKey = [Microsoft.Win32.Registry]::Users.OpenSubKey($userSID, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, [System.Security.AccessControl.RegistryRights]::ChangePermissions)
+                            $acl = $regKey.GetAccessControl()
+                            $rule = New-Object System.Security.AccessControl.RegistryAccessRule (
+                                "Administrators",
+                                "FullControl",
+                                "ContainerInherit",
+                                "None",
+                                "Allow"
+                            )
+                            $acl.SetAccessRule($rule)
+                            $regKey.SetAccessControl($acl)
+                            Write-ADTLogEntry -Message "Granted full control to Administrators on hive '$tempHive' for user '$userName'." -Source $adtSession.InstallPhase
+                            $regKey.Close()
+                        }
+                        catch {
+                            Write-ADTLogEntry -Message "Warning: Failed to set permissions on hive '$tempHive' for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 2
+                        }
 
                         # Registry Key Set 1
                         $regKeys1 = @(
@@ -262,15 +304,18 @@ function Install-ADTDeployment
                         foreach ($key in $regKeys1) {
                             # Convert PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '\\', '\'
+                            Write-ADTLogEntry -Message "Debug: Processing registry key '$regPath' with value '$($key.Name)' for user '$userName'." -Source $adtSession.InstallPhase
                             # Create key if it doesn't exist
                             $regQueryResult = reg query $regPath 2>&1
                             if ($LASTEXITCODE -ne 0) {
+                                Write-ADTLogEntry -Message "Debug: Creating registry key '$regPath' for user '$userName'." -Source $adtSession.InstallPhase
                                 reg add $regPath /f | Out-Null
                                 if ($LASTEXITCODE -ne 0) {
-                                    throw "Failed to create registry key '$regPath' for user '$userName'"
+                                    throw "Failed to create registry key '$regPath' for user '$userName': $regQueryResult"
                                 }
                             }
                             # Set registry value
+                            Write-ADTLogEntry -Message "Debug: Setting registry value '$($key.Name)' in '$regPath' to '$($key.Value)' (Type: $($key.Type)) for user '$userName'." -Source $adtSession.InstallPhase
                             if ($key.Type -eq "DWORD") {
                                 reg add $regPath /v $key.Name /t REG_DWORD /d $key.Value /f | Out-Null
                             }
@@ -278,7 +323,7 @@ function Install-ADTDeployment
                                 reg add $regPath /v $key.Name /t REG_SZ /d $key.Value /f | Out-Null
                             }
                             if ($LASTEXITCODE -ne 0) {
-                                throw "Failed to set registry value '$($key.Name)' in '$regPath' for user '$userName'"
+                                throw "Failed to set registry value '$($key.Name)' in '$regPath' for user '$userName': $LASTEXITCODE"
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
@@ -295,15 +340,18 @@ function Install-ADTDeployment
                         foreach ($key in $regKeys2) {
                             # Convert PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '\\', '\'
+                            Write-ADTLogEntry -Message "Debug: Processing registry key '$regPath' with value '$($key.Name)' for user '$userName'." -Source $adtSession.InstallPhase
                             # Create key if it doesn't exist
                             $regQueryResult = reg query $regPath 2>&1
                             if ($LASTEXITCODE -ne 0) {
+                                Write-ADTLogEntry -Message "Debug: Creating registry key '$regPath' for user '$userName'." -Source $adtSession.InstallPhase
                                 reg add $regPath /f | Out-Null
                                 if ($LASTEXITCODE -ne 0) {
-                                    throw "Failed to create registry key '$regPath' for user '$userName'"
+                                    throw "Failed to create registry key '$regPath' for user '$userName': $regQueryResult"
                                 }
                             }
                             # Set registry value
+                            Write-ADTLogEntry -Message "Debug: Setting registry value '$($key.Name)' in '$regPath' to '$($key.Value)' (Type: $($key.Type)) for user '$userName'." -Source $adtSession.InstallPhase
                             if ($key.Type -eq "DWORD") {
                                 reg add $regPath /v $key.Name /t REG_DWORD /d $key.Value /f | Out-Null
                             }
@@ -311,7 +359,7 @@ function Install-ADTDeployment
                                 reg add $regPath /v $key.Name /t REG_EXPAND_SZ /d $key.Value /f | Out-Null
                             }
                             if ($LASTEXITCODE -ne 0) {
-                                throw "Failed to set registry value '$($key.Name)' in '$regPath' for user '$userName'"
+                                throw "Failed to set registry value '$($key.Name)' in '$regPath' for user '$userName': $LASTEXITCODE"
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
