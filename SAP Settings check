@@ -185,7 +185,7 @@ function Install-ADTDeployment
 
         ## User Profile Enumeration for File and Registry Operations
         # Debug: Log script version and PowerShell version
-        Write-ADTLogEntry -Message "Running script version 2025-05-20-v7. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
+        Write-ADTLogEntry -Message "Running script version 2025-05-20-v8. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -262,6 +262,11 @@ function Install-ADTDeployment
                     $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
+                        # Validate variables
+                        if (-not $adtSession.InstallPhase) {
+                            Write-ADTLogEntry -Message "Invalid InstallPhase for user '$userName'. Skipping registry operations." -Source "Unknown" -Severity 3
+                            continue
+                        }
                         Write-ADTLogEntry -Message "Debug: Preparing to load registry hive for user '$userName'." -Source $adtSession.InstallPhase
                         Write-ADTLogEntry -Message "Debug: SID = '$userSID'" -Source $adtSession.InstallPhase
                         Write-ADTLogEntry -Message "Debug: TempHive = '$tempHive'" -Source $adtSession.InstallPhase
@@ -271,7 +276,8 @@ function Install-ADTDeployment
                         $hiveLoaded = $false
 
                         while (-not $hiveLoaded -and $retryCount -lt $maxRetries) {
-                            Write-ADTLogEntry -Message "Debug: Attempting to load registry hive (Attempt $($retryCount + 1))." -Source $adtSession.InstallPhase
+                            # Use Write-Output as fallback logging
+                            Write-Output "Attempting to load registry hive for user '$userName' on attempt $($retryCount + 1)."
                             $regLoadResult = reg load "$tempHive" $hivePath 2>&1
                             if ($LASTEXITCODE -eq 0) {
                                 $hiveLoaded = $true
