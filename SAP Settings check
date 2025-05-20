@@ -55,7 +55,7 @@ None. This script does not generate any output.
 Toolkit Exit Code Ranges:
 - 60000 - 68999: Reserved for built-in exit codes in Invoke-AppDeployToolkit.ps1, and Invoke-AppDeployToolkit.exe
 - 69000 - 69999: Recommended for user customized exit codes in Invoke-AppDeployToolkit.ps1
-- 70000 - 79999: Recommended for user customized exit codes in PSMAppDeployToolkit.Extensions module.
+- 70000 - 79999: Recommended for user customized exit codes in PSAppDeployToolkit.Extensions module.
 
 .LINK
 https://psappdeploytoolkit.com
@@ -184,6 +184,9 @@ function Install-ADTDeployment
 		}
 
         ## User Profile Enumeration for File and Registry Operations
+        # Debug: Log script version and PowerShell version
+        Write-ADTLogEntry -Message "Running script version 2025-05-20-v2. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
+
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
         # Get all user profile directories and filter for valid profiles
@@ -241,6 +244,7 @@ function Install-ADTDeployment
                     $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
+                        Write-ADTLogEntry -Message "Debug: About to load registry hive for user '$userName' at '$tempHive'. Hive path: '$hivePath'" -Source $adtSession.InstallPhase
                         reg load $tempHive $hivePath | Out-Null
                         Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '$tempHive'." -Source $adtSession.InstallPhase
 
@@ -256,11 +260,16 @@ function Install-ADTDeployment
                             if (-not (Test-Path -Path $key.Path)) {
                                 New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
                             }
+                            # Create or update registry value
+                            $existingProperty = Get-ItemProperty -Path $key.Path -Name $key.Name -ErrorAction SilentlyContinue
+                            if ($existingProperty) {
+                                Remove-ItemProperty -Path $key.Path -Name $key.Name -Force -ErrorAction Stop
+                            }
                             if ($key.Type -eq "DWORD") {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop
+                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
                             }
                             else {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType String -Force -ErrorAction Stop
+                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType String -Force -ErrorAction Stop | Out-Null
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
@@ -278,11 +287,16 @@ function Install-ADTDeployment
                             if (-not (Test-Path -Path $key.Path)) {
                                 New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
                             }
+                            # Create or update registry value
+                            $existingProperty = Get-ItemProperty -Path $key.Path -Name $key.Name -ErrorAction SilentlyContinue
+                            if ($existingProperty) {
+                                Remove-ItemProperty -Path $key.Path -Name $key.Name -Force -ErrorAction Stop
+                            }
                             if ($key.Type -eq "DWORD") {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop
+                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
                             }
                             elseif ($key.Type -eq "ExpandString") {
-                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType ExpandString -Force -ErrorAction Stop
+                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType ExpandString -Force -ErrorAction Stop | Out-Null
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
