@@ -185,7 +185,7 @@ function Install-ADTDeployment
 
         ## User Profile Enumeration for File and Registry Operations
         # Debug: Log script version and PowerShell version
-        Write-ADTLogEntry -Message "Running script version 2025-05-20-v2. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
+        Write-ADTLogEntry -Message "Running script version 2025-05-20-v3. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -245,7 +245,10 @@ function Install-ADTDeployment
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
                         Write-ADTLogEntry -Message "Debug: About to load registry hive for user '$userName' at '$tempHive'. Hive path: '$hivePath'" -Source $adtSession.InstallPhase
-                        reg load $tempHive $hivePath | Out-Null
+                        $regLoadResult = reg load $tempHive $hivePath 2>&1
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "Failed to load registry hive for user '$userName': $regLoadResult"
+                        }
                         Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '$tempHive'." -Source $adtSession.InstallPhase
 
                         # Registry Key Set 1
@@ -257,19 +260,25 @@ function Install-ADTDeployment
                         )
 
                         foreach ($key in $regKeys1) {
-                            if (-not (Test-Path -Path $key.Path)) {
-                                New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
+                            # Convert PowerShell path to reg command path
+                            $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '\\', '\'
+                            # Create key if it doesn't exist
+                            $regQueryResult = reg query $regPath 2>&1
+                            if ($LASTEXITCODE -ne 0) {
+                                reg add $regPath /f | Out-Null
+                                if ($LASTEXITCODE -ne 0) {
+                                    throw "Failed to create registry key '$regPath' for user '$userName'"
+                                }
                             }
-                            # Create or update registry value
-                            $existingProperty = Get-ItemProperty -Path $key.Path -Name $key.Name -ErrorAction SilentlyContinue
-                            if ($existingProperty) {
-                                Remove-ItemProperty -Path $key.Path -Name $key.Name -Force -ErrorAction Stop
-                            }
+                            # Set registry value
                             if ($key.Type -eq "DWORD") {
-                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
+                                reg add $regPath /v $key.Name /t REG_DWORD /d $key.Value /f | Out-Null
                             }
                             else {
-                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType String -Force -ErrorAction Stop | Out-Null
+                                reg add $regPath /v $key.Name /t REG_SZ /d $key.Value /f | Out-Null
+                            }
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "Failed to set registry value '$($key.Name)' in '$regPath' for user '$userName'"
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
@@ -284,27 +293,38 @@ function Install-ADTDeployment
                         )
 
                         foreach ($key in $regKeys2) {
-                            if (-not (Test-Path -Path $key.Path)) {
-                                New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
+                            # Convert PowerShell path to reg command path
+                            $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '\\', '\'
+                            # Create key if it doesn't exist
+                            $regQueryResult = reg query $regPath 2>&1
+                            if ($LASTEXITCODE -ne 0) {
+                                reg add $regPath /f | Out-Null
+                                if ($LASTEXITCODE -ne 0) {
+                                    throw "Failed to create registry key '$regPath' for user '$userName'"
+                                }
                             }
-                            # Create or update registry value
-                            $existingProperty = Get-ItemProperty -Path $key.Path -Name $key.Name -ErrorAction SilentlyContinue
-                            if ($existingProperty) {
-                                Remove-ItemProperty -Path $key.Path -Name $key.Name -Force -ErrorAction Stop
-                            }
+                            # Set registry value
                             if ($key.Type -eq "DWORD") {
-                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
+                                reg add $regPath /v $key.Name /t REG_DWORD /d $key.Value /f | Out-Null
                             }
                             elseif ($key.Type -eq "ExpandString") {
-                                New-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -PropertyType ExpandString -Force -ErrorAction Stop | Out-Null
+                                reg add $regPath /v $key.Name /t REG_EXPAND_SZ /d $key.Value /f | Out-Null
+                            }
+                            if ($LASTEXITCODE -ne 0) {
+                                throw "Failed to set registry value '$($key.Name)' in '$regPath' for user '$userName'"
                             }
                             Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
                         }
 
                         # Unload registry hive
                         [gc]::Collect()
-                        reg unload $tempHive | Out-Null
-                        Write-ADTLogEntry -Message "Unloaded registry hive for user '$userName'." -Source $adtSession.InstallPhase
+                        $regUnloadResult = reg unload $tempHive 2>&1
+                        if ($LASTEXITCODE -ne 0) {
+                            Write-ADTLogEntry -Message "Warning: Failed to unload registry hive for user '$userName': $regUnloadResult" -Source $adtSession.InstallPhase -Severity 2
+                        }
+                        else {
+                            Write-ADTLogEntry -Message "Unloaded registry hive for user '$userName'." -Source $adtSession.InstallPhase
+                        }
                     }
                     else {
                         Write-ADTLogEntry -Message "NTUSER.DAT not found at '$hivePath' for user '$userName'. Skipping registry operations." -Source $adtSession.InstallPhase
