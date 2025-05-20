@@ -299,24 +299,15 @@ function Install-ADTDeployment
                         )
 
                         foreach ($key in $regKeys1) {
-                            # Convert and sanitize PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
                             $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
                             try {
-                                # Create key path
                                 reg add "$regPath" /f | Out-Null
-                                if ($LASTEXITCODE -ne 0) {
-                                    continue
-                                }
-                                # Set registry value
                                 if ($key.Type -eq "DWORD") {
                                     reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
                                 }
                                 else {
                                     reg add "$regPath" /v "$keyName" /t REG_SZ /d "$($key.Value)" /f | Out-Null
-                                }
-                                if ($LASTEXITCODE -ne 0) {
-                                    continue
                                 }
                             }
                             catch {
@@ -334,24 +325,15 @@ function Install-ADTDeployment
                         )
 
                         foreach ($key in $regKeys2) {
-                            # Convert and sanitize PowerShell path to reg command path
                             $regPath = $key.Path -replace '^HKU\\', 'HKEY_USERS\' -replace '[^a-zA-Z0-9\\_-]', ''
                             $keyName = $key.Name -replace '[^a-zA-Z0-9_-]', ''
                             try {
-                                # Create key path
                                 reg add "$regPath" /f | Out-Null
-                                if ($LASTEXITCODE -ne 0) {
-                                    continue
-                                }
-                                # Set registry value
                                 if ($key.Type -eq "DWORD") {
                                     reg add "$regPath" /v "$keyName" /t REG_DWORD /d $($key.Value) /f | Out-Null
                                 }
                                 elseif ($key.Type -eq "ExpandString") {
                                     reg add "$regPath" /v "$keyName" /t REG_EXPAND_SZ /d "$($key.Value)" /f | Out-Null
-                                }
-                                if ($LASTEXITCODE -ne 0) {
-                                    continue
                                 }
                             }
                             catch {
@@ -409,7 +391,8 @@ function Uninstall-ADTDeployment
                 Stop-Process -Name $process -Force -ErrorAction SilentlyContinue
 				Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
 			} else {
-				Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
+				Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.Instal
+lPhase
 			}
 		}
 
