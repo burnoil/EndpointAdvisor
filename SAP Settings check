@@ -1,4 +1,3 @@
-```powershell
 <#
 .SYNOPSIS
 PSAppDeployToolkit - This script performs the installation or uninstallation of an application(s).
@@ -185,112 +184,134 @@ function Install-ADTDeployment
 		}
 
         ## User Profile Enumeration for File and Registry Operations
-        $userProfiles = Get-UserProfiles -ExcludeSystemProfiles -ExcludeDefaultUser
-        foreach ($profile in $userProfiles) {
-            $userPath = $profile.Path
-            $userSID = $profile.SID
-            $userName = Split-Path $userPath -Leaf
-            Write-ADTLogEntry -Message "Processing user profile for '$userName' (SID: $userSID)..." -Source $adtSession.InstallPhase
+        # Define system profiles to exclude
+        $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
+        # Get all user profile directories and filter for valid profiles
+        $userProfileDirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | 
+            Where-Object { 
+                $excludeProfiles -notcontains $_.Name -and 
+                (Test-Path -Path (Join-Path -Path $_.FullName -ChildPath "NTUSER.DAT") -ErrorAction SilentlyContinue)
+            }
+        # Get profile SIDs from registry
+        $profileList = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\*" -ErrorAction SilentlyContinue | 
+            Where-Object { $_.ProfileImagePath -like "C:\Users\*" }
 
-            ## File Operations
-            $sourcePath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\Common"
-            $backupPath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\GUI_Backup_Files"
+        foreach ($profileDir in $userProfileDirs) {
+            if (-not $profileDir -or -not $profileDir.FullName) {
+                Write-ADTLogEntry -Message "Invalid or null profile directory encountered. Skipping." -Source $adtSession.InstallPhase -Severity 2
+                continue
+            }
+            $userPath = $profileDir.FullName
+            $userName = $profileDir.Name
+            # Find matching SID
+            $profile = $profileList | Where-Object { $_.ProfileImagePath -eq $userPath }
+            if ($profile) {
+                $userSID = $profile.PSChildName
+                Write-ADTLogEntry -Message "Processing user profile for '$userName' (SID: $userSID)..." -Source $adtSession.InstallPhase
 
-            if (Test-Path -Path $sourcePath) {
-                try {
-                    # Create backup directory if it doesn't exist
-                    if (-not (Test-Path -Path $backupPath)) {
-                        New-Item -Path $backupPath -ItemType Directory -Force | Out-Null
+                ## File Operations
+                $sourcePath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\Common"
+                $backupPath = Join-Path -Path $userPath -ChildPath "AppData\Roaming\SAP\GUI_Backup_Files"
+
+                if (Test-Path -Path $sourcePath -ErrorAction SilentlyContinue) {
+                    try {
+                        # Create backup directory if it doesn't exist
+                        if (-not (Test-Path -Path $backupPath)) {
+                            New-Item -Path $backupPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
+                        }
+                        # Copy Common folder to backup location
+                        Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
+                        Write-ADTLogEntry -Message "Successfully copied '$sourcePath' to '$backupPath' for user '$userName'." -Source $adtSession.InstallPhase
+
+                        # Delete original Common folder
+                        Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
+                        Write-ADTLogEntry -Message "Successfully deleted '$sourcePath' for user '$userName'." -Source $adtSession.InstallPhase
                     }
-                    # Copy Common folder to backup location
-                    Copy-Item -Path $sourcePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
-                    Write-ADTLogEntry -Message "Successfully copied '$sourcePath' to '$backupPath' for user '$userName'." -Source $adtSession.InstallPhase
+                    catch {
+                        Write-ADTLogEntry -Message "Failed to perform file operations for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
+                    }
+                }
+                else {
+                    Write-ADTLogEntry -Message "Source path '$sourcePath' does not exist for user '$userName'. Skipping file operations." -Source $adtSession.InstallPhase
+                }
 
-                    # Delete original Common folder
-                    Remove-Item -Path $sourcePath -Recurse -Force -ErrorAction Stop
-                    Write-ADTLogEntry -Message "Successfully deleted '$sourcePath' for user '$userName'." -Source $adtSession.InstallPhase
+                ## Registry Operations
+                try {
+                    # Load user's registry hive
+                    $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
+                    if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
+                        $tempHive = "HKU\$userSID"
+                        reg load $tempHive $hivePath | Out-Null
+                        Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '$tempHive'." -Source $adtSession.InstallPhase
+
+                        # Registry Key Set 1
+                        $regKeys1 = @(
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "BrowserControl"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPDockAllowMoveSave"; Type = "DWORD"; Value = 0 },
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPGUIControlPlugin"; Type = "DWORD"; Value = 0 },
+                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "Language"; Type = "String"; Value = "EN" }
+                        )
+
+                        foreach ($key in $regKeys1) {
+                            if (-not (Test-Path -Path $key.Path)) {
+                                New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
+                            }
+                            if ($key.Type -eq "DWORD") {
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type DWord -Force -ErrorAction Stop
+                            }
+                            else {
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type String -Force -ErrorAction Stop
+                            }
+                            Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
+                        }
+
+                        # Registry Key Set 2
+                        $regKeys2 = @(
+                            @{ Path = "$tempHive\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "LandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
+                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
+                        )
+
+                        foreach ($key in $regKeys2) {
+                            if (-not (Test-Path -Path $key.Path)) {
+                                New-Item -Path $key.Path -Force -ErrorAction Stop | Out-Null
+                            }
+                            if ($key.Type -eq "DWORD") {
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type DWord -Force -ErrorAction Stop
+                            }
+                            elseif ($key.Type -eq "ExpandString") {
+                                Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type ExpandString -Force -ErrorAction Stop
+                            }
+                            Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
+                        }
+
+                        # Unload registry hive
+                        [gc]::Collect()
+                        reg unload $tempHive | Out-Null
+                        Write-ADTLogEntry -Message "Unloaded registry hive for user '$userName'." -Source $adtSession.InstallPhase
+                    }
+                    else {
+                        Write-ADTLogEntry -Message "NTUSER.DAT not found at '$hivePath' for user '$userName'. Skipping registry operations." -Source $adtSession.InstallPhase
+                    }
                 }
                 catch {
-                    Write-ADTLogEntry -Message "Failed to perform file operations for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
+                    Write-ADTLogEntry -Message "Failed to process registry for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
+                    # Attempt to unload hive if it was loaded
+                    try {
+                        if (Test-Path -Path $tempHive) {
+                            [gc]::Collect()
+                            reg unload $tempHive | Out-Null
+                        }
+                    }
+                    catch {
+                        Write-ADTLogEntry -Message "Failed to unload registry hive for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
+                    }
                 }
             }
             else {
-                Write-ADTLogEntry -Message "Source path '$sourcePath' does not exist for user '$userName'. Skipping file operations." -Source $adtSession.InstallPhase
-            }
-
-            ## Registry Operations
-            try {
-                # Load user's registry hive
-                $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
-                if (Test-Path -Path $hivePath) {
-                    $tempHive = "HKU\$userSID"
-                    reg load $tempHive $hivePath | Out-Null
-                    Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '$tempHive'." -Source $adtSession.InstallPhase
-
-                    # Registry Key Set 1
-                    $regKeys1 = @(
-                        @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "BrowserControl"; Type = "DWORD"; Value = 1 },
-                        @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPDockAllowMoveSave"; Type = "DWORD"; Value = 0 },
-                        @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPGUIControlPlugin"; Type = "DWORD"; Value = 0 },
-                        @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "Language"; Type = "String"; Value = "EN" }
-                    )
-
-                    foreach ($key in $regKeys1) {
-                        if (-not (Test-Path -Path $key.Path)) {
-                            New-Item -Path $key.Path -Force | Out-Null
-                        }
-                        if ($key.Type -eq "DWORD") {
-                            Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type DWord -Force
-                        }
-                        else {
-                            Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type String -Force
-                        }
-                        Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
-                    }
-
-                    # Registry Key Set 2
-                    $regKeys2 = @(
-                        @{ Path = "$tempHive\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
-                        @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "LandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
-                        @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
-                        @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
-                        @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
-                    )
-
-                    foreach ($key in $regKeys2) {
-                        if (-not (Test-Path -Path $key.Path)) {
-                            New-Item -Path $key.Path -Force | Out-Null
-                        }
-                        if ($key.Type -eq "DWORD") {
-                            Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type DWord -Force
-                        }
-                        elseif ($key.Type -eq "ExpandString") {
-                            Set-ItemProperty -Path $key.Path -Name $key.Name -Value $key.Value -Type ExpandString -Force
-                        }
-                        Write-ADTLogEntry -Message "Set registry key '$($key.Path)\$($key.Name)' to '$($key.Value)' for user '$userName'." -Source $adtSession.InstallPhase
-                    }
-
-                    # Unload registry hive
-                    [gc]::Collect()
-                    reg unload $tempHive | Out-Null
-                    Write-ADTLogEntry -Message "Unloaded registry hive for user '$userName'." -Source $adtSession.InstallPhase
-                }
-                else {
-                    Write-ADTLogEntry -Message "NTUSER.DAT not found at '$hivePath' for user '$userName'. Skipping registry operations." -Source $adtSession.InstallPhase
-                }
-            }
-            catch {
-                Write-ADTLogEntry -Message "Failed to process registry for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
-                # Attempt to unload hive if it was loaded
-                try {
-                    if (Test-Path -Path $tempHive) {
-                        [gc]::Collect()
-                        reg unload $tempHive | Out-Null
-                    }
-                }
-                catch {
-                    Write-ADTLogEntry -Message "Failed to unload registry hive for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
-                }
+                Write-ADTLogEntry -Message "No SID found for user profile '$userName'. Skipping." -Source $adtSession.InstallPhase
             }
         }
 
@@ -469,4 +490,3 @@ finally
 {
     Remove-Module -Name PSAppDeployToolkit* -Force
 }
-```
