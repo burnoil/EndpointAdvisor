@@ -185,7 +185,7 @@ function Install-ADTDeployment
 
         ## User Profile Enumeration for File and Registry Operations
         # Debug: Log script version and PowerShell version
-        Write-ADTLogEntry -Message "Running script version 2025-05-20-v5. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
+        Write-ADTLogEntry -Message "Running script version 2025-05-20-v6. PowerShell version: $($PSVersionTable.PSVersion.ToString())" -Source $adtSession.InstallPhase
 
         # Define system profiles to exclude
         $excludeProfiles = @('Public', 'Default', 'Default User', 'All Users', 'LocalService', 'NetworkService', 'SYSTEM')
@@ -216,7 +216,13 @@ function Install-ADTDeployment
             # Find matching SID
             $profile = $profileList | Where-Object { $_.ProfileImagePath -eq $userPath }
             if ($profile) {
-                $userSID = $profile.PSChildName -replace '[^\w\-]', '' # Sanitize SID
+                $userSID = $profile.PSChildName
+                # Validate SID format (should match S-1-5-...)
+                if (-not $userSID -or $userSID -notmatch '^S-1-5-[\d-]+$') {
+                    Write-ADTLogEntry -Message "Invalid or empty SID '$userSID' for user '$userName'. Skipping profile." -Source $adtSession.InstallPhase -Severity 2
+                    continue
+                }
+                $userSID = $userSID -replace '[^\w\-]', '' # Sanitize SID
                 Write-ADTLogEntry -Message "Processing user profile for '$userName' (SID: $userSID)..." -Source $adtSession.InstallPhase
 
                 ## File Operations
@@ -251,13 +257,14 @@ function Install-ADTDeployment
                     $hivePath = Join-Path -Path $userPath -ChildPath "NTUSER.DAT"
                     if (Test-Path -Path $hivePath -ErrorAction SilentlyContinue) {
                         $tempHive = "HKU\$userSID"
+                        Write-ADTLogEntry -Message "Debug: Preparing to load registry hive. User: '$userName', SID: '$userSID', TempHive: '$tempHive', HivePath: '$hivePath'" -Source $adtSession.InstallPhase
                         $maxRetries = 3
                         $retryCount = 0
                         $hiveLoaded = $false
 
                         while (-not $hiveLoaded -and $retryCount -lt $maxRetries) {
-                            Write-ADTLogEntry -Message "Debug: Attempting to load registry hive for user '$userName' at '$tempHive' (Attempt $($retryCount + 1)). Hive path: '$hivePath'" -Source $adtSession.InstallPhase
-                            $regLoadResult = reg load $tempHive $hivePath 2>&1
+                            Write-ADTLogEntry -Message "Debug: Attempting to load registry hive for user '$userName' at '${tempHive}' (Attempt $($retryCount + 1)). Hive path: '${hivePath}'" -Source $adtSession.InstallPhase
+                            $regLoadResult = reg load "${tempHive}" $hivePath 2>&1
                             if ($LASTEXITCODE -eq 0) {
                                 $hiveLoaded = $true
                             }
@@ -271,7 +278,7 @@ function Install-ADTDeployment
                         if (-not $hiveLoaded) {
                             throw "Failed to load registry hive for user '$userName' after $maxRetries attempts: $regLoadResult"
                         }
-                        Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '$tempHive'." -Source $adtSession.InstallPhase
+                        Write-ADTLogEntry -Message "Loaded registry hive for user '$userName' at '${tempHive}'." -Source $adtSession.InstallPhase
 
                         # Grant full control to Administrators on the hive
                         try {
@@ -286,19 +293,19 @@ function Install-ADTDeployment
                             )
                             $acl.SetAccessRule($rule)
                             $regKey.SetAccessControl($acl)
-                            Write-ADTLogEntry -Message "Granted full control to Administrators on hive '$tempHive' for user '$userName'." -Source $adtSession.InstallPhase
+                            Write-ADTLogEntry -Message "Granted full control to Administrators on hive '${tempHive}' for user '$userName'." -Source $adtSession.InstallPhase
                             $regKey.Close()
                         }
                         catch {
-                            Write-ADTLogEntry -Message "Warning: Failed to set permissions on hive '$tempHive' for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 2
+                            Write-ADTLogEntry -Message "Warning: Failed to set permissions on hive '${tempHive}' for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 2
                         }
 
                         # Registry Key Set 1
                         $regKeys1 = @(
-                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "BrowserControl"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPDockAllowMoveSave"; Type = "DWORD"; Value = 0 },
-                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "SAPGUIControlPlugin"; Type = "DWORD"; Value = 0 },
-                            @{ Path = "$tempHive\SOFTWARE\SAP\General"; Name = "Language"; Type = "String"; Value = "EN" }
+                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "BrowserControl"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "SAPDockAllowMoveSave"; Type = "DWORD"; Value = 0 },
+                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "SAPGUIControlPlugin"; Type = "DWORD"; Value = 0 },
+                            @{ Path = "${tempHive}\SOFTWARE\SAP\General"; Name = "Language"; Type = "String"; Value = "EN" }
                         )
 
                         foreach ($key in $regKeys1) {
@@ -331,11 +338,11 @@ function Install-ADTDeployment
 
                         # Registry Key Set 2
                         $regKeys2 = @(
-                            @{ Path = "$tempHive\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "LandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
-                            @{ Path = "$tempHive\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
-                            @{ Path = "$tempHive\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
+                            @{ Path = "${tempHive}\Software\SAP\SAPGUI Front\SAP Frontend Server\LocalData"; Name = "ImportedToSQLite"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "${tempHive}\Software\SAP\SAPLogon\Options"; Name = "LandscapeFileOnServer"; Type = "ExpandString"; Value = "https://PLACEHOLDER" },
+                            @{ Path = "${tempHive}\Software\SAP\SAPLogon\Options"; Name = "AllowCachingServerConfigFiles"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "${tempHive}\Software\SAP\General\Appearance"; Name = "SelectedTheme"; Type = "DWORD"; Value = 1 },
+                            @{ Path = "${tempHive}\Software\SAP\General\Appearance"; Name = "SelectedFallbackTheme"; Type = "DWORD"; Value = 1 }
                         )
 
                         foreach ($key in $regKeys2) {
@@ -368,7 +375,7 @@ function Install-ADTDeployment
 
                         # Unload registry hive
                         [gc]::Collect()
-                        $regUnloadResult = reg unload $tempHive 2>&1
+                        $regUnloadResult = reg unload "${tempHive}" 2>&1
                         if ($LASTEXITCODE -ne 0) {
                             Write-ADTLogEntry -Message "Warning: Failed to unload registry hive for user '$userName': $regUnloadResult" -Source $adtSession.InstallPhase -Severity 2
                         }
@@ -384,9 +391,9 @@ function Install-ADTDeployment
                     Write-ADTLogEntry -Message "Failed to process registry for user '$userName': $_" -Source $adtSession.InstallPhase -Severity 3
                     # Attempt to unload hive if it was loaded
                     try {
-                        if (Test-Path -Path $tempHive) {
+                        if (Test-Path -Path "${tempHive}") {
                             [gc]::Collect()
-                            reg unload $tempHive | Out-Null
+                            reg unload "${tempHive}" | Out-Null
                         }
                     }
                     catch {
