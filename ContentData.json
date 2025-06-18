@@ -5,16 +5,16 @@
     "Links":  [
       {
         "Name":  "MIT Lincoln Lab Main Page",
-        "Url":  "https://www.ll.mit.edu/"
+        "Url":  "https://www.edu/"
       },
       {
         "Name":  "LL Announcements List",
-        "Url":  "https://c3.llan.ll.mit.edu/wps/myportal/intranet?1dmy&current=true&urile=wcm:path:/mitll/home/announcements/announcements-list"
+        "Url":  ""
       }
     ]
   },
   "Support":  {
-    "Text":  "Call the ISD Support Center at 781-981-4357 (HELP).",
+    "Text":  "Call the ISD Support Center at 800-555-4357 (HELP).",
     "Links":  [
       {
         "Name":  "Knowledge Base",
