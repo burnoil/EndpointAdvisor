@@ -18,11 +18,11 @@
     "Links":  [
       {
         "Name":  "Knowledge Base",
-        "Url":  "https://llesm.servicenowservices.com/sp?id=kb_view2"
+        "Url":  "https://servicenowservices.com/sp?id=kb_view2"
       },
       {
         "Name":  "Submit Ticket",
-        "Url":  "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+        "Url":  "https://servicenowservices.com/sp?sysparm_stack=no"
       }
     ]
   }
