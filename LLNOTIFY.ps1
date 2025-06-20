@@ -8,10 +8,13 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "1.1.0"
+$ScriptVersion = "1.1.8" # Updated version to reflect alert logic fix for expanded sections
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
+
+# Global flag to track pending restart state
+$global:PendingRestart = $false
 
 # ============================================================
 # A) Advanced Logging & Error Handling
@@ -408,6 +411,8 @@ $xamlString = @"
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="3" CornerRadius="2" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="PatchingDescriptionText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
+              <TextBlock Text="Current Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="2,4,2,2" MaxWidth="300"/>
+              <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" Margin="2,0,2,4" TextWrapping="Wrap" MaxWidth="300"/>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" Margin="2" TextWrapping="Wrap" MaxWidth="300"/>
             </StackPanel>
           </Border>
@@ -484,6 +489,7 @@ try {
     $global:AnnouncementsSourceText = $window.FindName("AnnouncementsSourceText")
     $global:PatchingExpander = $window.FindName("PatchingExpander")
     $global:PatchingDescriptionText = $window.FindName("PatchingDescriptionText")
+    $global:PendingRestartStatusText = $window.FindName("PendingRestartStatusText")
     $global:PatchingUpdatesText = $window.FindName("PatchingUpdatesText")
     $global:PatchingSSAButton = $window.FindName("PatchingSSAButton")
     $global:SupportExpander = $window.FindName("SupportExpander")
@@ -500,6 +506,7 @@ try {
             $window.Dispatcher.Invoke({
                 if ($global:AnnouncementsAlertIcon) {
                     $global:AnnouncementsAlertIcon.Visibility = "Hidden"
+                    & Update-TrayIcon # Update tray icon immediately after clearing alert
                 }
             })
             Write-Log "Announcements expander expanded, alert dot cleared." -Level "INFO"
@@ -511,6 +518,7 @@ try {
             $window.Dispatcher.Invoke({
                 if ($global:SupportAlertIcon) {
                     $global:SupportAlertIcon.Visibility = "Hidden"
+                    & Update-TrayIcon # Update tray icon immediately after clearing alert
                 }
             })
             Write-Log "Support expander expanded, alert dot cleared." -Level "INFO"
@@ -587,6 +595,7 @@ try {
     Write-Log "AnnouncementsAlertIcon null? $($global:AnnouncementsAlertIcon -eq $null)" -Level "INFO"
     Write-Log "PatchingExpander null? $($global:PatchingExpander -eq $null)" -Level "INFO"
     Write-Log "PatchingDescriptionText null? $($global:PatchingDescriptionText -eq $null)" -Level "INFO"
+    Write-Log "PendingRestartStatusText null? $($global:PendingRestartStatusText -eq $null)" -Level "INFO"
     Write-Log "PatchingUpdatesText null? $($global:PatchingUpdatesText -eq $null)" -Level "INFO"
     Write-Log "PatchingSSAButton null? $($global:PatchingSSAButton -eq $null)" -Level "INFO"
     Write-Log "SupportText null? $($global:SupportText -eq $null)" -Level "INFO"
@@ -821,6 +830,81 @@ function Update-CertificateInfo {
 }
 
 # ------------------------------------------------------------
+# Pending Restart Detection
+# ------------------------------------------------------------
+function Get-PendingReboot {
+    [CmdletBinding()]
+    param(
+        [switch]  $IncludeNonCritical,
+        [string[]]$ExcludePathRegex = @('\\Google\\Chrome', '\\Microsoft\\Edge')
+    )
+
+    $signals = [ordered]@{
+        CBServicing     = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+        WindowsUpdate   = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+        MSIInProgress   = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress'
+        BigFixBESAction = $false
+        FileRenameCritical    = $false
+        FileRenameNonCritical = $false
+    }
+
+    # Evaluate BigFixBESAction separately to ensure boolean result
+    $bigFixSignals = @(
+        (Test-Path 'HKLM:\SOFTWARE\BigFix\EnterpriseClient\BESPendingRestart' -ea SilentlyContinue),
+        (Test-Path 'HKLM:\SOFTWARE\Wow6432Node\BigFix\EnterpriseClient\BESPendingRestart' -ea SilentlyContinue),
+        (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunServicesOnce' -Name 'BESPendingRestart' -ea SilentlyContinue)
+    )
+    $signals.BigFixBESAction = $bigFixSignals -contains $true
+
+    # ---------- rename queue ----------
+    $rename = (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' `
+                                -Name PendingFileRenameOperations -ea SilentlyContinue
+              ).PendingFileRenameOperations
+    if ($rename) {
+        $paths = for ($i = 0; $i -lt $rename.Count; $i += 2) { $rename[$i] }
+        foreach ($re in $ExcludePathRegex) { $paths = $paths | Where-Object { $_ -notmatch $re } }
+
+        $crit = $paths | Where-Object { $_ -match '\\System32\\' -or $_ -match '\\Drivers?\\' -or $_ -match '\.(sys|dll)$' }
+
+        $signals.FileRenameCritical    = $crit.Count -gt 0
+        $signals.FileRenameNonCritical = $IncludeNonCritical -and ($paths.Count - $crit.Count) -gt 0
+    }
+
+    $signals['PendingReboot'] = $signals.Values -contains $true
+
+    [pscustomobject]$signals
+}
+
+function Get-PendingRestartStatus {
+    try {
+        $rebootStatus = Get-PendingReboot -IncludeNonCritical:$false -ExcludePathRegex @('\\Google\\Chrome', '\\Microsoft\\Edge')
+        $global:PendingRestart = $rebootStatus.PendingReboot
+
+        if ($global:PendingRestart) {
+            $reasons = @()
+            if ($rebootStatus.CBServicing) { $reasons += "Component-Based Servicing" }
+            if ($rebootStatus.WindowsUpdate) { $reasons += "Windows Update" }
+            if ($rebootStatus.MSIInProgress) { $reasons += "MSI Installation in Progress" }
+            if ($rebootStatus.BigFixBESAction) { $reasons += "BigFix BES Action" }
+            # FileRenameCritical and FileRenameNonCritical are ignored per user request
+
+            $status = "System restart required. Reasons: $($reasons -join ', ')"
+            Write-Log "Pending restart status: $status" -Level "WARNING"
+            return $status
+        } else {
+            Write-Log "No pending restart detected" -Level "INFO"
+            return "No system restart required."
+        }
+    }
+    catch {
+        $errorMessage = "Error checking pending restart status: $($_.Exception.Message)"
+        Write-Log $errorMessage -Level "ERROR"
+        $global:PendingRestart = $false
+        return $errorMessage
+    }
+}
+
+# ------------------------------------------------------------
 # Windows Build Number Functions
 # ------------------------------------------------------------
 function Get-WindowsBuildNumber {
@@ -860,7 +944,7 @@ function Get-WindowsBuildNumber {
     }
     catch {
         Write-Log "Error retrieving Windows version and build number: $($_.Exception.Message)" -Level "ERROR"
-        return "Windows Version: Unable to determine, Build: Unable to determine"
+        return "Windows Version: Unable to determine, Build: Unknown"
     }
 }
 
@@ -878,7 +962,7 @@ function Update-WindowsBuild {
         Write-Log "Error updating Windows version and build: $($_.Exception.Message)" -Level "ERROR"
         $window.Dispatcher.Invoke({
             if ($global:WindowsBuildText) {
-                $global:WindowsBuildText.Text = "Windows Version: Error retrieving, Build: Error retrieving"
+                $global:WindowsBuildText.Text = "Windows Version: Error retrieving, Build: Unknown"
             }
         })
     }
@@ -894,10 +978,11 @@ function Update-Announcements {
         $source = $contentResult.Source
         $last = $config.AnnouncementsLastState
 
-        if ($last -and $current.Text -ne $last.Text -and -not $global:AnnouncementsExpander.IsExpanded) {
+        if ($last -and $current.Text -ne $last.Text) {
             $window.Dispatcher.Invoke({
                 if ($global:AnnouncementsAlertIcon) {
                     $global:AnnouncementsAlertIcon.Visibility = "Visible"
+                    Write-Log "Announcements alert icon set to Visible due to new content. Expander IsExpanded: $($global:AnnouncementsExpander.IsExpanded)" -Level "INFO"
                 }
             })
         }
@@ -937,10 +1022,11 @@ function Update-Support {
         $source = $contentResult.Source
         $last = $config.SupportLastState
 
-        if ($last -and $current.Text -ne $last.Text -and -not $global:SupportExpander.IsExpanded) {
+        if ($last -and $current.Text -ne $last.Text) {
             $window.Dispatcher.Invoke({
                 if ($global:SupportAlertIcon) {
                     $global:SupportAlertIcon.Visibility = "Visible"
+                    Write-Log "Support alert icon set to Visible due to new content. Expander IsExpanded: $($global:SupportExpander.IsExpanded)" -Level "INFO"
                 }
             })
         }
@@ -985,10 +1071,13 @@ function Update-PatchingUpdates {
         # Set the description text for the Patching and Updates section
         $descriptionText = "Lists available software updates for your system. Updates marked (R) require a system restart to complete installation."
 
+        # Check for pending restart
+        $restartStatus = Get-PendingRestartStatus
+
         if (Test-Path $patchFilePath -PathType Leaf) {
             $patchContent = Get-Content -Path $patchFilePath -Raw -ErrorAction Stop
             $patchText = if ([string]::IsNullOrWhiteSpace($patchContent)) { 
-                "Patch info file is empty." 
+                "Patch info file is empty."
             } else { 
                 $patchContent.Trim() 
             }
@@ -1003,24 +1092,44 @@ function Update-PatchingUpdates {
             if ($global:PatchingDescriptionText) {
                 $global:PatchingDescriptionText.Text = $descriptionText
             }
+            if ($global:PendingRestartStatusText) {
+                $global:PendingRestartStatusText.Text = $restartStatus
+                $global:PendingRestartStatusText.FontWeight = "Bold"
+                $global:PendingRestartStatusText.Foreground = if ($restartStatus -eq "No system restart required.") {
+                    "Green"
+                } else {
+                    "Red"
+                }
+            }
             if ($global:PatchingUpdatesText) {
                 $global:PatchingUpdatesText.Text = $patchText
             }
         })
 
-        Write-Log "Patching status updated: $patchText" -Level "INFO"
+        Write-Log "Patching status updated: $restartStatus`n$patchText" -Level "INFO"
     }
     catch {
         $errorMessage = "Error reading patch info file: $($_.Exception.Message)"
         Write-Log $errorMessage -Level "ERROR"
+        $restartStatus = Get-PendingRestartStatus
         $window.Dispatcher.Invoke({
             if ($global:PatchingDescriptionText) {
                 $global:PatchingDescriptionText.Text = $descriptionText
+            }
+            if ($global:PendingRestartStatusText) {
+                $global:PendingRestartStatusText.Text = $restartStatus
+                $global:PendingRestartStatusText.FontWeight = "Bold"
+                $global:PendingRestartStatusText.Foreground = if ($restartStatus -eq "No system restart required.") {
+                    "Green"
+                } else {
+                    "Red"
+                }
             }
             if ($global:PatchingUpdatesText) {
                 $global:PatchingUpdatesText.Text = $errorMessage
             }
         })
+        Write-Log "Patching status updated with error: $restartStatus`n$errorMessage" -Level "ERROR"
     }
 }
 
@@ -1055,19 +1164,14 @@ function Update-TrayIcon {
             return
         }
 
-        # Check if any section still has its red-dot visible
-        $hasAlert = $false
-        foreach ($icon in @(
-            $global:AnnouncementsAlertIcon,
-            $global:SupportAlertIcon
-        )) {
-            if ($icon -and $icon.Visibility -eq 'Visible') {
-                $hasAlert = $true
-                break
-            }
-        }
+        # Check alert conditions
+        $announcementAlert = $global:AnnouncementsAlertIcon -and $global:AnnouncementsAlertIcon.Visibility -eq "Visible"
+        $supportAlert = $global:SupportAlertIcon -and $global:SupportAlertIcon.Visibility -eq "Visible"
+        $hasAlert = $global:PendingRestart -or $announcementAlert -or $supportAlert
 
-        # Choose healthy vs warning
+        Write-Log "Tray icon update check: PendingRestart=$($global:PendingRestart), AnnouncementAlert=$announcementAlert, SupportAlert=$supportAlert, HasAlert=$hasAlert" -Level "INFO"
+
+        # Choose healthy vs warning icon
         $iconPath = if ($hasAlert) {
             $config.IconPaths.Warning
         } else {
@@ -1174,14 +1278,19 @@ function Initialize-TrayIcon {
 
         $MenuItemShow.add_Click({ Toggle-WindowVisibility })
         $MenuItemRefresh.add_Click({ 
-            $global:contentData = Fetch-ContentData
-            & "Update-TrayIcon"
-            & "Update-Announcements"
-            & "Update-Support"
-            & "Update-PatchingUpdates"
-            Update-CertificateInfo
-            Update-WindowsBuild
-            Write-Log "Manual refresh triggered from tray menu" -Level "INFO"
+            try {
+                $global:contentData = Fetch-ContentData
+                Update-Announcements
+                Update-Support
+                Update-PatchingUpdates
+                Update-CertificateInfo
+                Update-WindowsBuild
+                Update-TrayIcon # Ensure tray icon updates after content refresh
+                Write-Log "Manual refresh triggered from tray menu" -Level "INFO"
+            }
+            catch {
+                Write-Log "Error during manual refresh: $($_.Exception.Message)" -Level "ERROR"
+            }
         })
         $MenuItemExit.add_Click({
             try {
@@ -1287,11 +1396,12 @@ function Toggle-WindowVisibility {
 }
 
 function Update-UIElements {
-    & "Update-Announcements"
-    & "Update-Support"
-    & "Update-PatchingUpdates"
+    Update-Announcements
+    Update-Support
+    Update-PatchingUpdates
     Update-CertificateInfo
     Update-WindowsBuild
+    Update-TrayIcon # Ensure tray icon updates after all UI changes
 }
 
 # ============================================================
@@ -1301,7 +1411,10 @@ if ($global:SupportExpander) {
     $global:SupportExpander.Add_Expanded({
         try {
             $window.Dispatcher.Invoke({
-                if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
+                if ($global:SupportAlertIcon) { 
+                    $global:SupportAlertIcon.Visibility = "Hidden"
+                    & Update-TrayIcon # Update tray icon immediately after clearing alert
+                }
             })
             Write-Log "Support expander expanded, alert cleared." -Level "INFO"
         }
@@ -1319,12 +1432,12 @@ $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterv
 $global:DispatcherTimer.add_Tick({
     try {
         $global:contentData = Fetch-ContentData
-        & "Update-TrayIcon"
-        & "Update-Announcements"
-        & "Update-Support"
-        & "Update-PatchingUpdates"
+        Update-Announcements
+        Update-Support
+        Update-PatchingUpdates
         Update-CertificateInfo
         Update-WindowsBuild
+        Update-TrayIcon # Ensure tray icon updates after all UI changes
         Rotate-LogFile  # Check log rotation periodically
         Write-Log "Dispatcher tick completed" -Level "INFO"
     }
@@ -1357,12 +1470,12 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 try {
     $global:contentData = Fetch-ContentData
     Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 3)" -Level "INFO"
-    try { & "Update-TrayIcon" } catch { Handle-Error "Update-TrayIcon failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-Support } catch { Handle-Error "Update-Support failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-CertificateInfo } catch { Handle-Error "Update-CertificateInfo failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-WindowsBuild } catch { Handle-Error "Update-WindowsBuild failed: $($_.Exception.Message)" -Source "InitialUpdate" }
+    try { Update-TrayIcon } catch { Handle-Error "Update-TrayIcon failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     Log-DotNetVersion
     Write-Log "Initial update completed" -Level "INFO"
 }
