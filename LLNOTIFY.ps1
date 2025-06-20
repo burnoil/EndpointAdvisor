@@ -8,7 +8,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "1.1.8" # Updated version to reflect alert logic fix for expanded sections
+$ScriptVersion = "1.1.9" # Updated version to reflect file rename exclusion fix
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -201,7 +201,7 @@ function Load-Configuration {
         }
     }
     else {
-        $defaultConfig | ConvertTo-Json -Depth 3 | Out-File $Path -Force
+        $defaultConfig | ConvertTo-Json -Depth 8 | Out-File $Path -Force
         Write-Log "Created default config at $Path" -Level "INFO"
         return $defaultConfig
     }
@@ -212,7 +212,7 @@ function Save-Configuration {
         [psobject]$Config,
         [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
     )
-    $Config | ConvertTo-Json -Depth 3 | Out-File $Path -Force
+    $Config | ConvertTo-Json -Depth 8 | Out-File $Path -Force
 }
 
 # ============================================================
@@ -233,7 +233,7 @@ $config.IconPaths.Warning = Join-Path $ScriptDir "warning.ico"
 
 $mainIconPath = $config.IconPaths.Main
 $warningIconPath = $config.IconPaths.Warning
-$mainIconUri = "file:///" + ($mainIconPath -replace '\\','/')
+$mainIconUri = "file:///$($mainIconPath -replace '\\','/')"
 
 Write-Log "Main icon path: $mainIconPath" -Level "INFO"
 Write-Log "Warning icon path: $warningIconPath" -Level "INFO"
@@ -472,7 +472,7 @@ try {
     Write-Log "Initial window setup: Left=100, Top=100, Width=350, Height=500, State=$($window.WindowState)" -Level "INFO"
     try {
         $mainIconPath = $config.IconPaths.Main
-        $mainIconUri = "file:///" + ($mainIconPath -replace '\\','/')
+        $mainIconUri = "file:///$($mainIconPath -replace '\\','/')"
         $window.DataContext = [PSCustomObject]@{ MainIconUri = [Uri]$mainIconUri }
         Write-Log "Setting window icon URI to: $mainIconUri" -Level "INFO"
         Write-Log "Window icon URI valid: $([Uri]::IsWellFormedUriString($mainIconUri, [UriKind]::Absolute))" -Level "INFO"
@@ -652,7 +652,7 @@ $global:yubiKeyAlertShown = $false
 # ============================================================
 function Fetch-ContentData {
     try {
-        Write-Log "Config object: $($config | ConvertTo-Json -Depth 3)" -Level "INFO"
+        Write-Log "Config object: $($config | ConvertTo-Json -Depth 8)" -Level "INFO"
         $url = $config.ContentDataUrl
         Write-Log "Raw ContentDataUrl from config: '$url'" -Level "INFO"
 
@@ -834,18 +834,14 @@ function Update-CertificateInfo {
 # ------------------------------------------------------------
 function Get-PendingReboot {
     [CmdletBinding()]
-    param(
-        [switch]  $IncludeNonCritical,
-        [string[]]$ExcludePathRegex = @('\\Google\\Chrome', '\\Microsoft\\Edge')
-    )
+    param()
 
     $signals = [ordered]@{
         CBServicing     = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
         WindowsUpdate   = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
         MSIInProgress   = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress'
         BigFixBESAction = $false
-        FileRenameCritical    = $false
-        FileRenameNonCritical = $false
+        FileRenameDetected = $false
     }
 
     # Evaluate BigFixBESAction separately to ensure boolean result
@@ -856,28 +852,25 @@ function Get-PendingReboot {
     )
     $signals.BigFixBESAction = $bigFixSignals -contains $true
 
-    # ---------- rename queue ----------
+    # Check for PendingFileRenameOperations but do not use it for PendingReboot
     $rename = (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' `
                                 -Name PendingFileRenameOperations -ea SilentlyContinue
               ).PendingFileRenameOperations
     if ($rename) {
-        $paths = for ($i = 0; $i -lt $rename.Count; $i += 2) { $rename[$i] }
-        foreach ($re in $ExcludePathRegex) { $paths = $paths | Where-Object { $_ -notmatch $re } }
-
-        $crit = $paths | Where-Object { $_ -match '\\System32\\' -or $_ -match '\\Drivers?\\' -or $_ -match '\.(sys|dll)$' }
-
-        $signals.FileRenameCritical    = $crit.Count -gt 0
-        $signals.FileRenameNonCritical = $IncludeNonCritical -and ($paths.Count - $crit.Count) -gt 0
+        $signals.FileRenameDetected = $true
+        Write-Log "PendingFileRenameOperations detected but ignored for PendingReboot status. Entries: $($rename.Count)" -Level "INFO"
     }
 
-    $signals['PendingReboot'] = $signals.Values -contains $true
+    # Only consider CBServicing, WindowsUpdate, MSIInProgress, and BigFixBESAction for PendingReboot
+    $relevantSignals = @($signals.CBServicing, $signals.WindowsUpdate, $signals.MSIInProgress, $signals.BigFixBESAction)
+    $signals['PendingReboot'] = $relevantSignals -contains $true
 
     [pscustomobject]$signals
 }
 
 function Get-PendingRestartStatus {
     try {
-        $rebootStatus = Get-PendingReboot -IncludeNonCritical:$false -ExcludePathRegex @('\\Google\\Chrome', '\\Microsoft\\Edge')
+        $rebootStatus = Get-PendingReboot
         $global:PendingRestart = $rebootStatus.PendingReboot
 
         if ($global:PendingRestart) {
@@ -886,7 +879,6 @@ function Get-PendingRestartStatus {
             if ($rebootStatus.WindowsUpdate) { $reasons += "Windows Update" }
             if ($rebootStatus.MSIInProgress) { $reasons += "MSI Installation in Progress" }
             if ($rebootStatus.BigFixBESAction) { $reasons += "BigFix BES Action" }
-            # FileRenameCritical and FileRenameNonCritical are ignored per user request
 
             $status = "System restart required. Reasons: $($reasons -join ', ')"
             Write-Log "Pending restart status: $status" -Level "WARNING"
@@ -1469,7 +1461,7 @@ Register-ObjectEvent -InputObject $window.Dispatcher -EventName UnhandledExcepti
 # ============================================================
 try {
     $global:contentData = Fetch-ContentData
-    Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 3)" -Level "INFO"
+    Write-Log "Initial contentData set from $($global:contentData.Source): $($global:contentData.Data | ConvertTo-Json -Depth 8)" -Level "INFO"
     try { Update-Announcements } catch { Handle-Error "Update-Announcements failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-Support } catch { Handle-Error "Update-Support failed: $($_.Exception.Message)" -Source "InitialUpdate" }
     try { Update-PatchingUpdates } catch { Handle-Error "Update-PatchingUpdates failed: $($_.Exception.Message)" -Source "InitialUpdate" }
