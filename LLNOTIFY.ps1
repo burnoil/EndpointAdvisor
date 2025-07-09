@@ -157,7 +157,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 90
         LogRotationSizeMB     = 5
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/MITSI/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
         ContentFetchInterval  = 120
         YubiKeyAlertDays      = 14
         IconPaths             = @{
