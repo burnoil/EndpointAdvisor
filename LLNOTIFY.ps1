@@ -156,7 +156,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 90
         LogRotationSizeMB     = 5
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
