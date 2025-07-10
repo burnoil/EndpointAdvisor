@@ -1,7 +1,7 @@
 {
   "Announcements":  {
     "Text":  "This is TEST data from the MITLL Git repository for this app. Released on 2025-06-18. Check out the new features and updates.",
-    "Details":  "NOTICE! A forced reboot will be sent to all machines on 12/21/2025 at 1400 local time!",
+    "Details":  "NOTICE! A forced reboot will be sent to all machines on 12/21/2025 at 1400 local time!!",
     "Links":  [
       {
         "Name":  "MIT Lincoln Lab Main Page",
