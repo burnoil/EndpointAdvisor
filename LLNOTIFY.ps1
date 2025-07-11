@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.5 (Fixed XAML tag mismatch)
+# Version 4.3.6 (Disabled toast notifications)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.5"
+$ScriptVersion = "4.3.6"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -587,9 +587,6 @@ function Update-Announcements {
     $window.Dispatcher.Invoke({
         if ($isNew) {
             $global:AnnouncementsAlertIcon.Visibility = "Visible"
-            if (-not $global:window.IsVisible) {
-                $global:TrayIcon.ShowBalloonTip(3000, "Lincoln Laboratory: New Announcement", $newAnnouncementsObject.Text.Substring(0, [Math]::Min(100, $newAnnouncementsObject.Text.Length)), "Info")
-            }
         }
         $global:AnnouncementsText.Text = $newAnnouncementsObject.Text
         $global:AnnouncementsDetailsText.Text = $newAnnouncementsObject.Details
@@ -621,9 +618,6 @@ function Update-Support {
     $window.Dispatcher.Invoke({
         if ($isNew) {
             $global:SupportAlertIcon.Visibility = "Visible"
-            if (-not $global:window.IsVisible) {
-                $global:TrayIcon.ShowBalloonTip(3000, "Lincoln Laboratory: New Support Update", $newSupportObject.Text.Substring(0, [Math]::Min(100, $newSupportObject.Text.Length)), "Info")
-            }
         }
         $global:SupportText.Text = $newSupportObject.Text
         $global:SupportLinksPanel.Children.Clear()
@@ -685,9 +679,6 @@ function Check-ScriptUpdate {
             $window.Dispatcher.Invoke({
                 $global:ScriptUpdateText.Text = "New version $remoteVersion available. Updating now..."
                 $global:ScriptUpdateText.Visibility = "Visible"
-                if (-not $global:window.IsVisible) {
-                    $global:TrayIcon.ShowBalloonTip(5000, "Lincoln Laboratory: Script Update Available", "Version $remoteVersion is available. Auto-updating...", "Info")
-                }
             })
             Perform-AutoUpdate -RemoteVersion $remoteVersion
             return $true
