@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.1.0 (Corrected change detection to monitor the entire content object)
+# Version 4.3.4 (Added color to Clear Alerts button)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.1.0"
+$ScriptVersion = "4.3.4"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -146,7 +146,7 @@ function Handle-Error {
     Write-Log $ErrorMessage -Level "ERROR"
 }
 
-Write-Log "Script directory resolved as: $ScriptDir" -Level "INFO"
+Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
 
 # ============================================================
 # MODULE: Configuration Management
@@ -154,16 +154,15 @@ Write-Log "Script directory resolved as: $ScriptDir" -Level "INFO"
 function Get-DefaultConfig {
     return @{
         RefreshInterval       = 90
-        LogRotationSizeMB     = 5
+        LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
             Main    = Join-Path $ScriptDir "LL_LOGO.ico"
             Warning = Join-Path $ScriptDir "LL_LOGO_MSG.ico"
         }
-        # -- MODIFIED: Last state is now stored as a serialized JSON string for robust comparison.
         AnnouncementsLastState = "{}"
         SupportLastState       = "{}"
         Version               = $ScriptVersion
@@ -253,9 +252,13 @@ function Log-DotNetVersion {
 # ============================================================
 function Import-RequiredAssemblies {
     try {
+        Write-Log "Loading required .NET assemblies..." -Level "INFO"
         Add-Type -AssemblyName PresentationFramework -ErrorAction Stop
+        Write-Log "Loaded PresentationFramework." -Level "INFO"
         Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+        Write-Log "Loaded System.Windows.Forms." -Level "INFO"
         Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+        Write-Log "Loaded System.Drawing." -Level "INFO"
         return $true
     }
     catch {
@@ -279,7 +282,8 @@ $xamlString = @"
     MinWidth="350" MinHeight="500"
     MaxWidth="400" MaxHeight="550"
     ResizeMode="CanResize" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
-    Background="#f0f0f0">
+    Background="#f0f0f0"
+    Icon="{Binding WindowIconUri}">
   <Grid Margin="5">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
@@ -354,8 +358,8 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" ToolTip="Acknowledge all new announcements and support messages."/>
+        <TextBlock Grid.Column="0" Text="&#169; 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
 </Window>
@@ -364,15 +368,20 @@ $xamlString = @"
 # F) Load and Verify XAML
 # ============================================================
 try {
+    Write-Log "Loading XAML..." -Level "INFO"
     $xmlDoc = New-Object System.Xml.XmlDocument
     $xmlDoc.LoadXml($xamlString)
     $reader = New-Object System.Xml.XmlNodeReader $xmlDoc
     [System.Windows.Window]$global:window = [Windows.Markup.XamlReader]::Load($reader)
+    Write-Log "XAML loaded successfully." -Level "INFO"
 
     $window.Width = 350
     $window.Height = 500
 
-    $window.DataContext = [PSCustomObject]@{ MainIconUri = [Uri]$mainIconUri }
+    $window.DataContext = [PSCustomObject]@{ 
+        MainIconUri   = [Uri]$mainIconUri
+        WindowIconUri = $mainIconPath
+    }
 
     $uiElements = @(
         "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
@@ -384,6 +393,7 @@ try {
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
     }
+    Write-Log "UI elements mapped to variables." -Level "INFO"
 
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
@@ -556,7 +566,6 @@ function Update-Announcements {
     $newAnnouncementsObject = $global:contentData.Data.Announcements
     if (-not $newAnnouncementsObject) { return }
 
-    # -- MODIFIED: Convert the entire object to a JSON string for a reliable comparison. --
     $newJsonState = $newAnnouncementsObject | ConvertTo-Json -Compress
 
     if ($config.AnnouncementsLastState -ne $newJsonState) {
@@ -584,7 +593,6 @@ function Update-Support {
     $newSupportObject = $global:contentData.Data.Support
     if (-not $newSupportObject) { return }
 
-    # -- MODIFIED: Convert the entire object to a JSON string for a reliable comparison. --
     $newJsonState = $newSupportObject | ConvertTo-Json -Compress
 
     if ($config.SupportLastState -ne $newJsonState) {
@@ -781,79 +789,8 @@ catch {
     Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
 }
 finally {
-    Write-Log "Dispatcher ended; script exiting." -Level "INFO"
+    Write-Log "--- LLNOTIFY Script Exiting ---"
     if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-
-# SIG # Begin signature block
-# MIIMjgYJKoZIhvcNAQcCoIIMfzCCDHsCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
-# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUUCSBoh7Sfvlw0YSvwlH9kVIJ
-# AKOgggnvMIIEwDCCA6igAwIBAgIBEzANBgkqhkiG9w0BAQsFADBWMQswCQYDVQQG
-# EwJVUzEfMB0GA1UEChMWTUlUIExpbmNvbG4gTGFib3JhdG9yeTEMMAoGA1UECxMD
-# UEtJMRgwFgYDVQQDEw9NSVRMTCBSb290IENBLTIwHhcNMTkwNzA4MTExMDAwWhcN
-# MjkwNzA4MTExMDAwWjBRMQswCQYDVQQGEwJVUzEfMB0GA1UECgwWTUlUIExpbmNv
-# bG4gTGFib3JhdG9yeTEMMAoGA1UECwwDUEtJMRMwEQYDVQQDDApNSVRMTCBDQS02
-# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj2T0hoZXOA+UPr8SD/Re
-# gKGDHDfz+8i1bm+cGV9V2Zxs1XxYrCBbnTB79AtuYR29HIf6HfsUrsqJH6gQtptF
-# tux8QrWqx25iOE4tg2yeSVmrc/ZB4fRfufKi0idq2IA13kJgYQ8xCLpIiBEm8be7
-# Lzlz9mGT0UVgRe3I5Jku935a7pOB2qHHH6OGWSs9AOPiJdo4oSWUbL5H3H5MmZCI
-# 8T3Rj7dobmrRYOsUADI5kkqvOf7o1j09X7X2q4Q+ez4JHgGTLTxjvox7QEDYglZM
-# Mh9qB2SGpvhCkKoZ3/05bT1oCt2Pb4iR7MlETNryi/mzZuOjf2gaYpuWweYVh2Ny
-# 3wIDAQABo4IBnDCCAZgwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUk5BH
-# A0LBTbQzHtRCl5+h4Ctwv4gwHwYDVR0jBBgwFoAU/8nJZUxTgPGpDDwhroIqx+74
-# MvswDgYDVR0PAQH/BAQDAgGGMGcGCCsGAQUFBwEBBFswWTAuBggrBgEFBQcwAoYi
-# aHR0cDovL2NybC5sbC5taXQuZWR1L2dldHRvL0xMUkNBMjAnBggrBgEFBQcwAYYb
-# aHR0cDovL29jc3AubGwubWl0LmVkdS9vY3NwMDQGA1UdHwQtMCswKaAnoCWGI2h0
-# dHA6Ly9jcmwubGwubWl0LmVkdS9nZXRjcmwvTExSQ0EyMIGSBgNVHSAEgYowgYcw
-# DQYLKoZIhvcSAgEDAQYwDQYLKoZIhvcSAgEDAQgwDQYLKoZIhvcSAgEDAQcwDQYL
-# KoZIhvcSAgEDAQkwDQYLKoZIhvcSAgEDAQowDQYLKoZIhvcSAgEDAQswDQYLKoZI
-# hvcSAgEDAQ4wDQYLKoZIhvcSAgEDAQ8wDQYLKoZIhvcSAgEDARAwDQYJKoZIhvcN
-# AQELBQADggEBALnwy+yzh/2SvpwC8q8EKdDQW8LxWnDM56DcHm5zgfi0WfEsQi8w
-# xcV2Vb2eCNs6j0NofdgsSP7k9DJ6LmDs+dfZEmD23+r9zlMhI6QQcwlvq+cgTrOI
-# oUcZd83oyTHr0ig5IFy1r9FpnG00/P5MV+zxmTbTDXJjC8VgxqWl2IhnPk8zr0Fc
-# JK0BoYHtv7NHeC4WbNHQZCQf9UMSDALcVR23YZemWizmEK2Mclhjv0E+s7mLZn0A
-# K03zCQSvwQrjt+2YzS7J8MxWlRA5cNj1bNbnTtIuEUPpLSYgsN8Q+Ks9ffk9D7yU
-# t8No/ntuf6R38t/33c0LTCSJ9AIgjz7hUHMwggUnMIIED6ADAgECAhMwAAW/Xff+
-# 6WMO1wIRAAAABb9dMA0GCSqGSIb3DQEBCwUAMFExCzAJBgNVBAYTAlVTMR8wHQYD
-# VQQKDBZNSVQgTGluY29sbiBMYWJvcmF0b3J5MQwwCgYDVQQLDANQS0kxEzARBgNV
-# BAMMCk1JVExMIENBLTYwHhcNMjQxMDI4MTgxMjU1WhcNMjcxMDI4MTgxMjU1WjBg
-# MQswCQYDVQQGEwJVUzEfMB0GA1UEChMWTUlUIExpbmNvbG4gTGFib3JhdG9yeTEO
-# MAwGA1UECxMFT3RoZXIxIDAeBgNVBAMTF0lTRCBEZXNrdG9wIEVuZ2luZWVyaW5n
-# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0BQ5+bMtDvgRT7pCIgHp
-# b0iuWsrGHTAKWvKo3T6uk/5r/Kp7VtqJFvcuwLqu0jm+As1kypxloyme0GAKCZcm
-# nvyEtRIS5Vxn0FpPO1/y1Bm1JOZ30O7xoy3kimp/16jSmROMeCSdm9qPEmG60M5Y
-# L12k7DOaU6/v+5MSZLQiDl20lf34u+Qt8SYNe/L4oA4kdsN3YMXuM6MVbbh6CJzb
-# wBT3ceZNwRmkkqQOEQtA0Zr0n2UmoijuraIxU5DC+pISBJIcF3RbfFQNQMivR0lq
-# rzQZDrKej/3D9FouGiBl8xZyVtJE0cNum6OE8b7nABtYwKP4jvz3ttxtIWVhoC/v
-# WQIDAQABo4IB5zCCAeMwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIg4PlHYfs
-# p2aGrYcVg+rwRYW2oR8dhuHfGoHsg1wCAWQCAQQwFgYDVR0lAQH/BAwwCgYIKwYB
-# BQUHAwMwDgYDVR0PAQH/BAQDAgeAMBgGA1UdIAQRMA8wDQYLKoZIhvcSAgEDAQYw
-# HQYDVR0OBBYEFLlL4q2UwnJN7ZTZ9W2D+7Y9a+tdMIGCBgNVHREEezB5pFswWTEY
-# MBYGA1UEAwwPQW50aG9ueS5NYXNzYXJvMQ8wDQYDVQQLDAZQZW9wbGUxHzAdBgNV
-# BAoMFk1JVCBMaW5jb2xuIExhYm9yYXRvcnkxCzAJBgNVBAYTAlVTgRpBbnRob255
-# Lk1hc3Nhcm9AbGwubWl0LmVkdTAfBgNVHSMEGDAWgBSTkEcDQsFNtDMe1EKXn6Hg
-# K3C/iDAzBgNVHR8ELDAqMCigJqAkhiJodHRwOi8vY3JsLmxsLm1pdC5lZHUvZ2V0
-# Y3JsL2xsY2E2MGYGCCsGAQUFBwEBBFowWDAtBggrBgEFBQcwAoYhaHR0cDovL2Ny
-# bC5sbC5taXQuZWR1L2dldHRvL2xsY2E2MCcGCCsGAQUFBzABhhtodHRwOi8vb2Nz
-# cC5sbC5taXQuZWR1L29jc3AwDQYJKoZIhvcNAQELBQADggEBAFqyP/3MhIsDF2Qu
-# ThdPiYz24768PIl64Tiaz8PjjxPnKTiayoOfnCG40wsZh+wlWvZZP5R/6FZab6ZC
-# nkrI9IObUZdJeiN4UEypO1v5L6J1iXGq4Zc3QpkJUmjCIIYU0IPG9BPo0SX7mBiz
-# DFafAGHReYkovs6vq035+4I6tsOQBpl+JfFPIT37Kpy+PlKz/OXzhVmQOa87mC1b
-# YADxWAwwDJd1Mm1GFbXUHHBPkdusW+POqR7qh5WQf0dJpRTsMG/MzIqWiUZxDzkD
-# lsqyRl4Y9nN9ii92PGpJF59AZAuEHDX0fqP6yeyMWYZGKpy7XqhQidW7nPxeqHl+
-# EQW6EH0xggIJMIICBQIBATBoMFExCzAJBgNVBAYTAlVTMR8wHQYDVQQKDBZNSVQg
-# TGluY29sbiBMYWJvcmF0b3J5MQwwCgYDVQQLDANQS0kxEzARBgNVBAMMCk1JVExM
-# IENBLTYCEzAABb9d9/7pYw7XAhEAAAAFv10wCQYFKw4DAhoFAKB4MBgGCisGAQQB
-# gjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYK
-# KwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFK2N7kOJ
-# dw5LKrMY8iiHYFF4tMrJMA0GCSqGSIb3DQEBAQUABIIBAIgKgVdBlKI4EshB3DVi
-# YP4QoRyTRW/+ZMQTsn188uFzZ3WeXjQbPj902Y+ZKL0upeWQRSObvxWBYgxhbBYC
-# 7yRl8IXeXhNuNxP0XcjNfgj11rEB/yE2RPTRyfpfW6cP8pMA7l4N5q93kQyT52yw
-# 6s+fWGdYRbfU28Do1apYXRKjYBqO88PriKkthbdFMQtaiL9kZWI0LYMZQogwu/cE
-# PKSBkTSNY2fgTckrHxJPaqWkw7qpyYN26GJWvI2pIq9cZxYoHZb0DT+zeBa3aX9I
-# YqiWRRckreDHPmj2nUXu4Tx5va/TlqcfoYghbQM8wV0x25+xqfFhsXYCED0XhAxZ
-# o9w=
-# SIG # End signature block
