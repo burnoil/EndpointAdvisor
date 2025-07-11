@@ -4,64 +4,69 @@
 
 ## Purpose
 
-LLNOTIFY is a PowerShell-based system monitoring application designed to provide real-time system health information, certificate status, and organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, MITSI enhances endpoint visibility and user support by delivering critical system metrics and IT communications directly to the desktop.
+LLNOTIFY is a PowerShell-based system monitoring application designed to provide real-time system health information, certificate status, and organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, LLNOTIFY enhances endpoint visibility and user support by delivering critical system metrics and IT communications directly to the desktop.
 
 ## Key Features
 
 1. **System Tray Integration**:
-   - Displays a system tray icon (`healthy.ico` or `warning.ico`) indicating system status.
-   - Provides a context menu with actions: Show Dashboard, Refresh Now, Export Logs, and Exit.
-   - Configured to "Always Show" in the notification area via registry settings.
+   - Displays a system tray icon (`LL_LOGO.ico` or `LL_LOGO_MSG.ico`) indicating system status.
+   - Provides a context menu with actions: Show Dashboard, Refresh Now, and Exit.
+   - Configured to "Always Show" in the notification area via registry settings (deployment-dependent).
 
 2. **Graphical User Interface**:
    - A WPF-based dashboard with expandable sections for:
-     - **Information**: Displays system metrics (e.g., logged-in user, machine type, OS version, uptime, disk usage, IP addresses).
-     - **Announcements**: Shows organizational news with hyperlinks and source indicators (Cache, Remote, Default).
-     - **Patching and Updates**: Reports patch status from a local file (e.g., `C:\temp\patch_fixlets.txt`).
+     - **Announcements**: Shows organizational news with hyperlinks, details, and source indicators (Remote or Default).
+     - **Patching and Updates**: Reports patch status from a local file (e.g., `C:\temp\X-Fixlet-Source_Count.txt`), pending restart status, and a button to launch BigFix SSA.
      - **Support**: Provides IT contact details and links.
-     - **Early Adopter**: Promotes beta programs with links.
      - **Compliance**: Monitors YubiKey and Microsoft Virtual Smart Card certificate expiry.
-     - **Logs**: Displays recent log entries with export functionality.
-     - **About**: Shows version, changelog, and copyright.
+     - **Windows Build**: Displays OS build information.
+     - **Script Update**: Shows update status for the application itself.
 
 3. **Content Fetching**:
-   - Retrieves dynamic content (Announcements, Support, Early Adopter) from a configurable URL (e.g., GitHub raw JSON) or local/network path.
-   - Caches content to reduce network load, with a configurable fetch interval (`ContentFetchInterval`, default 120 seconds).
+   - Retrieves dynamic content (Announcements, Support) from a configurable URL (e.g., GitHub raw JSON).
+   - Caches content with state tracking to detect changes and alert users via UI indicators.
    - Falls back to default content if fetching fails, ensuring continuity.
+   - Refresh interval configurable (`RefreshInterval`, default 90 seconds).
 
 4. **Certificate Monitoring**:
-   - Checks YubiKey certificate expiry using `ykman.exe`.
-   - Monitors Microsoft Virtual Smart Card certificates in user and machine stores.
-   - Displays combined expiry status in the Compliance section.
+   - Checks YubiKey certificate expiry using `ykman.exe` across multiple PIV slots.
+   - Monitors Microsoft Virtual Smart Card certificates in the user store.
+   - Displays combined expiry status in the Compliance section, with caching for performance (interval: 86400 seconds).
 
 5. **Logging and Diagnostics**:
-   - Logs all operations to `MITSI.log` with rotation at 5MB.
-   - Supports log export via a GUI button for troubleshooting.
-   - Includes detailed error handling and debugging information.
+   - Logs all operations to `LLNOTIFY.log` with rotation at 2MB (configurable).
+   - Supports detailed error handling, retry logic, and .NET version logging.
+   - No GUI log viewer; logs are file-based for troubleshooting.
+
+6. **Auto-Update**:
+   - Checks for updates via a version file on GitHub.
+   - Automatically downloads and replaces the script if a newer version is available, with a restart via a temporary batch file.
+   - Displays update status in the UI.
 
 ## Functionality
 
-- **System Monitoring**: Collects and displays real-time system metrics using PowerShell cmdlets (e.g., `Get-CimInstance`, `Get-NetIPAddress`), ensuring accurate data like Windows 11 24H2 detection (fixed April 22, 2025).
-- **Content Updates**: Fetches external JSON content periodically, with source indicators to show whether data is from cache, remote, or default (added April 22, 2025).
+- **System Monitoring**: Collects and displays real-time system metrics using PowerShell cmdlets (e.g., registry checks for pending restarts, OS build detection).
+- **Content Fetching**: Fetches external JSON content periodically using asynchronous jobs, with source indicators to show whether data is from remote or default.
 - **User Interaction**: Runs in the user context to display a system tray icon and GUI, with silent execution (`-WindowStyle Hidden`) for minimal disruption.
-- **Configuration**: Uses `MITSI.config.json` for customizable settings (e.g., `ContentDataUrl`, `ContentFetchInterval`), with defaults in the script for reliability.
-- **Deployment**: Designed for mass deployment via BigFix, with scripts to deploy files to `C:\ProgramData\MITSI` and run via a scheduled task at user logon.
-- **Updates**: Supports version upgrades (e.g., from 1.1.0 to 1.2.0) with BigFix Tasks to replace files while preserving `MITSI.config.json`.
+- **Configuration**: Uses `LLNOTIFY.config.json` for customizable settings (e.g., `ContentDataUrl`, `RefreshInterval`), with defaults in the script for reliability.
+- **Deployment**: Designed for mass deployment via BigFix or similar, with files in a directory like `C:\ProgramData\LLNOTIFY` and run via a scheduled task at user logon.
+- **Updates**: Supports auto-updates from GitHub, with version checks and seamless replacement (introduced in version 4.3.5).
 
 ## Use Case
 
-MITSI is ideal for enterprise environments with thousands of Windows endpoints, providing IT teams with a lightweight tool to:
+LLNOTIFY is ideal for enterprise environments with thousands of Windows endpoints, providing IT teams with a lightweight tool to:
 - Monitor system health and certificate compliance.
 - Communicate announcements and support details to users.
-- Integrate with BigFix for deployment and patch reporting (aligned with your March 14, 2025, BigFix usage).
-- Ensure reliable content delivery with caching and fallback mechanisms (addressing your April 22, 2025, URL issues).
+- Integrate with BigFix for deployment and patch reporting.
+- Ensure reliable content delivery with caching and fallback mechanisms.
+- Self-update to keep the tool current without manual intervention.
 
 ## Technical Requirements
 
 - **OS**: Windows 10/11.
 - **PowerShell**: Version 5.1 (Windows PowerShell) for `System.Windows.Forms` and WPF.
-- **Dependencies**: Icon files (`healthy.ico`, `warning.ico`), optional `MITSI.config.json`, and `ykman.exe` for YubiKey checks.
-- **Deployment**: BigFix for mass deployment to `C:\ProgramData\MITSI`.
+- **Dependencies**: Icon files (`LL_LOGO.ico`, `LL_LOGO_MSG.ico`), optional `LLNOTIFY.config.json`, and `ykman.exe` for YubiKey checks.
+- **Deployment**: BigFix or similar for mass deployment to a program data directory.
 
 ---
 
