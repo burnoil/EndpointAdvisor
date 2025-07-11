@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.7 (Added version to UI footer)
+# Version 4.3.8 (Added last content update time to UI)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.7"
+$ScriptVersion = "4.3.8"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -20,6 +20,9 @@ $global:PendingRestart = $false
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
 $global:CachedCertificateStatus = $null
+
+# Global for last content update time
+$global:LastContentUpdate = $null
 
 # ============================================================
 # A) Advanced Logging & Error Handling
@@ -66,14 +69,14 @@ function Write-Log {
     $attempt = 0
     $success = $false
     
-    while ($attempt -lt $maxRetries -and -not $success) {
+    while ($attempt -lt $MaxRetries -and -not $success) {
         try {
             $attempt++
             Add-Content -Path $logPath -Value $logEntry -Force -ErrorAction Stop
             $success = $true
         }
         catch {
-            if ($attempt -eq $maxRetries) {
+            if ($attempt -eq $MaxRetries) {
                 Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
             } else {
                 Start-Sleep -Milliseconds $retryDelayMs
@@ -348,6 +351,7 @@ $xamlString = @"
         </Expander>
         <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
         <TextBlock x:Name="ScriptUpdateText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0" Foreground="Red" Visibility="Hidden"/>
+        <TextBlock x:Name="LastUpdateText" FontSize="9" Foreground="Gray" HorizontalAlignment="Center" Margin="0,5,0,0" Visibility="Hidden"/>
       </StackPanel>
     </ScrollViewer>
     <Grid Grid.Row="2" Margin="0,5,0,0">
@@ -355,7 +359,7 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="&#169; 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
@@ -386,14 +390,14 @@ try {
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText"
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText", "LastUpdateText"
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
     }
     Write-Log "UI elements mapped to variables." -Level "INFO"
 
-    $global:FooterText.Text = "&#169; 2025 Lincoln Laboratory v$ScriptVersion"
+    $global:FooterText.Text = "$([char]0xA9) 2025 Lincoln Laboratory v$ScriptVersion"
 
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
@@ -483,10 +487,20 @@ function Fetch-ContentData {
         Validate-ContentData -Data $contentData
         Write-Log "Content data validated successfully." -Level "INFO"
 
+        $global:LastContentUpdate = Get-Date
+        $window.Dispatcher.Invoke({
+            $global:LastUpdateText.Text = "Content last updated: $($global:LastContentUpdate.ToString("yyyy-MM-dd HH:mm:ss"))"
+            $global:LastUpdateText.Visibility = "Visible"
+        })
+
         return [PSCustomObject]@{ Data = $contentData; Source = "Remote" }
     }
     catch {
         Write-Log "Failed to fetch or validate content from $($config.ContentDataUrl): $($_.Exception.Message)" -Level "ERROR"
+        $window.Dispatcher.Invoke({
+            $global:LastUpdateText.Text = "Using default content (fetch failed)"
+            $global:LastUpdateText.Visibility = "Visible"
+        })
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
     }
 }
