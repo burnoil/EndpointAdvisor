@@ -1,5 +1,6 @@
 # LLNOTIFY - Application Overview
-![Screenshot](https://github.com/user-attachments/assets/a6d74f84-c583-4776-aedc-1831c7b02bc4)
+<img width="331" height="502" alt="image" src="https://github.com/user-attachments/assets/58f7d58d-ad06-4472-9290-abfbe7b8c516" />
+
 
 **Version**: 4.3.4  
 
