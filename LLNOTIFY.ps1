@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.5 (Added color to Clear Alerts button)
+# Version 4.3.4 (Added color to Clear Alerts button)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.5"
+$ScriptVersion = "4.3.4"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -69,7 +69,10 @@ function Write-Log {
     while ($attempt -lt $maxRetries -and -not $success) {
         try {
             $attempt++
-            Add-Content -Path $logPath -Value $logEntry -Force -ErrorAction Stop
+            $writer = [System.IO.StreamWriter]::new($logPath, $true, [System.Text.Encoding]::UTF8)
+            $writer.WriteLine($logEntry)
+            $writer.Flush()
+            $writer.Close()
             $success = $true
         }
         catch {
@@ -77,6 +80,11 @@ function Write-Log {
                 Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
             } else {
                 Start-Sleep -Milliseconds $retryDelayMs
+            }
+        }
+        finally {
+            if ($writer) {
+                $writer.Dispose()
             }
         }
     }
@@ -161,8 +169,6 @@ function Get-DefaultConfig {
         PatchInfoFilePath     = "C:\temp\X-Fixlet-Source_Count.txt"
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
-        BlinkingEnabled       = $true
-        ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
     }
 }
 
@@ -275,7 +281,7 @@ $xamlString = @"
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
     MaxWidth="400" MaxHeight="550"
-    ResizeMode="CanResizeWithGrip" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
+    ResizeMode="CanResize" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
     Background="#f0f0f0"
     Icon="{Binding WindowIconUri}">
   <Grid Margin="5">
@@ -345,7 +351,6 @@ $xamlString = @"
           </Border>
         </Expander>
         <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-        <TextBlock x:Name="ScriptUpdateText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0" Foreground="Red" Visibility="Hidden"/>
       </StackPanel>
     </ScrollViewer>
     <Grid Grid.Row="2" Margin="0,5,0,0">
@@ -353,13 +358,12 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="0" Text="&#169; 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
 </Window>
 "@
-
 # ============================================================
 # F) Load and Verify XAML
 # ============================================================
@@ -384,7 +388,7 @@ try {
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText"
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton"
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
@@ -466,13 +470,7 @@ function Fetch-ContentData {
         $url = $config.ContentDataUrl
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
-        # Async fetch using job to avoid blocking
-        $job = Start-Job -ScriptBlock {
-            param($url)
-            Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
-        } -ArgumentList $url
-        $response = Wait-Job $job | Receive-Job
-        Remove-Job $job
+        $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
         Write-Log "Successfully fetched content from Git repository (Status: $($response.StatusCode))." -Level "INFO"
         
         $contentData = $response.Content | ConvertFrom-Json
@@ -501,7 +499,6 @@ function Get-YubiKeyCertExpiryDays {
             return "YubiKey not present"
         }
         $slots = @("9a", "9c", "9d", "9e")
-        $statuses = @()
         foreach ($slot in $slots) {
             $certPem = & $ykmanPath "piv" "certificates" "export" $slot "-" 2>$null
             if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
@@ -509,11 +506,8 @@ function Get-YubiKeyCertExpiryDays {
                 $certPem | Out-File $tempFile -Encoding ASCII
                 $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($tempFile)
                 Remove-Item $tempFile -Force
-                $statuses += "YubiKey Certificate (Slot $slot): Expires: $($cert.NotAfter.ToString("yyyy-MM-dd"))"
+                return "YubiKey Certificate (Slot $slot): Expires: $($cert.NotAfter.ToString("MM/dd/yyyy"))"
             }
-        }
-        if ($statuses) {
-            return $statuses -join "`n"
         }
         return "YubiKey Certificate: No PIV certificate found."
     }
@@ -525,9 +519,9 @@ function Get-YubiKeyCertExpiryDays {
 
 function Get-VirtualSmartCardCertExpiry {
     try {
-        $cert = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Subject -match "Virtual" } | Sort-Object NotAfter -Descending | Select-Object -First 1
-        if (-not $cert) { return "No certificate found." }
-        return "Microsoft Virtual Smart Card: Expires: $($cert.NotAfter.ToString("yyyy-MM-dd"))"
+        $cert = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Subject -match "Virtual" } | Sort-Object NotAfter | Select-Object -Last 1
+        if (-not $cert) { return "Microsoft Virtual Smart Card not present" }
+        return "Microsoft Virtual Smart Card: Expires: $($cert.NotAfter.ToString("MM/dd/yyyy"))"
     } catch { return "Microsoft Virtual Smart Card: Unable to check status." }
 }
 
@@ -559,8 +553,6 @@ function Get-PendingRestartStatus {
     }
 }
 
-$global:LastPatchTimestamp = $null
-
 function Get-WindowsBuildNumber {
     try {
         $buildInfo = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
@@ -576,19 +568,12 @@ function Update-Announcements {
 
     $newJsonState = $newAnnouncementsObject | ConvertTo-Json -Compress
 
-    $isNew = $false
     if ($config.AnnouncementsLastState -ne $newJsonState) {
         Write-Log "New announcement content detected." -Level "INFO"
-        $isNew = $true
+        $window.Dispatcher.Invoke({$global:AnnouncementsAlertIcon.Visibility = "Visible"})
     }
 
     $window.Dispatcher.Invoke({
-        if ($isNew) {
-            $global:AnnouncementsAlertIcon.Visibility = "Visible"
-            if (-not $global:window.IsVisible) {
-                $global:TrayIcon.ShowBalloonTip(3000, "New Announcement", $newAnnouncementsObject.Text.Substring(0, [math]::Min(100, $newAnnouncementsObject.Text.Length)), "Info")
-            }
-        }
         $global:AnnouncementsText.Text = $newAnnouncementsObject.Text
         $global:AnnouncementsDetailsText.Text = $newAnnouncementsObject.Details
         $global:AnnouncementsLinksPanel.Children.Clear()
@@ -610,19 +595,12 @@ function Update-Support {
 
     $newJsonState = $newSupportObject | ConvertTo-Json -Compress
 
-    $isNew = $false
     if ($config.SupportLastState -ne $newJsonState) {
         Write-Log "New support content detected." -Level "INFO"
-        $isNew = $true
+        $window.Dispatcher.Invoke({$global:SupportAlertIcon.Visibility = "Visible"})
     }
 
     $window.Dispatcher.Invoke({
-        if ($isNew) {
-            $global:SupportAlertIcon.Visibility = "Visible"
-            if (-not $global:window.IsVisible) {
-                $global:TrayIcon.ShowBalloonTip(3000, "New Support Update", $newSupportObject.Text.Substring(0, [math]::Min(100, $newSupportObject.Text.Length)), "Info")
-            }
-        }
         $global:SupportText.Text = $newSupportObject.Text
         $global:SupportLinksPanel.Children.Clear()
         if ($newSupportObject.Links) {
@@ -642,17 +620,8 @@ function Update-PatchingAndSystem {
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
     $patchFile = $config.PatchInfoFilePath
-    if (Test-Path $patchFile) {
-        $fileTimestamp = (Get-Item $patchFile).LastWriteTime
-        if ($global:LastPatchTimestamp -ne $fileTimestamp) {
-            $rawPatchText = Get-Content -Path $patchFile -Raw -ErrorAction SilentlyContinue
-            $global:LastPatchText = if ([string]::IsNullOrWhiteSpace($rawPatchText)) { "No pending updates listed." } else { $rawPatchText }
-            $global:LastPatchTimestamp = $fileTimestamp
-        }
-        $finalPatchText = $global:LastPatchText
-    } else {
-        $finalPatchText = "Patch info file not found."
-    }
+    $rawPatchText = if (Test-Path $patchFile) { Get-Content -Path $patchFile -Raw -ErrorAction SilentlyContinue } else { "Patch info file not found." }
+    $finalPatchText = if ([string]::IsNullOrWhiteSpace($rawPatchText)) { "No pending updates listed." } else { $rawPatchText }
 
     $windowsBuild = Get-WindowsBuildNumber
 
@@ -665,42 +634,6 @@ function Update-PatchingAndSystem {
     })
 }
 
-function Check-ScriptUpdate {
-    try {
-        $url = $config.ScriptUrl
-        Write-Log "Checking for script update from: $url" -Level "INFO"
-        
-        $job = Start-Job -ScriptBlock {
-            param($url)
-            Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
-        } -ArgumentList $url
-        $response = Wait-Job $job | Receive-Job
-        Remove-Job $job
-        
-        if ($response.Content -match 'ScriptVersion = "(\d+\.\d+\.\d+)"') {
-            $remoteVersion = $matches[1]
-            if ([version]$remoteVersion -gt [version]$ScriptVersion) {
-                Write-Log "New script version available: $remoteVersion" -Level "INFO"
-                $window.Dispatcher.Invoke({
-                    $global:ScriptUpdateText.Text = "New version $remoteVersion available. Please update the script."
-                    $global:ScriptUpdateText.Visibility = "Visible"
-                    if (-not $global:window.IsVisible) {
-                        $global:TrayIcon.ShowBalloonTip(5000, "Script Update Available", "Version $remoteVersion is available.", "Info")
-                    }
-                })
-                return $true
-            }
-        }
-        Write-Log "No new script version available." -Level "INFO"
-        $window.Dispatcher.Invoke({
-            $global:ScriptUpdateText.Visibility = "Hidden"
-        })
-        return $false
-    } catch {
-        Write-Log "Failed to check for script update: $($_.Exception.Message)" -Level "WARNING"
-        return $false
-    }
-}
 
 # ============================================================
 # I) Tray Icon Management
@@ -717,7 +650,7 @@ function Get-Icon {
             return New-Object System.Drawing.Icon($Path)
         }
         catch {
-            Write-Log "Error loading icon from `"$Path`": $($_.Exception.Message)" -Level "ERROR"
+            Write-Log "Error loading icon from ${Path}: $($_.Exception.Message)" -Level "ERROR"
         }
     }
     return [System.Drawing.SystemIcons]::Application
@@ -733,14 +666,9 @@ function Update-TrayIcon {
     $hasAnyAlert = $global:PendingRestart -or $hasBlinkingAlert
 
     if ($hasBlinkingAlert -and -not $window.IsVisible) {
-        if ($config.BlinkingEnabled) {
-            if (-not $global:BlinkingTimer.IsEnabled) {
-                $global:TrayIcon.Icon = $global:WarningIcon
-                $global:BlinkingTimer.Start()
-            }
-        } else {
+        if (-not $global:BlinkingTimer.IsEnabled) {
             $global:TrayIcon.Icon = $global:WarningIcon
-            $global:TrayIcon.Text = "LLNOTIFY v$ScriptVersion - Alerts Pending"
+            $global:BlinkingTimer.Start()
         }
     }
     else {
@@ -777,12 +705,9 @@ function Initialize-TrayIcon {
 # K) Window Visibility Management
 # ============================================================
 function Set-WindowPosition {
-    Add-Type -AssemblyName System.Windows.Forms
-    $mousePos = [System.Windows.Forms.Cursor]::Position
-    $screen = [System.Windows.Forms.Screen]::AllScreens | Where-Object { $_.Bounds.Contains($mousePos) } | Select-Object -First 1
-    if (-not $screen) { $screen = [System.Windows.Forms.Screen]::PrimaryScreen }
-    $window.Left = $screen.WorkingArea.X + ($screen.WorkingArea.Width - $window.ActualWidth) / 2
-    $window.Top = $screen.WorkingArea.Y + ($screen.WorkingArea.Height - $window.ActualHeight) / 2
+    $primary = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $window.Left = $primary.X + ($primary.Width - $window.ActualWidth) / 2
+    $window.Top = $primary.Y + ($primary.Height - $window.ActualHeight) / 2
 }
 
 function Toggle-WindowVisibility {
@@ -817,8 +742,6 @@ function Main-UpdateCycle {
             Update-CertificateInfo
             $global:LastCertificateCheck = Get-Date
         }
-        
-        Check-ScriptUpdate
         
         Update-TrayIcon
         Save-Configuration -Config $config
@@ -867,7 +790,6 @@ catch {
 }
 finally {
     Write-Log "--- LLNOTIFY Script Exiting ---"
-    if ($global:DispatcherTimer) { $global:DispatcherTimer.Stop() }
     if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
