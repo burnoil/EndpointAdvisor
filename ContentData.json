@@ -10,10 +10,6 @@
       {
         "Name":  "LL Announcements List",
         "Url":  "https://www.google.com/"
-      },
-      {
-        "Name":  "Hot News",
-        "Url":  "https://www.google.com/"
       }
     ]
   },
@@ -26,10 +22,6 @@
       },
       {
         "Name":  "Submit Ticket",
-        "Url":  "https://www.google.com"
-      },
-      {
-        "Name":  "Yell at the helpdesk",
         "Url":  "https://www.google.com"
       }
     ]
