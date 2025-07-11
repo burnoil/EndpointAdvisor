@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.8 (Added last content update time to UI)
+# Version 4.3.8 (Added version to UI footer)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -20,9 +20,6 @@ $global:PendingRestart = $false
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
 $global:CachedCertificateStatus = $null
-
-# Global for last content update time
-$global:LastContentUpdate = $null
 
 # ============================================================
 # A) Advanced Logging & Error Handling
@@ -351,7 +348,6 @@ $xamlString = @"
         </Expander>
         <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
         <TextBlock x:Name="ScriptUpdateText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0" Foreground="Red" Visibility="Hidden"/>
-        <TextBlock x:Name="LastUpdateText" FontSize="9" Foreground="Gray" HorizontalAlignment="Center" Margin="0,5,0,0" Visibility="Hidden"/>
       </StackPanel>
     </ScrollViewer>
     <Grid Grid.Row="2" Margin="0,5,0,0">
@@ -390,7 +386,7 @@ try {
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText", "LastUpdateText"
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText"
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
@@ -487,20 +483,10 @@ function Fetch-ContentData {
         Validate-ContentData -Data $contentData
         Write-Log "Content data validated successfully." -Level "INFO"
 
-        $global:LastContentUpdate = Get-Date
-        $window.Dispatcher.Invoke({
-            $global:LastUpdateText.Text = "Content last updated: $($global:LastContentUpdate.ToString("yyyy-MM-dd HH:mm:ss"))"
-            $global:LastUpdateText.Visibility = "Visible"
-        })
-
         return [PSCustomObject]@{ Data = $contentData; Source = "Remote" }
     }
     catch {
         Write-Log "Failed to fetch or validate content from $($config.ContentDataUrl): $($_.Exception.Message)" -Level "ERROR"
-        $window.Dispatcher.Invoke({
-            $global:LastUpdateText.Text = "Using default content (fetch failed)"
-            $global:LastUpdateText.Visibility = "Visible"
-        })
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
     }
 }
@@ -717,6 +703,12 @@ function Perform-AutoUpdate {
         $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
         $batchPath = Join-Path $ScriptDir "update.bat"
         
+        # Remove any existing batch file to avoid conflicts
+        if (Test-Path $batchPath) {
+            Remove-Item $batchPath -Force
+            Write-Log "Removed existing update.bat" -Level "INFO"
+        }
+
         # Download new script
         $job = Start-Job -ScriptBlock {
             param($url, $path)
@@ -729,14 +721,15 @@ function Perform-AutoUpdate {
             throw "Failed to download new script."
         }
 
-        # Create batch file for replacement and restart
+        # Create batch file for replacement and restart with reliable self-delete
         @"
 @echo off
 timeout /t 3 /nobreak >nul
 move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1"
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1"
-del "%~f0"
+start /b "" cmd /c del "%~f0" & exit
 "@ | Out-File $batchPath -Encoding ascii
+        Write-Log "Created new update.bat" -Level "INFO"
 
         # Start the batch and exit
         Start-Process -FilePath $batchPath -WindowStyle Hidden
