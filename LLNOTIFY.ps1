@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.7 (Added version to UI footer)
+# Version 4.3.8 (Added version to UI footer)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.7"
+$ScriptVersion = "4.3.8"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
