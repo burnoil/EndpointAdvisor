@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.9 (Added version to UI footer)
+# Version 4.3.9 (Added startup cleanup and improved batch retries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -20,6 +20,9 @@ $global:PendingRestart = $false
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
 $global:CachedCertificateStatus = $null
+
+# Global flag for update in progress
+$global:IsUpdating = $false
 
 # ============================================================
 # A) Advanced Logging & Error Handling
@@ -139,6 +142,12 @@ function Handle-Error {
 }
 
 Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
+
+# Startup cleanup for leftover update files
+$newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
+$batchPath = Join-Path $ScriptDir "update.bat"
+if (Test-Path $newScriptPath) { Remove-Item $newScriptPath -Force; Write-Log "Cleaned up leftover LLNOTIFY.new.ps1" -Level "INFO" }
+if (Test-Path $batchPath) { Remove-Item $batchPath -Force; Write-Log "Cleaned up leftover update.bat" -Level "INFO" }
 
 # ============================================================
 # MODULE: Configuration Management
@@ -431,7 +440,12 @@ try {
         Save-Configuration -Config $config
     })
 
-    $window.Add_Closing({ $_.Cancel = $true; $window.Hide() })
+    $window.Add_Closing({
+        if (-not $global:IsUpdating) {
+            $_.Cancel = $true
+            $window.Hide()
+        }
+    })
 }
 catch {
     Handle-Error "Failed to load the XAML layout: $($_.Exception.Message)" -Source "XAML"
@@ -724,8 +738,13 @@ function Perform-AutoUpdate {
         # Create batch file for replacement and restart with reliable self-delete
         @"
 @echo off
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
+:retry
 move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1"
+if ERRORLEVEL 1 (
+  timeout /t 2 /nobreak >nul
+  goto retry
+)
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1"
 start /b "" cmd /c del "%~f0" & exit
 "@ | Out-File $batchPath -Encoding ascii
@@ -734,6 +753,7 @@ start /b "" cmd /c del "%~f0" & exit
         # Start the batch and exit
         Start-Process -FilePath $batchPath -WindowStyle Hidden
         Write-Log "Auto-update initiated. Exiting current instance." -Level "INFO"
+        $global:IsUpdating = $true
         $window.Dispatcher.InvokeShutdown()
     } catch {
         Write-Log "Auto-update failed: $($_.Exception.Message)" -Level "ERROR"
@@ -901,7 +921,9 @@ try {
     $window.Dispatcher.Add_UnhandledException({ Handle-Error $_.Exception.Message -Source "Dispatcher"; $_.Handled = $true })
 
     Write-Log "Application startup complete. Running dispatcher." -Level "INFO"
-    [System.Windows.Threading.Dispatcher]::Run()
+    if (-not $global:IsUpdating) {
+        [System.Windows.Threading.Dispatcher]::Run()
+    }
 }
 catch {
     Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
