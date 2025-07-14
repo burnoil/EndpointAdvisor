@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.12 (Improved update timing to prevent lock issues)
+# Version 4.3.13 (Enhanced update batch with retries and failure logging; added file creation checks)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.12"
+$ScriptVersion = "4.3.13"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -711,7 +711,11 @@ function Perform-AutoUpdate {
         # Remove any existing batch file to avoid conflicts
         if (Test-Path $batchPath) {
             Remove-Item $batchPath -Force
-            Write-Log "Removed existing update.bat" -Level "INFO"
+            if (Test-Path $batchPath) {
+                Write-Log "Warning: Could not remove existing update.bat" -Level "WARNING"
+            } else {
+                Write-Log "Removed existing update.bat" -Level "INFO"
+            }
         }
 
         # Download new script
@@ -727,19 +731,31 @@ function Perform-AutoUpdate {
         }
 
         # Create batch file for replacement and restart with reliable self-delete
-        @"
+        try {
+            @"
 @echo off
 timeout /t 5 /nobreak >nul
+set /a attempts=0
 :retry
+set /a attempts+=1
 move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1"
 if ERRORLEVEL 1 (
+  if %attempts% GEQ 5 goto fail
   timeout /t 2 /nobreak >nul
   goto retry
 )
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1"
 start /b "" cmd /c del "%~f0" & exit
-"@ | Out-File $batchPath -Encoding ascii
-        Write-Log "Created new update.bat" -Level "INFO"
+:fail
+echo Failed to update after 5 attempts > "$PSScriptRoot\update_error.log"
+"@ | Out-File $batchPath -Encoding ascii -Force
+            if (-not (Test-Path $batchPath)) {
+                throw "Batch file creation failed without error"
+            }
+            Write-Log "Created new update.bat at $batchPath" -Level "INFO"
+        } catch {
+            throw "Failed to create batch file: $($_.Exception.Message)"
+        }
 
         # Start the batch and exit
         Start-Process -FilePath $batchPath -WindowStyle Hidden
