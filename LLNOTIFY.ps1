@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.10 (Added user-selectable update intervals via tray menu)
+# Version 4.3.11 (Set default refresh interval to 15 minutes)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.10"
+$ScriptVersion = "4.3.11"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -140,18 +140,12 @@ function Handle-Error {
 
 Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
 
-# Startup cleanup for leftover update files
-$newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
-$batchPath = Join-Path $ScriptDir "update.bat"
-if (Test-Path $newScriptPath) { Remove-Item $newScriptPath -Force; Write-Log "Cleaned up leftover LLNOTIFY.new.ps1" -Level "INFO" }
-if (Test-Path $batchPath) { Remove-Item $batchPath -Force; Write-Log "Cleaned up leftover update.bat" -Level "INFO" }
-
 # ============================================================
 # MODULE: Configuration Management
 # ============================================================
 function Get-DefaultConfig {
     return @{
-        RefreshInterval       = 90
+        RefreshInterval       = 900  # Default to 15 minutes (900 seconds)
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
         ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
