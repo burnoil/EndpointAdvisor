@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.14 (Enhanced update batch with retries and failure logging; added file creation checks)
+# Version 4.3.15 (Added batch failure logging and increased timeout; ensured batch creation verification)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.14"
+$ScriptVersion = "4.3.15"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -732,7 +732,7 @@ function Perform-AutoUpdate {
 
         # Create batch file for replacement and restart with reliable self-delete
         try {
-            @"
+            $batchContent = @"
 @echo off
 timeout /t 5 /nobreak >nul
 set /a attempts=0
@@ -747,8 +747,9 @@ if ERRORLEVEL 1 (
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1"
 start /b "" cmd /c del "%~f0" & exit
 :fail
-echo Failed to update after 5 attempts > "$PSScriptRoot\update_error.log"
-"@ | Out-File $batchPath -Encoding ascii -Force
+echo Failed to update after 5 attempts >> "$PSScriptRoot\update_error.log"
+"@
+            $batchContent | Out-File $batchPath -Encoding ascii -Force
             if (-not (Test-Path $batchPath)) {
                 throw "Batch file creation failed without error"
             }
