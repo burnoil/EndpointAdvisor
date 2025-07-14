@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.16 (Added batch failure logging and increased timeout; ensured batch creation verification)
+# Version 4.3.15 (Added batch failure logging and increased timeout; ensured batch creation verification)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.16"
+$ScriptVersion = "4.3.15"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
