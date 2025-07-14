@@ -1,4 +1,4 @@
-# Script to list relevant patches using BigFix QnA tool
+# Script to list relevant patches using BigFix QnA tool (pure client relevance)
 # Run as administrator. Adjust paths if needed.
 
 $bigfixPath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
@@ -6,9 +6,9 @@ $qnaExe = "$bigfixPath\qna.exe"
 $tempQueryFile = "$env:TEMP\bigfix_query.txt"
 $relevantPatches = @()
 
-# Relevance query: List names, IDs, and sites of relevant patch Fixlets
-# Filters out non-Fixlet types like Tasks/Analyses/Baselines
-$query = 'concatenation "; " of (name of it & " (ID: " & id of it as string & ", Site: " & name of site of it & ")") of relevant fixlets whose (fixlet flag of it and (not exists headers "X-Fixlet-Type" of it or value of header "X-Fixlet-Type" of it != "Task" and value of header "X-Fixlet-Type" of it != "Analysis" and value of header "X-Fixlet-Type" of it != "Baseline")) of sites whose (name of it contains "Patch" or name of it contains "Update" or name of it contains "Security")'
+# Client relevance query: List names, IDs, and sites of relevant patch Fixlets
+# Filters by MIME field "X-Fixlet-Type" == "Fixlet" (or absent, for older content)
+$query = 'concatenation "; " of (name of it & " (ID: " & id of it as string & ", Site: " & name of site of it & ")") of relevant fixlets whose (not exists mime field "X-Fixlet-Type" of it or value of mime field "X-Fixlet-Type" of it = "Fixlet") of sites whose (name of it contains "Patch" or name of it contains "Update" or name of it contains "Security")'
 
 # Write query to temp file (QnA expects "Q: " prefix)
 "Q: $query" | Out-File -FilePath $tempQueryFile -Encoding ASCII
@@ -23,7 +23,7 @@ if (Test-Path $qnaExe) {
     $resultLine = $output | Where-Object { $_ -match "^A: " } | Select-Object -First 1
     if ($resultLine) {
         $patchesString = $resultLine -replace "^A: ", ""
-        if ($patchesString -ne "<nothing>") {
+        if ($patchesString -ne "E: Singular expression refers to nonexistent object." -and $patchesString -ne "<nothing>") {
             $relevantPatches = $patchesString -split "; " | Sort-Object
         }
     }
@@ -36,8 +36,8 @@ if (Test-Path $qnaExe) {
         Write-Host "`nRelevant Patches:"
         $relevantPatches | ForEach-Object { Write-Host "- $_" }
     } else {
-        Write-Host "`nNo relevant patches found, or query returned nothing."
+        Write-Host "`nNo relevant patches found, or no matching sites subscribed. Check site subscriptions in BigFix or tweak the site filter in the query."
     }
 } else {
-    Write-Host "qna.exe not found at $qnaExe. Ensure it's in the BigFix client folder or copy from console installation."
+    Write-Host "qna.exe not found at $qnaExe. Ensure it's in the BigFix client folder or copy from the console installation."
 }
