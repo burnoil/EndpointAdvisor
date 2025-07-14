@@ -1,42 +1,43 @@
-# Sample script to list relevant patches from BigFix client log without restarting service
-# Run as administrator. Adjust paths if your BigFix installation is different.
+# Script to list relevant patches using BigFix QnA tool
+# Run as administrator. Adjust paths if needed.
 
 $bigfixPath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
-$logPath = "$bigfixPath\__BESData\__Global\Logs"
-$statePath = "$bigfixPath\__BESData"
+$qnaExe = "$bigfixPath\qna.exe"
+$tempQueryFile = "$env:TEMP\bigfix_query.txt"
+$relevantPatches = @()
 
-# Step 1: Identify and delete state files for patch sites (force re-evaluation)
-$patchSites = Get-ChildItem -Path $statePath -Directory | Where-Object { $_.Name -match "Patch|Update|Security" }
-foreach ($site in $patchSites) {
-    $siteState = "$statePath\$($site.Name)"
-    Remove-Item -Path "$siteState\*" -Force -Recurse -ErrorAction SilentlyContinue
-    Write-Host "Cleared state for site: $($site.Name)"
-}
+# Relevance query: List names, IDs, and sites of relevant patch Fixlets
+# Filters out non-Fixlet types like Tasks/Analyses/Baselines
+$query = 'concatenation "; " of (name of it & " (ID: " & id of it as string & ", Site: " & name of site of it & ")") of relevant fixlets whose (fixlet flag of it and (not exists headers "X-Fixlet-Type" of it or value of header "X-Fixlet-Type" of it != "Task" and value of header "X-Fixlet-Type" of it != "Analysis" and value of header "X-Fixlet-Type" of it != "Baseline")) of sites whose (name of it contains "Patch" or name of it contains "Update" or name of it contains "Security")'
 
-# Step 2: Wait for the client to naturally re-evaluate and log (no restart needed!)
-Write-Host "Waiting 90 seconds for client re-evaluation..."
-Start-Sleep -Seconds 90  # Increase to 120-180 if your client takes longer to refresh
+# Write query to temp file (QnA expects "Q: " prefix)
+"Q: $query" | Out-File -FilePath $tempQueryFile -Encoding ASCII
 
-# Step 3: Find the latest log file
-$latestLog = Get-ChildItem -Path $logPath -Filter "*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if ($latestLog) {
-    Write-Host "Parsing latest log: $($latestLog.FullName)"
-    $relevantPatches = @()
+# Run qna.exe and capture output
+if (Test-Path $qnaExe) {
+    $output = & $qnaExe $tempQueryFile
+    Write-Host "QnA Output:"
+    $output | ForEach-Object { Write-Host $_ }
 
-    # Read the log and extract "Relevant - " lines for patches
-    Get-Content $latestLog.FullName | ForEach-Object {
-        if ($_ -match "Relevant - (.+?)\(id: \d+\) \((Patches|Updates|Security).*?\)") {
-            $patchName = $matches[1].Trim()
-            $site = $matches[2].Trim()
-            $relevantPatches += "$patchName (Site: $site)"
+    # Parse the result (look for lines starting with "A: " - the answer)
+    $resultLine = $output | Where-Object { $_ -match "^A: " } | Select-Object -First 1
+    if ($resultLine) {
+        $patchesString = $resultLine -replace "^A: ", ""
+        if ($patchesString -ne "<nothing>") {
+            $relevantPatches = $patchesString -split "; " | Sort-Object
         }
     }
 
-    # Remove duplicates and output
-    $relevantPatches | Sort-Object -Unique | ForEach-Object { Write-Host $_ }
-    if ($relevantPatches.Count -eq 0) {
-        Write-Host "No relevant patches found. Try increasing the wait time or check connectivity to the BigFix relay."
+    # Clean up temp file
+    Remove-Item $tempQueryFile -Force -ErrorAction SilentlyContinue
+
+    # Display results
+    if ($relevantPatches.Count -gt 0) {
+        Write-Host "`nRelevant Patches:"
+        $relevantPatches | ForEach-Object { Write-Host "- $_" }
+    } else {
+        Write-Host "`nNo relevant patches found, or query returned nothing."
     }
 } else {
-    Write-Host "No log file found. Check BigFix installation."
+    Write-Host "qna.exe not found at $qnaExe. Ensure it's in the BigFix client folder or copy from console installation."
 }
