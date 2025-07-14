@@ -1,4 +1,4 @@
-# Sample script to force re-evaluation and list relevant patches from BigFix client log
+# Sample script to list relevant patches from BigFix client log without restarting service
 # Run as administrator. Adjust paths if your BigFix installation is different.
 
 $bigfixPath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
@@ -13,11 +13,9 @@ foreach ($site in $patchSites) {
     Write-Host "Cleared state for site: $($site.Name)"
 }
 
-# Step 2: Restart BigFix client service to trigger evaluation and logging
-Stop-Service -Name BESClient -Force
-Start-Service -Name BESClient
-Write-Host "BigFix client restarted. Waiting 60 seconds for evaluation..."
-Start-Sleep -Seconds 60  # Adjust if needed; evaluation may take 30-120 seconds
+# Step 2: Wait for the client to naturally re-evaluate and log (no restart needed!)
+Write-Host "Waiting 90 seconds for client re-evaluation..."
+Start-Sleep -Seconds 90  # Increase to 120-180 if your client takes longer to refresh
 
 # Step 3: Find the latest log file
 $latestLog = Get-ChildItem -Path $logPath -Filter "*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -37,7 +35,7 @@ if ($latestLog) {
     # Remove duplicates and output
     $relevantPatches | Sort-Object -Unique | ForEach-Object { Write-Host $_ }
     if ($relevantPatches.Count -eq 0) {
-        Write-Host "No relevant patches found in the log after re-evaluation."
+        Write-Host "No relevant patches found. Try increasing the wait time or check connectivity to the BigFix relay."
     }
 } else {
     Write-Host "No log file found. Check BigFix installation."
