@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.21 (Fixed XAML parsing error with copyright entity)
+# Version 4.3.22 (Fixed XAML parsing error with ampersand in button text)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.21"
+$ScriptVersion = "4.3.22"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -325,7 +325,7 @@ $xamlString = @"
               <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
               <Button x:Name="ScanLocalUpdatesButton" Content="Scan Local Updates" Margin="0,5,0,0"/>
-              <Button x:Name="TriggerRestartButton" Content="Check & Restart if Needed" Margin="0,5,0,0"/>
+              <Button x:Name="TriggerRestartButton" Content="Check &amp; Restart if Needed" Margin="0,5,0,0"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -358,7 +358,7 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="&#169; 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
@@ -397,7 +397,7 @@ try {
     }
     Write-Log "UI elements mapped to variables." -Level "INFO"
 
-    $global:FooterText.Text = "&#169; 2025 Lincoln Laboratory v$ScriptVersion"
+    $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion"
 
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
