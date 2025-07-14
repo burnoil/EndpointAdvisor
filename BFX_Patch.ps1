@@ -1,4 +1,4 @@
-# Script to list relevant patches using BigFix QnA tool (pure client relevance)
+# Script to list relevant patches using BigFix QnA tool (using 'header' inspector)
 # Run as administrator. Adjust paths if needed.
 
 $bigfixPath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
@@ -7,8 +7,8 @@ $tempQueryFile = "$env:TEMP\bigfix_query.txt"
 $relevantPatches = @()
 
 # Client relevance query: List names, IDs, and sites of relevant patch Fixlets
-# Filters by MIME field "X-Fixlet-Type" == "Fixlet" (or absent, for older content)
-$query = 'concatenation "; " of (name of it & " (ID: " & id of it as string & ", Site: " & name of site of it & ")") of relevant fixlets whose (not exists mime field "X-Fixlet-Type" of it or value of mime field "X-Fixlet-Type" of it = "Fixlet") of sites whose (name of it contains "Patch" or name of it contains "Update" or name of it contains "Security")'
+# Filters by header "X-Fixlet-Type" == "Fixlet" (or absent)
+$query = 'concatenation "; " of (name of it & " (ID: " & id of it as string & ", Site: " & name of site of it & ")") of relevant fixlets whose (not exists header "X-Fixlet-Type" of it or value of header "X-Fixlet-Type" of it = "Fixlet") of sites whose (name of it contains "Patch" or name of it contains "Update" or name of it contains "Security")'
 
 # Write query to temp file (QnA expects "Q: " prefix)
 "Q: $query" | Out-File -FilePath $tempQueryFile -Encoding ASCII
