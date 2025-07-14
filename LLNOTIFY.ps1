@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.11 (Set default refresh interval to 15 minutes)
+# Version 4.3.12 (Improved update timing to prevent lock issues)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.11"
+$ScriptVersion = "4.3.12"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -744,6 +744,7 @@ start /b "" cmd /c del "%~f0" & exit
         # Start the batch and exit
         Start-Process -FilePath $batchPath -WindowStyle Hidden
         Write-Log "Auto-update initiated. Exiting current instance." -Level "INFO"
+        Start-Sleep -Milliseconds 500  # Brief delay for cleanup
         $global:IsUpdating = $true
         $window.Dispatcher.InvokeShutdown()
     } catch {
@@ -900,7 +901,7 @@ function Main-UpdateCycle {
             $global:LastCertificateCheck = Get-Date
         }
         
-        Check-ScriptUpdate
+        if (Check-ScriptUpdate) { return }  # Stop cycle if update started
         
         Update-TrayIcon
         Save-Configuration -Config $config
