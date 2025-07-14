@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.22 (Fixed XAML parsing error with ampersand in button text)
+# Version 4.3.24 (Updated relevance query for BigFix scan to a general one to avoid site name errors; customize as needed)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.22"
+$ScriptVersion = "4.3.24"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
