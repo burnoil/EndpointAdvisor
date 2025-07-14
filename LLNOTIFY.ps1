@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.17 (Added batch failure logging and increased timeout; ensured batch creation verification)
+# Version 4.3.20 (Added local BigFix self-service buttons: Scan Local Updates and Check & Restart)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.17"
+$ScriptVersion = "4.3.20"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -164,6 +164,7 @@ function Get-DefaultConfig {
         BlinkingEnabled       = $true
         ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
         VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
+        BigFixQnA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe"  # New: Path for local scans
     }
 }
 
@@ -323,6 +324,8 @@ $xamlString = @"
               <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
               <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              <Button x:Name="ScanLocalUpdatesButton" Content="Scan Local Updates" Margin="0,5,0,0"/>
+              <Button x:Name="TriggerRestartButton" Content="Check & Restart if Needed" Margin="0,5,0,0"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -386,7 +389,8 @@ try {
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText"
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText",
+        "ScanLocalUpdatesButton", "TriggerRestartButton"  # New buttons
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
@@ -429,6 +433,40 @@ try {
         Update-TrayIcon
         
         Save-Configuration -Config $config
+    })
+
+    $global:ScanLocalUpdatesButton.Add_Click({
+        try {
+            $qnAPath = $config.BigFixQnA_Path
+            if ([string]::IsNullOrWhiteSpace($qnAPath) -or -not (Test-Path $qnAPath)) {
+                throw "BigFix QnA path is invalid or not found: `"$qnAPath`""
+            }
+            # Example relevance query for relevant fixlets (customize as needed)
+            $relevance = 'names of relevant fixlets of sites whose (name of it = "Enterprise Security")'
+            $result = & $qnAPath -showtypes -relevance $relevance
+            $global:PatchingUpdatesText.Text = if ($result) { $result -join "`n" } else { "No pending updates found." }
+            Write-Log "Scanned local BigFix updates" -Level "INFO"
+        } catch {
+            Handle-Error $_.Exception.Message -Source "ScanLocalUpdates"
+            $global:PatchingUpdatesText.Text = "Scan failed. Launch SSA for details."
+        }
+    })
+
+    $global:TriggerRestartButton.Add_Click({
+        if ([System.Windows.MessageBox]::Show("Check for pending restart and reboot if needed? This will close all apps.", "Confirm Restart", "YesNo", "Question") -eq "Yes") {
+            try {
+                # Use existing pending restart check
+                Get-PendingRestartStatus
+                if ($global:PendingRestart) {
+                    Write-Log "Triggered restart via local BigFix check" -Level "INFO"
+                    Restart-Computer -Force
+                } else {
+                    [System.Windows.MessageBox]::Show("No restart needed at this time.", "Status", "OK", "Information")
+                }
+            } catch {
+                Handle-Error $_.Exception.Message -Source "TriggerRestart"
+            }
+        }
     })
 
     $window.Add_Closing({
@@ -734,20 +772,26 @@ function Perform-AutoUpdate {
         try {
             $batchContent = @"
 @echo off
+echo Batch started %date% %time% >> "%PSScriptRoot%\batch_log.txt"
 timeout /t 5 /nobreak >nul
 set /a attempts=0
 :retry
 set /a attempts+=1
-move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1"
+echo Attempt %attempts% to move >> "%PSScriptRoot%\batch_log.txt"
+move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 (
   if %attempts% GEQ 5 goto fail
   timeout /t 2 /nobreak >nul
   goto retry
 )
-powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1"
+echo Move succeeded >> "%PSScriptRoot%\batch_log.txt"
+echo Starting powershell >> "%PSScriptRoot%\batch_log.txt"
+powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
+if ERRORLEVEL 1 echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
+echo Relaunch complete >> "%PSScriptRoot%\batch_log.txt"
 start /b "" cmd /c del "%~f0" & exit
 :fail
-echo Failed to update after 5 attempts >> "$PSScriptRoot\update_error.log"
+echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
 "@
             $batchContent | Out-File $batchPath -Encoding ascii -Force
             if (-not (Test-Path $batchPath)) {
