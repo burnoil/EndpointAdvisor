@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.9 (Added startup cleanup and improved batch retries)
+# Version 4.3.10 (Added user-selectable update intervals via tray menu)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.9"
+$ScriptVersion = "4.3.10"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -20,9 +20,6 @@ $global:PendingRestart = $false
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
 $global:CachedCertificateStatus = $null
-
-# Global flag for update in progress
-$global:IsUpdating = $false
 
 # ============================================================
 # A) Advanced Logging & Error Handling
@@ -824,9 +821,39 @@ function Initialize-TrayIcon {
         $global:TrayIcon.Visible = $true
 
         $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
+        
+        # Submenu for Set Update Interval
+        $intervalSubMenu = New-Object System.Windows.Forms.ToolStripMenuItem("Set Update Interval")
+        $tenMin = New-Object System.Windows.Forms.ToolStripMenuItem("10 minutes", $null, { 
+            $config.RefreshInterval = 600
+            Save-Configuration -Config $config
+            $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds(600)
+            $global:DispatcherTimer.Stop()
+            $global:DispatcherTimer.Start()
+            Write-Log "Update interval set to 10 minutes" -Level "INFO"
+        })
+        $fifteenMin = New-Object System.Windows.Forms.ToolStripMenuItem("15 minutes", $null, { 
+            $config.RefreshInterval = 900
+            Save-Configuration -Config $config
+            $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds(900)
+            $global:DispatcherTimer.Stop()
+            $global:DispatcherTimer.Start()
+            Write-Log "Update interval set to 15 minutes" -Level "INFO"
+        })
+        $twentyMin = New-Object System.Windows.Forms.ToolStripMenuItem("20 minutes", $null, { 
+            $config.RefreshInterval = 1200
+            Save-Configuration -Config $config
+            $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds(1200)
+            $global:DispatcherTimer.Stop()
+            $global:DispatcherTimer.Start()
+            Write-Log "Update interval set to 20 minutes" -Level "INFO"
+        })
+        $intervalSubMenu.DropDownItems.AddRange(@($tenMin, $fifteenMin, $twentyMin))
+
         $ContextMenuStrip.Items.AddRange(@(
             (New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard", $null, { Toggle-WindowVisibility })),
             (New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now", $null, { Main-UpdateCycle -ForceCertificateCheck $true })),
+            $intervalSubMenu,
             (New-Object System.Windows.Forms.ToolStripMenuItem("Exit", $null, { $window.Dispatcher.InvokeShutdown() }))
         ))
         $global:TrayIcon.ContextMenuStrip = $ContextMenuStrip
