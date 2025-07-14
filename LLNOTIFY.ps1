@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.20 (Added local BigFix self-service buttons: Scan Local Updates and Check & Restart)
+# Version 4.3.21 (Fixed XAML parsing error with copyright entity)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.20"
+$ScriptVersion = "4.3.21"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -358,7 +358,7 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <TextBlock x:Name="FooterText" Grid.Column="0" Text="&#169; 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
@@ -397,7 +397,7 @@ try {
     }
     Write-Log "UI elements mapped to variables." -Level "INFO"
 
-    $global:FooterText.Text = "$([char]0xA9) 2025 Lincoln Laboratory v$ScriptVersion"
+    $global:FooterText.Text = "&#169; 2025 Lincoln Laboratory v$ScriptVersion"
 
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
