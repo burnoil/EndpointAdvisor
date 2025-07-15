@@ -1,1 +1,23 @@
+ // Download the package
+prefetch LLNOTIFY.zip sha1:YOUR_ZIP_SHA1 size:YOUR_ZIP_SIZE http://your-server/LLNOTIFY.zip
 
+// Extract to __Download (BigFix's temp folder)
+extract LLNOTIFY.zip
+
+// Create target dir if not exists
+waithidden cmd.exe /c if not exist "C:\LLNOTIFY" mkdir "C:\LLNOTIFY"
+
+// Move extracted files (adjust if your zip has a subfolder, e.g., move __Download\LLNOTIFY\* "C:\LLNOTIFY")
+move __Download\LLNOTIFY.ps1 "C:\LLNOTIFY\LLNOTIFY.ps1"
+move __Download\LL_LOGO.ico "C:\LLNOTIFY\LL_LOGO.ico"
+move __Download\LL_LOGO_MSG.ico "C:\LLNOTIFY\LL_LOGO_MSG.ico"
+// Add more moves for config.json or other files as needed
+
+// Set execution policy if needed (bypass for this script)
+waithidden powershell.exe -Command "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force"
+
+// Create Task Scheduler task to run at logon
+waithidden schtasks /create /tn "LLNOTIFY" /tr "powershell.exe -ExecutionPolicy Bypass -File C:\LLNOTIFY\LLNOTIFY.ps1" /sc onlogon /rl highest /f
+
+// Optional: Run once immediately for testing
+waithidden powershell.exe -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
