@@ -1,28 +1,16 @@
-// 1) Create LLNotify install folder
-waithidden mkdir "C:\Program Files\LLNotify"
+// Step 1: Create scheduled task registration script
+createfile until EOF
+$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"C:\LLNOTIFY\LLNOTIFY.ps1`""
+$Trigger = New-ScheduledTaskTrigger -AtLogOn
+$Principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" -LogonType Interactive -RunLevel LeastPrivilege
+Register-ScheduledTask -TaskName "LLNotifyLogonTask" -Action $Action -Trigger $Trigger -Principal $Principal -Force
+EOF
 
-// 2) Copy application files
-copy __Download\LLNOTIFY.ps1      "C:\Program Files\LLNotify\LLNOTIFY.ps1"
-copy __Download\LL_LOGO.ico       "C:\Program Files\LLNotify\LL_LOGO.ico"
-copy __Download\LL_LOGO_MSG.ico   "C:\Program Files\LLNotify\LL_LOGO_MSG.ico"
+// Step 2: Save it to disk
+move __createfile C:\LLNOTIFY\Register_LLNotify_Task.ps1
 
-// 3) Write a shortcut-creation script to a temp file
-delete __Download\CreateShortcut.ps1
-createfile until __EOF__
-$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut([Environment]::GetFolderPath("Startup") + "\LLNotify.lnk")
-$Shortcut.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-$Shortcut.Arguments = "-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File `"C:\Program Files\LLNotify\LLNOTIFY.ps1`""
-$Shortcut.IconLocation = "C:\Program Files\LLNotify\LL_LOGO.ico"
-$Shortcut.Save()
-__EOF__
-
-move __createfile __Download\CreateShortcut.ps1
-
-// 4) Run that PowerShell shortcut creation script as current user
-override runas=currentuser
-run powershell.exe -NoProfile -ExecutionPolicy Bypass -File "__Download\CreateShortcut.ps1"
-
-// 5) Launch LLNOTIFY.ps1 now as current user
-override runas=currentuser
-run powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Program Files\LLNotify\LLNOTIFY.ps1"
+// Step 3: Run it as the current user
+override wait
+hidden=true
+runas=currentuser
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\LLNOTIFY\Register_LLNotify_Task.ps1"
