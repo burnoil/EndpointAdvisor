@@ -1,16 +1,17 @@
-// Step 1: Create scheduled task registration script
-createfile until EOF
-$Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File `"C:\LLNOTIFY\LLNOTIFY.ps1`""
-$Trigger = New-ScheduledTaskTrigger -AtLogOn
-$Principal = New-ScheduledTaskPrincipal -UserId "$env:USERNAME" -LogonType Interactive -RunLevel LeastPrivilege
-Register-ScheduledTask -TaskName "LLNotifyLogonTask" -Action $Action -Trigger $Trigger -Principal $Principal -Force
-EOF
-
-// Step 2: Save it to disk
-move __createfile C:\LLNOTIFY\Register_LLNotify_Task.ps1
-
-// Step 3: Run it as the current user
+// Step 1: Delete existing task to ensure clean state
 override wait
 hidden=true
 runas=currentuser
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\LLNOTIFY\Register_LLNotify_Task.ps1"
+wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
+
+// Step 2: Create the scheduled task to run at user logon (hidden)
+override wait
+hidden=true
+runas=currentuser
+wait schtasks /Create /TN "LLNotifyLogonTask" /TR "powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -WindowStyle Hidden -File \"C:\LLNOTIFY\LLNOTIFY.ps1\"" /SC ONLOGON /RL LIMITED /F
+
+// Step 3: Immediately run the PowerShell script once
+override wait
+hidden=true
+runas=currentuser
+wait powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -WindowStyle Hidden -File "C:\LLNOTIFY\LLNOTIFY.ps1"
