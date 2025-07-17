@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.25 (Reverted to pre-BigFix integration state)
+# Version 4.3.26 (Added balloon tip for tray icon visibility reminder)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.25"
+$ScriptVersion = "4.3.26"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -393,7 +393,7 @@ try {
     }
     Write-Log "UI elements mapped to variables." -Level "INFO"
 
-    $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion"
+    $global:FooterText.Text = "$([char]169) 2025 Lincoln Laboratory v$ScriptVersion"
 
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
@@ -837,6 +837,7 @@ function Initialize-TrayIcon {
         $global:TrayIcon.Icon = $global:MainIcon
         $global:TrayIcon.Text = "Lincoln Laboratory LLNOTIFY v$ScriptVersion"
         $global:TrayIcon.Visible = $true
+        $global:TrayIcon.ShowBalloonTip(10000, "Lincoln Lab Notify", "To always see this icon, drag it to your taskbar.", [System.Windows.Forms.ToolTipIcon]::Info)
 
         $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
         
