@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.26 (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
+# Version 4.3.26t (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
