@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.27 (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
+# Version 4.3.27 (Removed auto-update functionality)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -166,82 +166,6 @@ function Get-DefaultConfig {
         VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
     }
 }
-
-# --- Version-Based Auto-Update Check with Logging & Robust Launch ---
-$config = Get-DefaultConfig
-$remoteVersionUrl = $config.VersionUrl
-$scriptDownloadUrl = $config.ScriptUrl
-$localVersion = [version]$config.Version
-$remoteScriptPath = "$env:TEMP\LLNOTIFY_tmp.ps1"
-$updateScriptPath = $PSCommandPath
-$batPath = Join-Path (Split-Path $updateScriptPath) "update.bat"
-
-try {
-    Write-Host "Checking for version update from: $remoteVersionUrl"
-    $remoteVersionText = Invoke-WebRequest -Uri $remoteVersionUrl -UseBasicParsing | Select-Object -ExpandProperty Content
-    $remoteVersion = [version]$remoteVersionText.Trim()
-
-    Write-Host "Local version: $localVersion | Remote version: $remoteVersion"
-
-    if ($remoteVersion -gt $localVersion) {
-        Write-Host "New script version available: $remoteVersion"
-        Write-Host "Downloading new script from: $scriptDownloadUrl"
-        Invoke-WebRequest -Uri $scriptDownloadUrl -OutFile $remoteScriptPath -UseBasicParsing
-
-        if (-not (Test-Path $remoteScriptPath) -or (Get-Item $remoteScriptPath).Length -lt 1000) {
-            Write-Host "Download failed or incomplete. File missing or too small."
-            return
-        }
-
-        Write-Host "Preparing update.bat..."
-
-        $batContent = @"
-@echo off
-set LOGFILE=C:\LLNOTIFY2\update.log
-echo [%DATE% %TIME%] Starting update >> %%LOGFILE%%
-timeout /t 2 >nul
-
-echo [%DATE% %TIME%] Copying new script... >> %%LOGFILE%%
-if not exist "%%TEMP%%\LLNOTIFY_tmp.ps1" (
-    echo [%DATE% %TIME%] ERROR: Temp script not found. >> %%LOGFILE%%
-    exit /b 1
-)
-
-copy /Y "%%TEMP%%\LLNOTIFY_tmp.ps1" "$updateScriptPath" >> %%LOGFILE%% 2>&1
-if %%ERRORLEVEL%% NEQ 0 (
-    echo [%DATE% %TIME%] ERROR: Failed to copy updated script. >> %%LOGFILE%%
-    exit /b 1
-)
-
-echo [%DATE% %TIME%] Launching updated script... >> %%LOGFILE%%
-powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "$updateScriptPath" >> %%LOGFILE%% 2>&1
-
-echo [%DATE% %TIME%] Update complete. >> %%LOGFILE%%
-exit
-"@
-
-        # Remove existing bat if present
-        if (Test-Path $batPath) { Remove-Item $batPath -Force }
-        Set-Content -Path $batPath -Value $batContent -Encoding ASCII
-        Write-Host "Created update.bat at $batPath"
-
-        # Use cmd.exe to launch the batch file hidden
-        Start-Process -FilePath "cmd.exe" `
-            -ArgumentList "/c `"$batPath`"" `
-            -WorkingDirectory (Split-Path $batPath) `
-            -WindowStyle Hidden
-        Write-Host "Auto-update initiated. Exiting current instance."
-        Start-Sleep -Seconds 1
-        exit
-    } else {
-        Write-Host "Script is up to date: $localVersion"
-    }
-}
-catch {
-    Write-Host "Auto-update check failed: $_"
-}
-# --- End Version-Based Auto-Update Check ---
-
 
 function Load-Configuration {
     param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json"))
@@ -811,14 +735,14 @@ function Perform-AutoUpdate {
             $batchContent = @"
 @echo off
 echo Batch started %date% %time% >> "%PSScriptRoot%\batch_log.txt"
-timeout /t 10 /nobreak >nul
+timeout /t 5 /nobreak >nul
 set /a attempts=0
 :retry
 set /a attempts+=1
 echo Attempt %attempts% to move >> "%PSScriptRoot%\batch_log.txt"
 move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 (
-  if %attempts% GEQ 10 goto fail
+  if %attempts% GEQ 5 goto fail
   timeout /t 2 /nobreak >nul
   goto retry
 )
@@ -827,10 +751,9 @@ echo Starting powershell >> "%PSScriptRoot%\batch_log.txt"
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
 echo Relaunch complete >> "%PSScriptRoot%\batch_log.txt"
-del "$newScriptPath"  # Cleanup leftover new.ps1 if any
 start /b "" cmd /c del "%~f0" & exit
 :fail
-echo Failed to update after 10 attempts >> "%PSScriptRoot%\update_error.log"
+echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
 "@
             $batchContent | Out-File $batchPath -Encoding ascii -Force
             if (-not (Test-Path $batchPath)) {
