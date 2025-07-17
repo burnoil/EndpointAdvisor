@@ -1,31 +1,30 @@
-// Ensure 64‑bit context if needed
 action uses wow64 redirection {not x64 of operating system}
 
-// 1. Download the latest script
-download https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1 sha1:<INSERT_SHA1_HERE>
-
-// 2. Create folder if it doesn’t exist
+// 1. Ensure the target folder exists
 waithidden if not exist "C:\LLNOTIFY" mkdir "C:\LLNOTIFY"
 
-// 3. Move it into place
-move __download\LLNOTIFY.ps1 "C:\LLNOTIFY\LLNOTIFY.ps1"
+// 2. Download the latest LLNOTIFY.ps1 via PowerShell (no hash needed)
+override wait hidden=true runas=currentuser
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command ^
+"try {
+    Invoke-WebRequest `
+      -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1' `
+      -OutFile 'C:\LLNOTIFY\LLNOTIFY.ps1' `
+      -UseBasicParsing
+} catch {
+    Write-Error 'LLNOTIFY download failed'; exit 1
+}"
 
-// 4. Remove any existing task to ensure a clean slate
-override wait
-hidden=true
-runas=currentuser
+// 3. Remove any existing scheduled task
+override wait hidden=true runas=currentuser
 wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
 
-// 5. Create the scheduled task that runs at user logon (hidden)
-override wait
-hidden=true
-runas=currentuser
+// 4. Create the logon task (hidden)
+override wait hidden=true runas=currentuser
 wait schtasks /Create /TN "LLNotifyLogonTask" ^
-    /TR "\"powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -WindowStyle Hidden -File C:\LLNOTIFY\LLNOTIFY.ps1\"" ^
+    /TR "\"powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File C:\LLNOTIFY\LLNOTIFY.ps1\"" ^
     /SC ONLOGON /RL LIMITED /F
 
-// 6. Run the script immediately once as the user
-override wait
-hidden=true
-runas=currentuser
-wait powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -WindowStyle Hidden -File "C:\LLNOTIFY\LLNOTIFY.ps1"
+// 5. Run it immediately once
+override wait hidden=true runas=currentuser
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\LLNOTIFY\LLNOTIFY.ps1"
