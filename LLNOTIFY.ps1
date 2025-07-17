@@ -167,7 +167,7 @@ function Get-DefaultConfig {
     }
 }
 
-# --- Version-Based Auto-Update Check with Logging ---
+# --- Version-Based Auto-Update Check with Logging & Robust Launch ---
 $config = Get-DefaultConfig
 $remoteVersionUrl = $config.VersionUrl
 $scriptDownloadUrl = $config.ScriptUrl
@@ -196,7 +196,6 @@ try {
         Write-Host "Preparing update.bat..."
 
         $batContent = @"
-
 @echo off
 set LOGFILE=C:\LLNOTIFY2\update.log
 echo [%DATE% %TIME%] Starting update >> %%LOGFILE%%
@@ -208,24 +207,29 @@ if not exist "%%TEMP%%\LLNOTIFY_tmp.ps1" (
     exit /b 1
 )
 
-copy /Y "%%TEMP%%\LLNOTIFY_tmp.ps1" "C:\LLNOTIFY2\LLNOTIFY.ps1" >> %%LOGFILE%% 2>&1
+copy /Y "%%TEMP%%\LLNOTIFY_tmp.ps1" "$updateScriptPath" >> %%LOGFILE%% 2>&1
 if %%ERRORLEVEL%% NEQ 0 (
     echo [%DATE% %TIME%] ERROR: Failed to copy updated script. >> %%LOGFILE%%
     exit /b 1
 )
 
 echo [%DATE% %TIME%] Launching updated script... >> %%LOGFILE%%
-powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY2\LLNOTIFY.ps1" >> %%LOGFILE%% 2>&1
+powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "$updateScriptPath" >> %%LOGFILE%% 2>&1
 
 echo [%DATE% %TIME%] Update complete. >> %%LOGFILE%%
 exit
-
 "@
+
+        # Remove existing bat if present
         if (Test-Path $batPath) { Remove-Item $batPath -Force }
         Set-Content -Path $batPath -Value $batContent -Encoding ASCII
         Write-Host "Created update.bat at $batPath"
 
-        Start-Process -FilePath $batPath
+        # Use cmd.exe to launch the batch file hidden
+        Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c `"$batPath`"" `
+            -WorkingDirectory (Split-Path $batPath) `
+            -WindowStyle Hidden
         Write-Host "Auto-update initiated. Exiting current instance."
         Start-Sleep -Seconds 1
         exit
