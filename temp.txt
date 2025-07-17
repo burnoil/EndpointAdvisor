@@ -1,16 +1,30 @@
-// Step 1: Delete existing task to ensure clean state
+// Ensure 64‑bit context if needed
+action uses wow64 redirection {not x64 of operating system}
+
+// 1. Download the latest script
+download https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1 sha1:<INSERT_SHA1_HERE>
+
+// 2. Create folder if it doesn’t exist
+waithidden if not exist "C:\LLNOTIFY" mkdir "C:\LLNOTIFY"
+
+// 3. Move it into place
+move __download\LLNOTIFY.ps1 "C:\LLNOTIFY\LLNOTIFY.ps1"
+
+// 4. Remove any existing task to ensure a clean slate
 override wait
 hidden=true
 runas=currentuser
 wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
 
-// Step 2: Create the scheduled task to run at user logon (hidden)
+// 5. Create the scheduled task that runs at user logon (hidden)
 override wait
 hidden=true
 runas=currentuser
-wait schtasks /Create /TN "LLNotifyLogonTask" /TR "powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -WindowStyle Hidden -File \"C:\LLNOTIFY\LLNOTIFY.ps1\"" /SC ONLOGON /RL LIMITED /F
+wait schtasks /Create /TN "LLNotifyLogonTask" ^
+    /TR "\"powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -WindowStyle Hidden -File C:\LLNOTIFY\LLNOTIFY.ps1\"" ^
+    /SC ONLOGON /RL LIMITED /F
 
-// Step 3: Immediately run the PowerShell script once
+// 6. Run the script immediately once as the user
 override wait
 hidden=true
 runas=currentuser
