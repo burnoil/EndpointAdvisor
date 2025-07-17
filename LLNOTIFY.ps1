@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.27t (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
+# Version 4.3.28t (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.27"
+$ScriptVersion = "4.3.28"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -166,6 +166,32 @@ function Get-DefaultConfig {
         VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
     }
 }
+
+# --- Auto-Update Check ---
+$config = Get-DefaultConfig
+$updateURL = $config.ScriptUrl
+$remoteScriptPath = "$env:TEMP\LLNOTIFY_tmp.ps1"
+
+try {
+    Invoke-WebRequest -Uri $updateURL -OutFile $remoteScriptPath -UseBasicParsing
+
+    $localHash = Get-FileHash $PSCommandPath -Algorithm SHA256
+    $remoteHash = Get-FileHash $remoteScriptPath -Algorithm SHA256
+
+    if ($remoteHash.Hash -ne $localHash.Hash) {
+        Write-Host "Updating script..."
+        Copy-Item -Path $remoteScriptPath -Destination $PSCommandPath -Force
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`""
+        exit
+    } else {
+        Remove-Item $remoteScriptPath -Force
+    }
+}
+catch {
+    Write-Host "Auto-update check failed: $_"
+}
+# --- End Auto-Update Check ---
+
 
 function Load-Configuration {
     param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json"))
