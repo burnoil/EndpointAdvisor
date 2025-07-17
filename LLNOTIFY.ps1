@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.26 (Added balloon tip for tray icon visibility reminder)
+# Version 4.3.27t (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.26"
+$ScriptVersion = "4.3.27"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -735,14 +735,14 @@ function Perform-AutoUpdate {
             $batchContent = @"
 @echo off
 echo Batch started %date% %time% >> "%PSScriptRoot%\batch_log.txt"
-timeout /t 5 /nobreak >nul
+timeout /t 10 /nobreak >nul
 set /a attempts=0
 :retry
 set /a attempts+=1
 echo Attempt %attempts% to move >> "%PSScriptRoot%\batch_log.txt"
 move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 (
-  if %attempts% GEQ 5 goto fail
+  if %attempts% GEQ 10 goto fail
   timeout /t 2 /nobreak >nul
   goto retry
 )
@@ -751,9 +751,10 @@ echo Starting powershell >> "%PSScriptRoot%\batch_log.txt"
 powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
 echo Relaunch complete >> "%PSScriptRoot%\batch_log.txt"
+del "$newScriptPath"  # Cleanup leftover new.ps1 if any
 start /b "" cmd /c del "%~f0" & exit
 :fail
-echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
+echo Failed to update after 10 attempts >> "%PSScriptRoot%\update_error.log"
 "@
             $batchContent | Out-File $batchPath -Encoding ascii -Force
             if (-not (Test-Path $batchPath)) {
@@ -837,7 +838,6 @@ function Initialize-TrayIcon {
         $global:TrayIcon.Icon = $global:MainIcon
         $global:TrayIcon.Text = "Lincoln Laboratory LLNOTIFY v$ScriptVersion"
         $global:TrayIcon.Visible = $true
-        $global:TrayIcon.ShowBalloonTip(10000, "Lincoln Lab Notify", "To always see this icon, drag it to your taskbar.", [System.Windows.Forms.ToolTipIcon]::Info)
 
         $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
         
