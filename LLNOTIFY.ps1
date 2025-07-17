@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.27t2 (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
+# Version 4.3.27 (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.28"
+$ScriptVersion = "4.3.27"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -167,45 +167,76 @@ function Get-DefaultConfig {
     }
 }
 
-# --- Auto-Update Check ---
+# --- Version-Based Auto-Update Check with Logging ---
 $config = Get-DefaultConfig
-$updateURL = $config.ScriptUrl
+$remoteVersionUrl = $config.VersionUrl
+$scriptDownloadUrl = $config.ScriptUrl
+$localVersion = [version]$config.Version
 $remoteScriptPath = "$env:TEMP\LLNOTIFY_tmp.ps1"
 $updateScriptPath = $PSCommandPath
 $batPath = Join-Path (Split-Path $updateScriptPath) "update.bat"
 
 try {
-    Invoke-WebRequest -Uri $updateURL -OutFile $remoteScriptPath -UseBasicParsing
+    Write-Host "Checking for version update from: $remoteVersionUrl"
+    $remoteVersionText = Invoke-WebRequest -Uri $remoteVersionUrl -UseBasicParsing | Select-Object -ExpandProperty Content
+    $remoteVersion = [version]$remoteVersionText.Trim()
 
-    $localHash = Get-FileHash $updateScriptPath -Algorithm SHA256
-    $remoteHash = Get-FileHash $remoteScriptPath -Algorithm SHA256
+    Write-Host "Local version: $localVersion | Remote version: $remoteVersion"
 
-    if ($remoteHash.Hash -ne $localHash.Hash) {
-        Write-Host "New version detected. Preparing update..."
+    if ($remoteVersion -gt $localVersion) {
+        Write-Host "New script version available: $remoteVersion"
+        Write-Host "Downloading new script from: $scriptDownloadUrl"
+        Invoke-WebRequest -Uri $scriptDownloadUrl -OutFile $remoteScriptPath -UseBasicParsing
 
-        # Create update.bat to replace and restart the script
+        if (-not (Test-Path $remoteScriptPath) -or (Get-Item $remoteScriptPath).Length -lt 1000) {
+            Write-Host "Download failed or incomplete. File missing or too small."
+            return
+        }
+
+        Write-Host "Preparing update.bat..."
+
         $batContent = @"
+
 @echo off
+set LOGFILE=C:\LLNOTIFY2\update.log
+echo [%DATE% %TIME%] Starting update >> %%LOGFILE%%
 timeout /t 2 >nul
-copy /Y "%TEMP%\LLNOTIFY_tmp.ps1" "$updateScriptPath"
-start "" powershell.exe -ExecutionPolicy Bypass -File "$updateScriptPath"
+
+echo [%DATE% %TIME%] Copying new script... >> %%LOGFILE%%
+if not exist "%%TEMP%%\LLNOTIFY_tmp.ps1" (
+    echo [%DATE% %TIME%] ERROR: Temp script not found. >> %%LOGFILE%%
+    exit /b 1
+)
+
+copy /Y "%%TEMP%%\LLNOTIFY_tmp.ps1" "C:\LLNOTIFY2\LLNOTIFY.ps1" >> %%LOGFILE%% 2>&1
+if %%ERRORLEVEL%% NEQ 0 (
+    echo [%DATE% %TIME%] ERROR: Failed to copy updated script. >> %%LOGFILE%%
+    exit /b 1
+)
+
+echo [%DATE% %TIME%] Launching updated script... >> %%LOGFILE%%
+powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY2\LLNOTIFY.ps1" >> %%LOGFILE%% 2>&1
+
+echo [%DATE% %TIME%] Update complete. >> %%LOGFILE%%
 exit
+
 "@
+        if (Test-Path $batPath) { Remove-Item $batPath -Force }
         Set-Content -Path $batPath -Value $batContent -Encoding ASCII
-        Write-Host "Created new update.bat at $batPath"
+        Write-Host "Created update.bat at $batPath"
 
         Start-Process -FilePath $batPath
         Write-Host "Auto-update initiated. Exiting current instance."
         Start-Sleep -Seconds 1
         exit
     } else {
-        Remove-Item $remoteScriptPath -Force
+        Write-Host "Script is up to date: $localVersion"
     }
 }
 catch {
     Write-Host "Auto-update check failed: $_"
 }
-# --- End Auto-Update Check ---
+# --- End Version-Based Auto-Update Check ---
 
 
 function Load-Configuration {
