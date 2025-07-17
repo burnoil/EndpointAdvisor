@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.28t (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
+# Version 4.3.26 (Enhanced auto-update cleanup and logging; increased batch timeouts/retries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.28"
+$ScriptVersion = "4.3.26"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -171,17 +171,32 @@ function Get-DefaultConfig {
 $config = Get-DefaultConfig
 $updateURL = $config.ScriptUrl
 $remoteScriptPath = "$env:TEMP\LLNOTIFY_tmp.ps1"
+$updateScriptPath = $PSCommandPath
+$batPath = Join-Path (Split-Path $updateScriptPath) "update.bat"
 
 try {
     Invoke-WebRequest -Uri $updateURL -OutFile $remoteScriptPath -UseBasicParsing
 
-    $localHash = Get-FileHash $PSCommandPath -Algorithm SHA256
+    $localHash = Get-FileHash $updateScriptPath -Algorithm SHA256
     $remoteHash = Get-FileHash $remoteScriptPath -Algorithm SHA256
 
     if ($remoteHash.Hash -ne $localHash.Hash) {
-        Write-Host "Updating script..."
-        Copy-Item -Path $remoteScriptPath -Destination $PSCommandPath -Force
-        Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`""
+        Write-Host "New version detected. Preparing update..."
+
+        # Create update.bat to replace and restart the script
+        $batContent = @"
+@echo off
+timeout /t 2 >nul
+copy /Y "%TEMP%\LLNOTIFY_tmp.ps1" "$updateScriptPath"
+start "" powershell.exe -ExecutionPolicy Bypass -File "$updateScriptPath"
+exit
+"@
+        Set-Content -Path $batPath -Value $batContent -Encoding ASCII
+        Write-Host "Created new update.bat at $batPath"
+
+        Start-Process -FilePath $batPath
+        Write-Host "Auto-update initiated. Exiting current instance."
+        Start-Sleep -Seconds 1
         exit
     } else {
         Remove-Item $remoteScriptPath -Force
