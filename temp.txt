@@ -1,30 +1,20 @@
 action uses wow64 redirection {not x64 of operating system}
 
-// 1. Ensure the target folder exists
+// 1. Ensure target folder exists
 waithidden if not exist "C:\LLNOTIFY" mkdir "C:\LLNOTIFY"
 
-// 2. Download the latest LLNOTIFY.ps1 via PowerShell (no hash needed)
+// 2. Download the latest script and icons in one line
 override wait hidden=true runas=currentuser
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command ^
-"try {
-    Invoke-WebRequest `
-      -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1' `
-      -OutFile 'C:\LLNOTIFY\LLNOTIFY.ps1' `
-      -UseBasicParsing
-} catch {
-    Write-Error 'LLNOTIFY download failed'; exit 1
-}"
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command "try { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1' -OutFile 'C:\LLNOTIFY\LLNOTIFY.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico' -OutFile 'C:\LLNOTIFY\LL_LOGO.ico'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico' -OutFile 'C:\LLNOTIFY\LL_LOGO_MSG.ico'; } catch { Write-Error 'Download failed'; exit 1 }"
 
-// 3. Remove any existing scheduled task
+// 3. Remove any existing task
 override wait hidden=true runas=currentuser
 wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
 
 // 4. Create the logon task (hidden)
 override wait hidden=true runas=currentuser
-wait schtasks /Create /TN "LLNotifyLogonTask" ^
-    /TR "\"powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File C:\LLNOTIFY\LLNOTIFY.ps1\"" ^
-    /SC ONLOGON /RL LIMITED /F
+wait schtasks /Create /TN "LLNotifyLogonTask" /TR "\"powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File C:\LLNOTIFY\LLNOTIFY.ps1\"" /SC ONLOGON /RL LIMITED /F
 
-// 5. Run it immediately once
+// 5. Run the script immediately once as the user
 override wait hidden=true runas=currentuser
 wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\LLNOTIFY\LLNOTIFY.ps1"
