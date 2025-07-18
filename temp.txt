@@ -31,7 +31,9 @@ delete "C:\LLNOTIFY\download_LLNOTIFY.bat"
 Register per‑user Run key (hidden PowerShell)
 override wait hidden=true runas=currentuser
 override wait hidden=true
-wait reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLNotify" /t REG_SZ /d "\"C:\Windows\System32\conhost.exe\" --headless \"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\LLNOTIFY\LLNOTIFY.ps1\"" /f
+override wait hidden=true
+wait reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLNotify" /t REG_SZ /d "\"C:\Windows\System32\conhost.exe\" --headless \"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\LLNOTIFY\LLNOTIFY.ps1\" -RunMode LLNOTIFY\"" /f
+
 
 
 // 8. Immediately invoke the (signed) script once
