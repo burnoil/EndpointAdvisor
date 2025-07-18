@@ -1,20 +1,51 @@
 action uses wow64 redirection {not x64 of operating system}
 
-// 1. Ensure target folder exists
+// 1. Ensure the folder exists
 waithidden if not exist "C:\LLNOTIFY" mkdir "C:\LLNOTIFY"
 
-// 2. Download the latest script and icons in one line
-override wait hidden=true runas=currentuser
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -Command "try { Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1' -OutFile 'C:\LLNOTIFY\LLNOTIFY.ps1'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico' -OutFile 'C:\LLNOTIFY\LL_LOGO.ico'; Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico' -OutFile 'C:\LLNOTIFY\LL_LOGO_MSG.ico'; } catch { Write-Error 'Download failed'; exit 1 }"
+// 2. Build the downloader script
+delete __createfile
+createfile until END_OF_PS1
+try {
+    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1' `
+        -OutFile 'C:\LLNOTIFY\LLNOTIFY.ps1' -UseBasicParsing
+    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico' `
+        -OutFile 'C:\LLNOTIFY\LL_LOGO.ico' -UseBasicParsing
+    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico' `
+        -OutFile 'C:\LLNOTIFY\LL_LOGO_MSG.ico' -UseBasicParsing
+} catch {
+    exit 1
+}
+END_OF_PS1
 
-// 3. Remove any existing task
-override wait hidden=true runas=currentuser
+// 3. Drop the .ps1 into place
+move __createfile C:\LLNOTIFY\download_LLNOTIFY.ps1
+
+// 4. Run it as the user, hidden
+override wait
+hidden=true
+runas=currentuser
+wait powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\download_LLNOTIFY.ps1"
+
+// 5. (Optional) delete the downloader script
+// delete C:\LLNOTIFY\download_LLNOTIFY.ps1
+
+// 6. Remove any existing logon task
+override wait
+hidden=true
+runas=currentuser
 wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
 
-// 4. Create the logon task (hidden)
-override wait hidden=true runas=currentuser
-wait schtasks /Create /TN "LLNotifyLogonTask" /TR "\"powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File C:\LLNOTIFY\LLNOTIFY.ps1\"" /SC ONLOGON /RL LIMITED /F
+// 7. Create the hidden logon task
+override wait
+hidden=true
+runas=currentuser
+wait schtasks /Create /TN "LLNotifyLogonTask" ^
+    /TR "\"powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\LLNOTIFY\LLNOTIFY.ps1\"" ^
+    /SC ONLOGON /RL LIMITED /F
 
-// 5. Run the script immediately once as the user
-override wait hidden=true runas=currentuser
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -WindowStyle Hidden -File "C:\LLNOTIFY\LLNOTIFY.ps1"
+// 8. Immediately run the updated script once
+override wait
+hidden=true
+runas=currentuser
+wait powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
