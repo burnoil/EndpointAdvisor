@@ -36,12 +36,12 @@ wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
 
 // 7. Create the hidden "Run at Logon" task
 override wait
-hidden=true
-runas=currentuser
+hidden=true 
+runas=currentuser  
 wait schtasks /Create /TN "LLNotifyLogonTask" /TR "\"powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\LLNOTIFY\LLNOTIFY.ps1\"" /SC ONLOGON /RL LIMITED /F
 
 // 8. Immediately invoke the (signed) script once
 override wait
 hidden=true
-runas=currentuser
-wait powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
+runas=currentuser  
+wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
