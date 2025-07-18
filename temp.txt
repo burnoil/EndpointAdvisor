@@ -10,7 +10,7 @@ createfile until END_OF_BATCH
 REM — download the signed script and icons
 certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1 C:\LLNOTIFY\LLNOTIFY.ps1
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico    C:\LLNOTIFY\LL_LOGO.ico
+certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico C:\LLNOTIFY\LL_LOGO.ico
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico C:\LLNOTIFY\LL_LOGO_MSG.ico
 exit /b 0
@@ -34,13 +34,11 @@ hidden=true
 runas=currentuser
 wait schtasks /Delete /TN "LLNotifyLogonTask" /F >nul 2>&1
 
-// 7. Create the hidden “Run at Logon” task
+// 7. Create the hidden "Run at Logon" task
 override wait
 hidden=true
 runas=currentuser
-wait schtasks /Create /TN "LLNotifyLogonTask" ^
-    /TR "\"powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\LLNOTIFY\LLNOTIFY.ps1\"" ^
-    /SC ONLOGON /RL LIMITED /F
+wait schtasks /Create /TN "LLNotifyLogonTask" /TR "\"powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\LLNOTIFY\LLNOTIFY.ps1\"" /SC ONLOGON /RL LIMITED /F
 
 // 8. Immediately invoke the (signed) script once
 override wait
