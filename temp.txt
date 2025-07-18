@@ -37,3 +37,10 @@ override wait
 hidden=true
 runas=currentuser  
 wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
+
+REMOVAL
+override wait
+hidden=true
+runas=currentuser
+wait reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLNotify" /f
+
