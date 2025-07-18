@@ -41,12 +41,17 @@ runas=currentuser
 wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
 
 REMOVAL
-// Run as SYSTEM or elevated
+action uses wow64 redirection {not x64 of operating system}
+
+// 1) Kill any running LLNotify processes via WMIC
 override wait hidden=true
 wait cmd.exe /C wmic process where "CommandLine like '%LLNOTIFY.ps1%'" call terminate
 
-override wait
-hidden=true
-runas=currentuser
-wait reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLNotify" /f
+// 2) Remove the All Users Run registry entry
+override wait hidden=true
+wait reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLNotify" /f
+
+// 3) Delete the LLNOTIFY folder and all contents
+override wait hidden=true
+waithidden cmd.exe /C rmdir /S /Q "C:\LLNOTIFY"
 
