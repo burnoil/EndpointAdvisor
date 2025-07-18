@@ -41,6 +41,10 @@ runas=currentuser
 wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\LLNOTIFY\LLNOTIFY.ps1"
 
 REMOVAL
+// Run as SYSTEM or elevated
+override wait hidden=true
+wait cmd.exe /C wmic process where "CommandLine like '%LLNOTIFY.ps1%'" call terminate
+
 override wait
 hidden=true
 runas=currentuser
