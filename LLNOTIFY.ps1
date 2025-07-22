@@ -471,6 +471,13 @@ function Validate-ContentData {
 }
 
 function Fetch-ContentData {
+    # Guard: ensure ContentDataUrl is set
+    if (-not $config -or [string]::IsNullOrWhiteSpace($config.ContentDataUrl)) {
+        Write-Log "ContentDataUrl is not set! Check your Get-DefaultConfig return value." -Level "ERROR"
+        return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
+    }
+    $url = $config.ContentDataUrl
+
     try {
         $url = $config.ContentDataUrl
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
