@@ -4,7 +4,7 @@
 
 ## Purpose
 
-LLNOTIFY is a PowerShell-based system monitoring application designed to provide real-time system health information, certificate status, and organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, LLNOTIFY enhances endpoint visibility and user support by delivering critical system metrics and IT communications directly to the desktop.
+LLNOTIFY is a PowerShell-based messaging application designed to provide real-time organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, LLNOTIFY enhances endpoint visibility and user support by delivering important ISD communications directly to the desktop with minimal interruption.
 
 ## Key Features
 
