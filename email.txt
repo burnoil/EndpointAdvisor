@@ -1,1 +1,24 @@
+Subject: Introducing LLNOTIFY – A New Way to Receive ISD Updates
 
+Dear Team,
+
+We’re rolling out a new desktop messaging tool called LLNOTIFY to help improve how we deliver important updates from the ISD team.
+
+What is LLNOTIFY?
+LLNOTIFY is a lightweight, real-time notification tool that runs in your system tray. It allows us to send timely, high-priority announcements directly to your desktop, ensuring you never miss critical information—without interrupting your work.
+
+You’ll notice a small icon appear in your system tray. When a message is sent, you’ll see a discreet notification with the information and any necessary action steps.
+
+Here’s what it looks like in action:
+
+(Example: a notification message displayed near the bottom-right corner of your screen)
+
+We’d love your feedback!
+As one of our initial users, your input is important. Please take a moment to let us know how the tool is working for you or if you experience any issues. Just reply to this email with your thoughts.
+
+Thank you for your support as we continue improving how we communicate across the organization.
+
+Best regards,
+[Your Name]
+[Your Title/Department]
+[Contact Info]
