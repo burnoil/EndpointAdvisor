@@ -7,12 +7,12 @@ waithidden if not exist "C:\LLNOTIFY" mkdir "C:\LLNOTIFY"
 delete __createfile
 createfile until END_OF_BATCH
 @echo off
-REM — download the signed script and icons
-certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1 C:\LLNOTIFY\LLNOTIFY.ps1
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico C:\LLNOTIFY\LL_LOGO.ico
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-certutil -urlcache -f https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico C:\LLNOTIFY\LL_LOGO_MSG.ico
+bitsadmin /transfer LLNotifyScript /download /priority normal ^
+  "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"      "C:\LLNOTIFY\LLNOTIFY.ps1"
+bitsadmin /transfer LLNotifyLogo   /download /priority normal ^
+  "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico"       "C:\LLNOTIFY\LL_LOGO.ico"
+bitsadmin /transfer LLNotifyLogoMsg/download /priority normal ^
+  "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico"   "C:\LLNOTIFY\LL_LOGO_MSG.ico"
 exit /b 0
 END_OF_BATCH
 
