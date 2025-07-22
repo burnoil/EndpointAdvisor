@@ -1,3 +1,5 @@
+[2025-07-22 13:13:07] [ERROR] Failed to fetch or validate content from https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json: You cannot call a method on a null-valued expression.
+
 action uses wow64 redirection {not x64 of operating system}
 
 // 1. Ensure the target folder exists
@@ -8,12 +10,9 @@ delete __createfile
 createfile until END_OF_BATCH
 @echo off
 REM — download the signed script and icons
-curl.exe -f -L https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1      -o C:\LLNOTIFY\LLNOTIFY.ps1
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-curl.exe -f -L https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico       -o C:\LLNOTIFY\LL_LOGO.ico
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-curl.exe -f -L https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico   -o C:\LLNOTIFY\LL_LOGO_MSG.ico
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+curl.exe --tlsv1.2 -f -L https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1 -o C:\LLNOTIFY\LLNOTIFY.ps1 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+curl.exe --tlsv1.2 -f -L https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO.ico -o C:\LLNOTIFY\LL_LOGO.ico if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+curl.exe --tlsv1.2 -f -L https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LL_LOGO_MSG.ico -o C:\LLNOTIFY\LL_LOGO_MSG.ico if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 exit /b 0
 END_OF_BATCH
 
