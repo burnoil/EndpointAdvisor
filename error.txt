@@ -1,1 +1,7 @@
-
+At C:\Scripts\LLNOTIFY\LLNOTIFY_test.ps1:179 char:28
++         $baseUrl = "http://$Address:$Port/api/query"
++                            ~~~~~~~~~
+Variable reference is not valid. ':' was not followed by a valid variable name character. Consider using ${} to
+delimit the name.
+    + CategoryInfo          : ParserError: (:) [], ParseException
+    + FullyQualifiedErrorId : InvalidVariableReferenceWithDrive
