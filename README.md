@@ -26,7 +26,7 @@ LLNOTIFY is a PowerShell-based messaging application designed to provide real-ti
    - Retrieves dynamic content (Announcements, Support) from a configurable URL (e.g., GitHub raw JSON).
    - Caches content with state tracking to detect changes and alert users via UI indicators.
    - Falls back to default content if fetching fails, ensuring continuity.
-   - Refresh interval configurable (`RefreshInterval`, default 90 seconds).
+   - Refresh interval configurable (`RefreshInterval`, default 900 seconds/15 minutes). Security updates are checked each cycle.
 
 4. **Certificate Monitoring**:
    - Checks YubiKey certificate expiry using `ykman.exe` across multiple PIV slots.
