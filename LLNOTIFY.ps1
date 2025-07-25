@@ -176,7 +176,7 @@ function Get-RelevantSecurityUpdates {
         [string]$Address = "127.0.0.1"
     )
     try {
-        $baseUrl = "http://$Address:$Port/api/query"
+        $baseUrl = "http://${Address}:$Port/api/query"
         $relevance = "names of relevant fixlets whose (exists category of it and category of it as lowercase contains 'security') of bes computer"
         $encoded = [System.Net.WebUtility]::UrlEncode($relevance)
         $response = Invoke-WebRequest -Uri "$baseUrl?relevance=$encoded" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
