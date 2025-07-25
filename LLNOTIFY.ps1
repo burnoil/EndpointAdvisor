@@ -1,4 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
+
 # Version 4.3.29 (Display security updates from BigFix)
 
 # Ensure $PSScriptRoot is defined for older versions
@@ -9,6 +10,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
+
 $ScriptVersion = "4.3.29"
 
 # Global flag to prevent recursive logging during rotation
