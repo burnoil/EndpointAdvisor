@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.27 (Removed auto-update functionality)
+# Version 4.3.29 (Added markup ability)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.27"
+$ScriptVersion = "4.3.29"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -82,7 +82,8 @@ function Write-Log {
     }
 }
 
-function Rotate-LogFile {
+function Generate-BigFixComplianceReport
+        Rotate-LogFile {
     try {
         if (Test-Path $LogFilePath) {
             $fileInfo = Get-Item $LogFilePath
@@ -135,6 +136,72 @@ function Handle-Error {
         [string]$Source = ""
     )
     if ($Source) { $ErrorMessage = "[$Source] $ErrorMessage" }
+
+# ============================================================
+# B) BigFix Compliance Reporting Functions
+# ============================================================
+function Get-BigFixRelevanceResult {
+    param ([string]$RelevanceQuery)
+    try {
+        $com = New-Object -ComObject "BESClientEval"
+        $com.Expression = $RelevanceQuery
+        if ($com.Evaluate()) { return $com.Result } else { return "Evaluation failed" }
+    } catch {
+        return "Error: $_"
+    }
+}
+
+function Generate-BigFixComplianceReport {
+    try {
+        Write-Log "Gathering BigFix compliance info..." -Level "INFO"
+        $reportPath = Join-Path $ScriptDir "BigFixComplianceReport.txt"
+        $jsonPath   = Join-Path $ScriptDir "BigFixComplianceReport.json"
+
+        $computerName  = Get-BigFixRelevanceResult "name of computer"
+        $clientVersion = Get-BigFixRelevanceResult "version of client as string"
+        $relay         = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else \"No Relay\""
+        $lastReport    = Get-BigFixRelevanceResult "last report time of client as string"
+        $ipAddress     = Get-BigFixRelevanceResult "ip address of client as string"
+        $fixletList    = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false) of sites whose (custom site flag of it = false)"
+
+        $fixlets = @()
+        if ($fixletList -is [string]) { $fixlets = $fixletList -split "`n" }
+
+        $report = @(
+            "BigFix Compliance Report - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+            "------------------------------------------------------------",
+            "Computer Name  : $computerName",
+            "Client Version : $clientVersion",
+            "Relay Address  : $relay",
+            "IP Address     : $ipAddress",
+            "Last Reported  : $lastReport",
+            "",
+            "Applicable Fixlets (Non-Baselines):",
+            "----------------------------------"
+        )
+        if ($fixlets.Count -gt 0 -and $fixlets[0] -ne "") {
+            $report += $fixlets | ForEach-Object { " - $_" }
+        } else {
+            $report += "No applicable fixlets found."
+        }
+
+        $report | Out-File -FilePath $reportPath -Encoding UTF8
+        $reportJson = @{
+            Timestamp        = (Get-Date)
+            ComputerName     = $computerName
+            ClientVersion    = $clientVersion
+            Relay            = $relay
+            IPAddress        = $ipAddress
+            LastReportTime   = $lastReport
+            ApplicableFixlets = $fixlets
+        }
+        $reportJson | ConvertTo-Json -Depth 3 | Out-File -FilePath $jsonPath -Encoding UTF8
+        Write-Log "BigFix compliance report written to $reportPath and $jsonPath" -Level "INFO"
+    } catch {
+        Write-Log "Error generating BigFix compliance report: $_" -Level "ERROR"
+    }
+}
+
     Write-Log $ErrorMessage -Level "ERROR"
 }
 
@@ -158,6 +225,7 @@ function Get-DefaultConfig {
         AnnouncementsLastState = "{}"
         SupportLastState       = "{}"
         Version               = $ScriptVersion
+        PatchInfoFilePath     = "C:\temp\X-Fixlet-Source_Count.txt"
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
@@ -231,384 +299,8 @@ $LogDirectory = Split-Path $LogFilePath
 if (-not (Test-Path $LogDirectory)) {
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
 }
-Rotate-LogFile
-
-function Log-DotNetVersion {
-    try {
-        $dotNetVersion = [System.Environment]::Version.ToString()
-        Write-Log ".NET Version: $dotNetVersion" -Level "INFO"
-        $frameworkDescription = [System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription
-        Write-Log ".NET Framework Description: $frameworkDescription" -Level "INFO"
-    } catch {}
-}
-# ============================================================
-# D) Import Required Assemblies
-# ============================================================
-function Import-RequiredAssemblies {
-    try {
-        Write-Log "Loading required .NET assemblies..." -Level "INFO"
-        Add-Type -AssemblyName PresentationFramework -ErrorAction Stop
-        Write-Log "Loaded PresentationFramework." -Level "INFO"
-        Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
-        Write-Log "Loaded System.Windows.Forms." -Level "INFO"
-        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
-        Write-Log "Loaded System.Drawing." -Level "INFO"
-        return $true
-    }
-    catch {
-        Write-Log "Failed to load required GUI assemblies: $($_.Exception.Message)" -Level "ERROR"
-        return $false
-    }
-}
-
-$global:FormsAvailable = Import-RequiredAssemblies
-
-# ============================================================
-# E) XAML Layout Definition
-# ============================================================
-$xamlString = @"
-<?xml version="1.0" encoding="utf-8"?>
-<Window
-    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="LLNOTIFY - Lincoln Laboratory Notification System"
-    WindowStartupLocation="Manual" 
-    SizeToContent="Manual"
-    MinWidth="350" MinHeight="500"
-    MaxWidth="400" MaxHeight="550"
-    ResizeMode="CanResizeWithGrip" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
-    Background="#f0f0f0"
-    Icon="{Binding WindowIconUri}">
-  <Grid Margin="5">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
-    <Border Grid.Row="0" Background="#0078D7" Padding="5" CornerRadius="3" Margin="0,0,0,5">
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <Image Source="{Binding MainIconUri}" Width="20" Height="20" Margin="0,0,5,0"/>
-        <TextBlock Text="Lincoln Laboratory Notification System" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
-      </StackPanel>
-    </Border>
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-      <StackPanel VerticalAlignment="Top">
-        <Expander x:Name="AnnouncementsExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Announcements" VerticalAlignment="Center"/>
-              <Ellipse x:Name="AnnouncementsAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="AnnouncementsText" FontSize="11" TextWrapping="Wrap"/>
-              <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
-              <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
-              <TextBlock x:Name="AnnouncementsSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
-              <Button x:Name="PatchingSSAButton" Content="Launch Updates" Margin="10,0,0,0" ToolTip="Launch BigFix Self-Service Application"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap"/>
-              <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
-              <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
-              <TextBlock x:Name="PatchingUpdatesText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Support" VerticalAlignment="Center"/>
-              <Ellipse x:Name="SupportAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="SupportText" FontSize="11" TextWrapping="Wrap"/>
-              <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
-              <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <Expander x:Name="ComplianceExpander" Header="Certificate Status" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <TextBlock x:Name="YubiKeyComplianceText" FontSize="11" TextWrapping="Wrap"/>
-          </Border>
-        </Expander>
-        <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-        <TextBlock x:Name="ScriptUpdateText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0" Foreground="Red" Visibility="Hidden"/>
-      </StackPanel>
-    </ScrollViewer>
-    <Grid Grid.Row="2" Margin="0,5,0,0">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
-    </Grid>
-  </Grid>
-</Window>
-"@
-
-# ========================================================= The browse_page on the main API page didn't give specific COM object name or methods. It says "The content does not explicitly mention the COM object name or specific methods."
-
-From the configuration page, it's "BESClientComplianceMOD.dll", and COM object "BESClientComplianceMOD.Application".
-
-But no exact method.
-
-Perhaps search for "BigFix Client Compliance API PowerShell example"
-
-Use web_search tool.
-
-Query: "BigFix Client Compliance API PowerShell example evaluate relevance"
-
-Yes.
-
-Call web_search.# LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.27 (Removed auto-update functionality)
-
-# Ensure $PSScriptRoot is defined for older versions
-if ($MyInvocation.MyCommand.Path) {
-    $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-} else {
-    $ScriptDir = Get-Location
-}
-
-# Define version
-$ScriptVersion = "4.3.27"
-
-# Global flag to prevent recursive logging during rotation
-$global:IsRotatingLog = $false
-
-# Global flag to track pending restart state
-$global:PendingRestart = $false
-
-# Global variables for certificate check caching
-$global:LastCertificateCheck = $null
-$global:CachedCertificateStatus = $null
-
-# ============================================================
-# A) Advanced Logging & Error Handling
-# ============================================================
-function Invoke-WithRetry {
-    param(
-        [ScriptBlock]$Action,
-        [int]$MaxRetries = 3,
-        [int]$RetryDelayMs = 100
-    )
-    $attempt = 0
-    while ($attempt -lt $MaxRetries) {
-        try {
-            $attempt++
-            $Action.Invoke()
-            return # Success
-        }
-        catch {
-            if ($attempt -ge $MaxRetries) {
-                throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
-            }
-            Start-Sleep -Milliseconds $RetryDelayMs
-        }
-    }
-}
-
-function Write-Log {
-    param(
-        [string]$Message,
-        [ValidateSet("INFO", "WARNING", "ERROR")]
-        [string]$Level = "INFO"
-    )
-    if ($global:IsRotatingLog) {
-        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Level] $Message (Skipped due to log rotation)"
-        return
-    }
-
-    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "LLNOTIFY.log" }
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Level] $Message"
-    
-    $maxRetries = 3
-    $retryDelayMs = 100
-    $attempt = 0
-    $success = $false
-    
-    while ($attempt -lt $MaxRetries -and -not $success) {
-        try {
-            $attempt++
-            Add-Content -Path $logPath -Value $logEntry -Force -ErrorAction Stop
-            $success = $true
-        }
-        catch {
-            if ($attempt -eq $MaxRetries) {
-                Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
-            } else {
-                Start-Sleep -Milliseconds $retryDelayMs
-            }
-        }
-    }
-}
-
-function Rotate-LogFile {
-    try {
-        if (Test-Path $LogFilePath) {
-            $fileInfo = Get-Item $LogFilePath
-            $maxSizeBytes = $config.LogRotationSizeMB * 1MB
-            if ($fileInfo.Length -gt $maxSizeBytes) {
-                $archivePath = "$LogFilePath.$(Get-Date -Format 'yyyyMMddHHmmss').archive"
-                
-                $global:IsRotatingLog = $true
-                
-                try {
-                    Invoke-WithRetry -Action {
-                        Rename-Item -Path $LogFilePath -NewName $archivePath -ErrorAction Stop
-                    }
-                    Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
-
-                    $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "LLNOTIFY.log.*.archive" | Sort-Object CreationTime
-                    $maxArchives = 3
-                    if ($archiveFiles.Count -gt $maxArchives) {
-                        $filesToDelete = $archiveFiles | Select-Object -First ($archiveFiles.Count - $maxArchives)
-                        foreach ($file in $filesToDelete) {
-                            try {
-                                Invoke-WithRetry -Action {
-                                    Remove-Item -Path $file.FullName -Force -ErrorAction Stop
-                                }
-                                Write-Log "Deleted old archive: $($file.FullName)" -Level "INFO"
-                            }
-                            catch {
-                                Write-Log "Failed to delete old archive $($file.FullName): $($_.Exception.Message)" -Level "ERROR"
-                            }
-                        }
-                    }
-                }
-                catch {
-                    Write-Log "Failed to rotate log file: $($_.Exception.Message)" -Level "ERROR"
-                }
-            }
-        }
-    }
-    catch {
-        Write-Log "Error checking log file size for rotation: $($_.Exception.Message)" -Level "ERROR"
-    }
-    finally {
-        $global:IsRotatingLog = $false
-    }
-}
-
-function Handle-Error {
-    param(
-        [string]$ErrorMessage,
-        [string]$Source = ""
-    )
-    if ($Source) { $ErrorMessage = "[$Source] $ErrorMessage" }
-    Write-Log $ErrorMessage -Level "ERROR"
-}
-
-Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
-
-# ============================================================
-# MODULE: Configuration Management
-# ============================================================
-function Get-DefaultConfig {
-    return @{
-        RefreshInterval       = 900  # Default to 15 minutes (900 seconds)
-        LogRotationSizeMB     = 2
-        DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
-        CertificateCheckInterval = 86400
-        YubiKeyAlertDays      = 14
-        IconPaths             = @{
-            Main    = Join-Path $ScriptDir "LL_LOGO.ico"
-            Warning = Join-Path $ScriptDir "LL_LOGO_MSG.ico"
-        }
-        AnnouncementsLastState = "{}"
-        SupportLastState       = "{}"
-        Version               = $ScriptVersion
-        BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
-        YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
-        BlinkingEnabled       = $true
-        ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
-        VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
-    }
-}
-
-function Load-Configuration {
-    param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json"))
-    $finalConfig = Get-DefaultConfig
-    if (Test-Path $Path) {
-        try {
-            $loadedConfig = Get-Content $Path -Raw | ConvertFrom-Json
-            if ($loadedConfig) {
-                foreach ($key in $loadedConfig.PSObject.Properties.Name) {
-                    if ($finalConfig.ContainsKey($key) -and $loadedConfig.$key -ne $null) {
-                        $finalConfig[$key] = $loadedConfig.$key
-                    }
-                }
-            }
-        }
-        catch {
-            Write-Log "Failed to load or merge existing config file. Reverting to full defaults. Error: $($_.Exception.Message)" -Level "WARNING"
-        }
-    }
-    try {
-        $finalConfig | ConvertTo-Json -Depth 100 | Out-File $Path -Force
-        Write-Log "Configuration file validated and saved." -Level "INFO"
-    }
-    catch {
-        Handle-Error "Could not save the updated configuration to '$Path'. Error: $($_.Exception.Message)"
-    }
-    return $finalConfig
-}
-
-function Save-Configuration {
-    param(
-        [psobject]$Config,
-        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
-    )
-    try {
-        $Config | ConvertTo-Json -Depth 100 | Out-File $Path -Force
-    } catch {
-        Handle-Error "Could not save state to configuration file '$Path'. Error: $($_.Exception.Message)"
-    }
-}
-
-# ============================================================
-# B) External Configuration Setup
-# ============================================================
-$LogFilePath = Join-Path $ScriptDir "LLNOTIFY.log"
-$config = Load-Configuration
-
-$mainIconPath = $config.IconPaths.Main
-$warningIconPath = $config.IconPaths.Warning
-$mainIconUri = "file:///$($mainIconPath -replace '\\','/')"
-
-Write-Log "Main icon path: $mainIconPath" -Level "INFO"
-Write-Log "Warning icon path: $warningIconPath" -Level "INFO"
-
-$defaultContentData = @{
-    Announcements = @{ Text = "No announcements at this time."; Details = ""; Links = @() }
-    Support = @{ Text  = "Contact IT Support."; Links = @() }
-}
-
-# ============================================================
-# C) Log File Setup & Rotation
-# ============================================================
-$LogDirectory = Split-Path $LogFilePath
-if (-not (Test-Path $LogDirectory)) {
-    New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
-}
-Rotate-LogFile
+Generate-BigFixComplianceReport
+        Rotate-LogFile
 
 function Log-DotNetVersion {
     try {
@@ -832,24 +524,6 @@ function New-HyperlinkBlock {
     return $tb
 }
 
-function Get-BigFixRelevanceResult {
-    param(
-        [string]$RelevanceQuery
-    )
-
-    try {
-        $comObject = New-Object -ComObject "BESClientEval"
-        $comObject.Expression = $RelevanceQuery
-        if ($comObject.Evaluate()) {
-            return $comObject.Result
-        } else {
-            return "Evaluation failed"
-        }
-    } catch {
-        return "Error: $_"
-    }
-}
-
 function Validate-ContentData {
     param($Data)
     if (-not ($Data.PSObject.Properties.Match('Announcements') -and $Data.PSObject.Properties.Match('Support'))) {
@@ -968,6 +642,8 @@ function Get-PendingRestartStatus {
         "No system restart required." 
     }
 }
+
+$global:LastPatchTimestamp = $null
 
 function Get-WindowsBuildNumber {
     try {
@@ -1112,12 +788,17 @@ function Update-PatchingAndSystem {
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
-    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
-    $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
-    if ($patchResult -match "Error" -or $patchResult -match "Evaluation failed" -or $patchResult -match "nonexistent object") {
-        $finalPatchText = "No pending updates listed."
+    $patchFile = $config.PatchInfoFilePath
+    if (Test-Path $patchFile) {
+        $fileTimestamp = (Get-Item $patchFile).LastWriteTime
+        if ($global:LastPatchTimestamp -ne $fileTimestamp) {
+            $rawPatchText = Get-Content -Path $patchFile -Raw -ErrorAction SilentlyContinue
+            $global:LastPatchText = if ([string]::IsNullOrWhiteSpace($rawPatchText)) { "No pending updates listed." } else { $rawPatchText }
+            $global:LastPatchTimestamp = $fileTimestamp
+        }
+        $finalPatchText = $global:LastPatchText
     } else {
-        $finalPatchText = $patchResult
+        $finalPatchText = "Patch info file not found."
     }
 
     $windowsBuild = Get-WindowsBuildNumber
@@ -1391,6 +1072,7 @@ function Main-UpdateCycle {
         
         Update-TrayIcon
         Save-Configuration -Config $config
+        Generate-BigFixComplianceReport
         Rotate-LogFile
     }
     catch { Handle-Error $_.Exception.Message -Source "Main-UpdateCycle" }
