@@ -176,6 +176,7 @@ function Get-RelevantSecurityUpdates {
         [string]$Address = "127.0.0.1"
     )
     try {
+        Write-Log "Checking for BigFix security updates at ${Address}:$Port" -Level "INFO"
         $baseUrl = "http://${Address}:$Port/api/query"
         $relevance = "names of relevant fixlets whose (exists category of it and category of it as lowercase contains 'security') of bes computer"
         $encoded = [System.Net.WebUtility]::UrlEncode($relevance)
@@ -184,6 +185,11 @@ function Get-RelevantSecurityUpdates {
         $updates = @()
         foreach ($ans in $xml.BESAPI.Query.Result.Answer) {
             if ($ans.'#text') { $updates += $ans.'#text' }
+        }
+        if ($updates.Count -gt 0) {
+            Write-Log "BigFix security updates found: $($updates -join ', ')" -Level "INFO"
+        } else {
+            Write-Log "No relevant BigFix security updates detected." -Level "INFO"
         }
         return $updates
     } catch {
