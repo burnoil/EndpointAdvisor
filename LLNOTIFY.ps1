@@ -150,19 +150,34 @@ function Enable-BESClientLocalAPI {
         $regBase = "HKLM:\SOFTWARE\BigFix\EnterpriseClient\Settings\Client"
         New-Item -Path $regBase -Force | Out-Null
 
-        Set-ItemProperty -Path $regBase -Name "_BESClient_LocalAPI_Enable" -Value "1" -Type String -Force
-        Set-ItemProperty -Path $regBase -Name "_BESClient_LocalAPI_Port" -Value $Port -Type String -Force
-        Set-ItemProperty -Path $regBase -Name "_BESClient_LocalAPI_ListenAddress" -Value $ListenAddress -Type String -Force
+        $desiredValues = @{
+            "_BESClient_LocalAPI_Enable"       = "1"
+            "_BESClient_LocalAPI_Port"         = $Port.ToString()
+            "_BESClient_LocalAPI_ListenAddress" = $ListenAddress
+        }
 
-        $svc = Get-Service -Name besclient -ErrorAction SilentlyContinue
-        if ($svc) {
-            Write-Log "Restarting besclient service" -Level "INFO"
-            Invoke-WithRetry -Action {
-                Stop-Service -Name besclient -Force
-                Start-Service -Name besclient
-            } -MaxRetries 3 -RetryDelayMs 1000
+        $changesMade = $false
+        foreach ($name in $desiredValues.Keys) {
+            $current = (Get-ItemProperty -Path $regBase -Name $name -ErrorAction SilentlyContinue).$name
+            if ($current -ne $desiredValues[$name]) {
+                Set-ItemProperty -Path $regBase -Name $name -Value $desiredValues[$name] -Type String -Force
+                $changesMade = $true
+            }
+        }
+
+        if ($changesMade) {
+            $svc = Get-Service -Name besclient -ErrorAction SilentlyContinue
+            if ($svc) {
+                Write-Log "BESClient settings updated; restarting besclient service" -Level "INFO"
+                Invoke-WithRetry -Action {
+                    Stop-Service -Name besclient -Force
+                    Start-Service -Name besclient
+                } -MaxRetries 3 -RetryDelayMs 1000
+            } else {
+                Write-Log "besclient service not found" -Level "WARNING"
+            }
         } else {
-            Write-Log "besclient service not found" -Level "WARNING"
+            Write-Log "BESClient Local API already configured; no changes applied" -Level "INFO"
         }
     }
     catch {
@@ -176,7 +191,8 @@ function Get-RelevantSecurityUpdates {
         [string]$Address = "127.0.0.1"
     )
     try {
-        $baseUrl = "http://$Address:$Port/api/query"
+        Write-Log "Checking for BigFix security updates at ${Address}:$Port" -Level "INFO"
+        $baseUrl = "http://${Address}:$Port/api/query"
         $relevance = "names of relevant fixlets whose (exists category of it and category of it as lowercase contains 'security') of bes computer"
         $encoded = [System.Net.WebUtility]::UrlEncode($relevance)
         $response = Invoke-WebRequest -Uri "$baseUrl?relevance=$encoded" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
@@ -185,12 +201,18 @@ function Get-RelevantSecurityUpdates {
         foreach ($ans in $xml.BESAPI.Query.Result.Answer) {
             if ($ans.'#text') { $updates += $ans.'#text' }
         }
+        if ($updates.Count -gt 0) {
+            Write-Log "BigFix security updates found: $($updates -join ', ')" -Level "INFO"
+        } else {
+            Write-Log "No relevant BigFix security updates detected." -Level "INFO"
+        }
         return $updates
     } catch {
         Handle-Error $_.Exception.Message -Source "Get-RelevantSecurityUpdates"
         return @()
     }
 }
+# End of Get-RelevantSecurityUpdates
 
 Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
 
