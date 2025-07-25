@@ -211,6 +211,58 @@ function Get-RelevantSecurityUpdates {
         Handle-Error $_.Exception.Message -Source "Get-RelevantSecurityUpdates"
         return @()
     }
+
+function Enable-BESClientLocalAPI {
+    param(
+        [int]$Port = 52315,
+        [string]$ListenAddress = "127.0.0.1"
+    )
+    try {
+        Write-Log "Configuring BESClient Local API..." -Level "INFO"
+        $regBase = "HKLM:\SOFTWARE\BigFix\EnterpriseClient\Settings\Client"
+        New-Item -Path $regBase -Force | Out-Null
+
+        Set-ItemProperty -Path $regBase -Name "_BESClient_LocalAPI_Enable" -Value "1" -Type String -Force
+        Set-ItemProperty -Path $regBase -Name "_BESClient_LocalAPI_Port" -Value $Port -Type String -Force
+        Set-ItemProperty -Path $regBase -Name "_BESClient_LocalAPI_ListenAddress" -Value $ListenAddress -Type String -Force
+
+        $svc = Get-Service -Name besclient -ErrorAction SilentlyContinue
+        if ($svc) {
+            Write-Log "Restarting besclient service" -Level "INFO"
+            Invoke-WithRetry -Action {
+                Stop-Service -Name besclient -Force
+                Start-Service -Name besclient
+            } -MaxRetries 3 -RetryDelayMs 1000
+        } else {
+            Write-Log "besclient service not found" -Level "WARNING"
+        }
+    }
+    catch {
+        Handle-Error $_.Exception.Message -Source "Enable-BESClientLocalAPI"
+    }
+}
+
+function Get-RelevantSecurityUpdates {
+    param(
+        [int]$Port = 52315,
+        [string]$Address = "127.0.0.1"
+    )
+    try {
+        $baseUrl = "http://${Address}:$Port/api/query"
+        $relevance = "names of relevant fixlets whose (exists category of it and category of it as lowercase contains 'security') of bes computer"
+        $encoded = [System.Net.WebUtility]::UrlEncode($relevance)
+        $response = Invoke-WebRequest -Uri "$baseUrl?relevance=$encoded" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+        [xml]$xml = $response.Content
+        $updates = @()
+        foreach ($ans in $xml.BESAPI.Query.Result.Answer) {
+            if ($ans.'#text') { $updates += $ans.'#text' }
+        }
+        return $updates
+    } catch {
+        Handle-Error $_.Exception.Message -Source "Get-RelevantSecurityUpdates"
+        return @()
+    }
+
 }
 
 Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
