@@ -45,6 +45,9 @@ LLNOTIFY is a PowerShell-based messaging application designed to provide real-ti
 7. **BESClient Local API Setup**:
    - Configures the registry keys required for the BigFix BESClient local API.
    - Restarts the `besclient` service so the API settings take effect.
+8. **Security Update Detection**:
+   - Queries the BESClient local API for relevant security fixlets.
+   - Displays the list of security updates in the Patching section.
 
 ## Functionality
 

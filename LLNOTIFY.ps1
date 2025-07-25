@@ -1,5 +1,6 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.28 (Enable BESClient Local API setup)
+
+# Version 4.3.29 (Display security updates from BigFix)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +10,8 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.28"
+
+$ScriptVersion = "4.3.29"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -165,6 +167,28 @@ function Enable-BESClientLocalAPI {
     }
     catch {
         Handle-Error $_.Exception.Message -Source "Enable-BESClientLocalAPI"
+    }
+}
+
+function Get-RelevantSecurityUpdates {
+    param(
+        [int]$Port = 52315,
+        [string]$Address = "127.0.0.1"
+    )
+    try {
+        $baseUrl = "http://$Address:$Port/api/query"
+        $relevance = "names of relevant fixlets whose (exists category of it and category of it as lowercase contains 'security') of bes computer"
+        $encoded = [System.Net.WebUtility]::UrlEncode($relevance)
+        $response = Invoke-WebRequest -Uri "$baseUrl?relevance=$encoded" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
+        [xml]$xml = $response.Content
+        $updates = @()
+        foreach ($ans in $xml.BESAPI.Query.Result.Answer) {
+            if ($ans.'#text') { $updates += $ans.'#text' }
+        }
+        return $updates
+    } catch {
+        Handle-Error $_.Exception.Message -Source "Get-RelevantSecurityUpdates"
+        return @()
     }
 }
 
@@ -695,6 +719,14 @@ function Update-PatchingAndSystem {
     } else {
         $finalPatchText = "Patch info file not found."
     }
+
+    $securityUpdates = Get-RelevantSecurityUpdates
+    if ($securityUpdates.Count -gt 0) {
+        $securityText = "Security Updates from BigFix:`n - " + ($securityUpdates -join "`n - ")
+    } else {
+        $securityText = "No relevant security updates detected."
+    }
+    $finalPatchText = "$finalPatchText`n$securityText"
 
     $windowsBuild = Get-WindowsBuildNumber
 
