@@ -1,6 +1,14 @@
-At C:\Scripts\LLNOTIFY\LLNOTIFY_test.ps1:188 char:38
-+ function Get-RelevantSecurityUpdates {
-+                                      ~
-Missing closing '}' in statement block or type definition.
-    + CategoryInfo          : ParserError: (:) [], ParseException
-    + FullyQualifiedErrorId : MissingEndCurlyBrace
+folder create "C:\temp"
+if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)") > 0} 
+   appendfile {concatenation "%0d%0a" of unique values of values of headers "Subject" of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)")}   
+endif
+
+if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments") > 0} 
+   appendfile {concatenation "%0d%0a" of unique values of values of headers "Subject" of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments")}
+endif
+
+move __appendfile C:\Temp\X-Fixlet-Source_Count.txt
+
+if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)") = 0} AND {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments") = 0}
+delete "C:\Temp\X-Fixlet-Source_Count.txt"
+endif
