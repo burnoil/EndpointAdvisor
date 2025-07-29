@@ -17,3 +17,6 @@ if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it co
 delete "C:\Temp\X-Fixlet-Source_Count.txt"
 
 endif
+
+Command failed (Move of 'C:\Program Files (x86)\BigFix Enterprise\BES Client\__BESData\CustomSite_LL_ISD_Managed_-28Workstations-29\__appendfile' to 'C:\Temp\X-Fixlet-Source_Count.txt' failed (0 - File error "class FileFoundError" on "C:\Temp\X-Fixlet-Source_Count.txt")) move __appendfile C:\Temp\X-Fixlet-Source_Count.txt (action:542622872)
+
