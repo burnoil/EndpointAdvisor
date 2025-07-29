@@ -10,13 +10,12 @@ endif
 
 // Only move if __appendfile was created (i.e. it exists)
 if {exists file "__appendfile"}
-   move __appendfile C:\Temp\X-Fixlet-Source_Count.txt
+    delete "C:\Temp\X-Fixlet-Source_Count.txt" // safely remove if already exists
+    move __appendfile "C:\Temp\X-Fixlet-Source_Count.txt"
 endif
 
 if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)") = 0 and number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments") = 0}
 delete "C:\Temp\X-Fixlet-Source_Count.txt"
 
 endif
-
-Command failed (Move of 'C:\Program Files (x86)\BigFix Enterprise\BES Client\__BESData\CustomSite_LL_ISD_Managed_-28Workstations-29\__appendfile' to 'C:\Temp\X-Fixlet-Source_Count.txt' failed (0 - File error "class FileFoundError" on "C:\Temp\X-Fixlet-Source_Count.txt")) move __appendfile C:\Temp\X-Fixlet-Source_Count.txt (action:542622872)
 
