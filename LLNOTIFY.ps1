@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.6 (Fixed Start-Process redirection for Regsvr32, improved COM registration logging, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.7 (Added COM registration verification, qna.exe fallback, fixed Start-Process redirection, SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.6"
+$ScriptVersion = "4.6.7"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -160,41 +160,51 @@ function Register-BigFixCOMObject {
         }
 
         # Attempt to create the COM object to check if it's already registered
-        $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
-        Write-Log "BESClientEval COM object already registered." -Level "INFO"
-        return $true
-    }
-    catch [System.Runtime.InteropServices.COMException] {
-        if ($_.Exception.HResult -eq 0x80040154) {
-            Write-Log "BESClientEval COM object not registered. Attempting to register: $dllPath" -Level "INFO"
-            try {
-                # Register the DLL using Regsvr32 with separate output and error files
-                $tempOutputFile = [System.IO.Path]::GetTempFileName()
-                $tempErrorFile = [System.IO.Path]::GetTempFileName()
-                $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempErrorFile -PassThru
-                $regsvr32Output = Get-Content -Path $tempOutputFile -Raw
-                $regsvr32Error = Get-Content -Path $tempErrorFile -Raw
-                Remove-Item -Path $tempOutputFile -Force -ErrorAction SilentlyContinue
-                Remove-Item -Path $tempErrorFile -Force -ErrorAction SilentlyContinue
-                
-                $combinedOutput = ""
-                if ($regsvr32Output) { $combinedOutput += "StdOut: $regsvr32Output`n" }
-                if ($regsvr32Error) { $combinedOutput += "StdErr: $regsvr32Error" }
-                
-                if ($regsvr32Result.ExitCode -eq 0) {
-                    Write-Log "Successfully registered BigFix COM DLL: $dllPath" -Level "INFO"
-                    return $true
-                } else {
-                    throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode). Output: $combinedOutput"
+        try {
+            $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
+            Write-Log "BESClientEval COM object already registered." -Level "INFO"
+            return $true
+        }
+        catch [System.Runtime.InteropServices.COMException] {
+            if ($_.Exception.HResult -eq 0x80040154) {
+                Write-Log "BESClientEval COM object not registered. Attempting to register: $dllPath" -Level "INFO"
+                try {
+                    # Register the DLL using Regsvr32 with separate output and error files
+                    $tempOutputFile = [System.IO.Path]::GetTempFileName()
+                    $tempErrorFile = [System.IO.Path]::GetTempFileName()
+                    $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempErrorFile -PassThru
+                    $regsvr32Output = Get-Content -Path $tempOutputFile -Raw
+                    $regsvr32Error = Get-Content -Path $tempErrorFile -Raw
+                    Remove-Item -Path $tempOutputFile -Force -ErrorAction SilentlyContinue
+                    Remove-Item -Path $tempErrorFile -Force -ErrorAction SilentlyContinue
+                    
+                    $combinedOutput = ""
+                    if ($regsvr32Output) { $combinedOutput += "StdOut: $regsvr32Output`n" }
+                    if ($regsvr32Error) { $combinedOutput += "StdErr: $regsvr32Error" }
+                    
+                    if ($regsvr32Result.ExitCode -eq 0) {
+                        Write-Log "Regsvr32 reported success for: $dllPath. Verifying COM object..." -Level "INFO"
+                        # Verify COM object availability
+                        try {
+                            $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
+                            Write-Log "BESClientEval COM object successfully verified after registration." -Level "INFO"
+                            return $true
+                        }
+                        catch {
+                            throw "COM object registration verification failed: $($_.Exception.Message)"
+                        }
+                    } else {
+                        throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode). Output: $combinedOutput"
+                    }
                 }
-            }
-            catch {
-                Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator, the DLL path is correct, and dependencies are installed." -Level "ERROR"
+                catch {
+                    Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator, the DLL path is correct, and dependencies are installed." -Level "ERROR"
+                    return $false
+                }
+            } else {
+                Write-Log "Unexpected COM error when testing BESClientEval: $($_.Exception.Message)" -Level "ERROR"
                 return $false
             }
-        } else {
-            Write-Log "Unexpected COM error when testing BESClientEval: $($_.Exception.Message)" -Level "ERROR"
-            return $false
         }
     }
     catch {
@@ -209,7 +219,7 @@ function Initialize-BigFixAPIConfig {
         
         # Register the COM object first
         if (-not (Register-BigFixCOMObject)) {
-            Write-Log "BigFix COM object registration failed. Relevance queries may not work." -Level "WARNING"
+            Write-Log "BigFix COM object registration failed. Falling back to qna.exe if available." -Level "WARNING"
         }
 
         # Registry key for 64-bit Windows
@@ -282,22 +292,65 @@ function Get-BigFixRelevanceResult {
         [string]$RelevanceQuery
     )
     try {
-        $comObject = New-Object -ComObject "BESClientEval"
-        $comObject.Expression = $RelevanceQuery
-        if ($comObject.Evaluate()) {
-            return $comObject.Result
-        } else {
-            return "Evaluation failed"
+        # Try COM object with retries
+        $maxRetries = 3
+        $retryDelayMs = 1000
+        $attempt = 0
+        while ($attempt -lt $maxRetries) {
+            try {
+                $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
+                $comObject.Expression = $RelevanceQuery
+                if ($comObject.Evaluate()) {
+                    Write-Log "BigFix relevance query succeeded: $RelevanceQuery" -Level "INFO"
+                    return $comObject.Result
+                } else {
+                    Write-Log "BigFix relevance query evaluation failed: $RelevanceQuery" -Level "WARNING"
+                    return "Evaluation failed"
+                }
+            }
+            catch [System.Runtime.InteropServices.COMException] {
+                if ($_.Exception.HResult -eq 0x80040154) {
+                    $attempt++
+                    if ($attempt -eq $maxRetries) {
+                        Write-Log "BigFix relevance query failed after $maxRetries attempts: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Attempting qna.exe fallback." -Level "ERROR"
+                        break
+                    }
+                    Write-Log "COM object not ready (attempt $attempt/$maxRetries). Retrying in $retryDelayMs ms..." -Level "WARNING"
+                    Start-Sleep -Milliseconds $retryDelayMs
+                } else {
+                    Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
+                    return "Error: $($_.Exception.Message)"
+                }
+            }
         }
-    } catch [System.Runtime.InteropServices.COMException] {
-        if ($_.Exception.HResult -eq 0x80040154) {
-            Write-Log "BigFix relevance query failed: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Run script as administrator and ensure BESClientComplianceMOD.dll is registered at $($config.BigFixDLL_Path)." -Level "ERROR"
-            return "Error: BESClientEval COM object not registered. Contact IT."
-        } else {
-            Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
+
+        # Fallback to qna.exe
+        $qnaPath = $config.BigFixQna_Path
+        if (-not (Test-Path $qnaPath)) {
+            Write-Log "qna.exe not found at: $qnaPath. Cannot execute relevance query." -Level "ERROR"
+            return "Error: BigFix API not available. Contact IT."
+        }
+
+        try {
+            Write-Log "Executing relevance query with qna.exe: $RelevanceQuery" -Level "INFO"
+            $tempQueryFile = [System.IO.Path]::GetTempFileName()
+            $RelevanceQuery | Out-File -FilePath $tempQueryFile -Encoding ASCII
+            $qnaResult = & $qnaPath -q $tempQueryFile
+            Remove-Item -Path $tempQueryFile -Force -ErrorAction SilentlyContinue
+            if ($qnaResult) {
+                Write-Log "qna.exe relevance query succeeded: $RelevanceQuery" -Level "INFO"
+                return $qnaResult -join "`n"
+            } else {
+                Write-Log "qna.exe relevance query returned no results: $RelevanceQuery" -Level "WARNING"
+                return "Evaluation failed"
+            }
+        }
+        catch {
+            Write-Log "qna.exe relevance query error: $($_.Exception.Message)" -Level "ERROR"
             return "Error: $($_.Exception.Message)"
         }
-    } catch {
+    }
+    catch {
         Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
         return "Error: $($_.Exception.Message)"
     }
@@ -407,6 +460,7 @@ function Get-DefaultConfig {
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         BigFixDLL_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll"
+        BigFixQna_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\qna.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
         ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
