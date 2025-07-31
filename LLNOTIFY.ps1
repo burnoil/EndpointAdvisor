@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.2 (Fixed BigFix SSA log directory issue, restricted site info to reports)
+# Version 4.6.3 (Fixed BigFix SSA log file creation issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.2"
+$ScriptVersion = "4.6.3"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -563,13 +563,22 @@ try {
                 throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
             }
 
-            # Ensure BigFix SSA log directory exists
+            # Ensure BigFix SSA log directory and file exist
             $ssaLogDir = Join-Path $env:LOCALAPPDATA "BigFix\BigFixSSA\logs"
+            $today = Get-Date -Format "yyyyMMdd"
+            $ssaLogFile = Join-Path $ssaLogDir "main_$today.log"
             if (-not (Test-Path $ssaLogDir)) {
                 Write-Log "Creating BigFix SSA log directory: $ssaLogDir" -Level "INFO"
                 New-Item -Path $ssaLogDir -ItemType Directory -Force | Out-Null
                 if (-not (Test-Path $ssaLogDir)) {
                     throw "Failed to create BigFix SSA log directory: $ssaLogDir"
+                }
+            }
+            if (-not (Test-Path $ssaLogFile)) {
+                Write-Log "Creating BigFix SSA log file: $ssaLogFile" -Level "INFO"
+                "Initialized at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" | Out-File -FilePath $ssaLogFile -Encoding UTF8
+                if (-not (Test-Path $ssaLogFile)) {
+                    throw "Failed to create BigFix SSA log file: $ssaLogFile"
                 }
             }
 
