@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.5 (Improved BigFix COM registration logging, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.6 (Fixed Start-Process redirection for Regsvr32, improved COM registration logging, fixed SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.5"
+$ScriptVersion = "4.6.6"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -151,6 +151,14 @@ function Register-BigFixCOMObject {
             throw "BigFix COM DLL not found at: $dllPath"
         }
 
+        # Check if BigFix client service is running
+        $service = Get-Service -Name "BESClient" -ErrorAction SilentlyContinue
+        if (-not $service -or $service.Status -ne "Running") {
+            Write-Log "BigFix client service (BESClient) is not running or not installed. COM registration may fail." -Level "WARNING"
+        } else {
+            Write-Log "BigFix client service (BESClient) is running." -Level "INFO"
+        }
+
         # Attempt to create the COM object to check if it's already registered
         $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
         Write-Log "BESClientEval COM object already registered." -Level "INFO"
@@ -160,21 +168,28 @@ function Register-BigFixCOMObject {
         if ($_.Exception.HResult -eq 0x80040154) {
             Write-Log "BESClientEval COM object not registered. Attempting to register: $dllPath" -Level "INFO"
             try {
-                # Register the DLL using Regsvr32 and capture output
+                # Register the DLL using Regsvr32 with separate output and error files
                 $tempOutputFile = [System.IO.Path]::GetTempFileName()
-                $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempOutputFile -PassThru
+                $tempErrorFile = [System.IO.Path]::GetTempFileName()
+                $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempErrorFile -PassThru
                 $regsvr32Output = Get-Content -Path $tempOutputFile -Raw
-                Remove-Item -Path $tempOutputFile -Force
+                $regsvr32Error = Get-Content -Path $tempErrorFile -Raw
+                Remove-Item -Path $tempOutputFile -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $tempErrorFile -Force -ErrorAction SilentlyContinue
+                
+                $combinedOutput = ""
+                if ($regsvr32Output) { $combinedOutput += "StdOut: $regsvr32Output`n" }
+                if ($regsvr32Error) { $combinedOutput += "StdErr: $regsvr32Error" }
                 
                 if ($regsvr32Result.ExitCode -eq 0) {
                     Write-Log "Successfully registered BigFix COM DLL: $dllPath" -Level "INFO"
                     return $true
                 } else {
-                    throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode). Output: $regsvr32Output"
+                    throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode). Output: $combinedOutput"
                 }
             }
             catch {
-                Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator and the DLL path is correct." -Level "ERROR"
+                Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator, the DLL path is correct, and dependencies are installed." -Level "ERROR"
                 return $false
             }
         } else {
