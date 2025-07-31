@@ -1,6 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-
-# Version 4.3.29 (Display security updates from BigFix)
+# Version 4.6.1 (Restricted BigFix site info to reports, not UI)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -10,8 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-
-$ScriptVersion = "4.3.29"
+$ScriptVersion = "4.6.1"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -140,83 +138,163 @@ function Handle-Error {
     Write-Log $ErrorMessage -Level "ERROR"
 }
 
-function Enable-BESClientLocalAPI {
-    param(
-        [int]$Port = 52315,
-        [string]$ListenAddress = "127.0.0.1"
-    )
+Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
+
+# ============================================================
+# BigFix Compliance Reporting Functions
+# ============================================================
+function Initialize-BigFixAPIConfig {
     try {
-        Write-Log "Configuring BESClient Local API..." -Level "INFO"
-        $regBase = "HKLM:\SOFTWARE\BigFix\EnterpriseClient\Settings\Client"
-        New-Item -Path $regBase -Force | Out-Null
+        Write-Log "Checking and initializing BigFix Client Compliance API configuration..." -Level "INFO"
+        
+        # Registry key for 64-bit Windows
+        $regKeyPath = "HKLM:\SOFTWARE\WOW6432Node\BigFix\ClientComplianceAPI"
+        $bigFixBasePath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
+        $requestDir = Join-Path $bigFixBasePath "RequestDir"
+        $responseDir = Join-Path $bigFixBasePath "ResponseDir"
+        $connectDir = Join-Path $bigFixBasePath "ConnectDir"
 
-        $desiredValues = @{
-            "_BESClient_LocalAPI_Enable"       = "1"
-            "_BESClient_LocalAPI_Port"         = $Port.ToString()
-            "_BESClient_LocalAPI_ListenAddress" = $ListenAddress
+        # Check and create registry key
+        if (-not (Test-Path $regKeyPath)) {
+            Write-Log "Creating BigFix API registry key: $regKeyPath" -Level "INFO"
+            New-Item -Path $regKeyPath -Force | Out-Null
         }
 
-        $changesMade = $false
-        foreach ($name in $desiredValues.Keys) {
-            $current = (Get-ItemProperty -Path $regBase -Name $name -ErrorAction SilentlyContinue).$name
-            if ($current -ne $desiredValues[$name]) {
-                Set-ItemProperty -Path $regBase -Name $name -Value $desiredValues[$name] -Type String -Force
-                $changesMade = $true
+        # Check and set registry values
+        $regValues = @{
+            "RequestDir" = $requestDir
+            "ResponseDir" = $responseDir
+            "ConnectDir" = $connectDir
+        }
+        foreach ($key in $regValues.Keys) {
+            $currentValue = (Get-ItemProperty -Path $regKeyPath -Name $key -ErrorAction SilentlyContinue).$key
+            if (-not $currentValue) {
+                Write-Log "Setting registry value $key to $($regValues[$key])" -Level "INFO"
+                Set-ItemProperty -Path $regKeyPath -Name $key -Value $regValues[$key] -Force
+            } elseif ($currentValue -ne $regValues[$key]) {
+                Write-Log "Updating registry value $key from $currentValue to $($regValues[$key])" -Level "INFO"
+                Set-ItemProperty -Path $regKeyPath -Name $key -Value $regValues[$key] -Force
             }
         }
 
-        if ($changesMade) {
-            $svc = Get-Service -Name besclient -ErrorAction SilentlyContinue
-            if ($svc) {
-                Write-Log "BESClient settings updated; restarting besclient service" -Level "INFO"
-                Invoke-WithRetry -Action {
-                    Stop-Service -Name besclient -Force
-                    Start-Service -Name besclient
-                } -MaxRetries 3 -RetryDelayMs 1000
-            } else {
-                Write-Log "besclient service not found" -Level "WARNING"
+        # Check and create directories
+        foreach ($dir in @($requestDir, $responseDir, $connectDir)) {
+            if (-not (Test-Path $dir)) {
+                Write-Log "Creating directory: $dir" -Level "INFO"
+                New-Item -Path $dir -ItemType Directory -Force | Out-Null
             }
-        } else {
-            Write-Log "BESClient Local API already configured; no changes applied" -Level "INFO"
         }
+
+        # Set directory permissions (requires admin privileges)
+        try {
+            # RequestDir: Everyone can write
+            icacls $requestDir /grant "Everyone:(OI)(CI)(W)" /T | Out-Null
+            Write-Log "Set write permissions for Everyone on $requestDir" -Level "INFO"
+            
+            # ResponseDir: Everyone can read
+            icacls $responseDir /grant "Everyone:(OI)(CI)(R)" /T | Out-Null
+            Write-Log "Set read permissions for Everyone on $responseDir" -Level "INFO"
+            
+            # ConnectDir: Everyone can execute
+            icacls $connectDir /grant "Everyone:(OI)(CI)(RX)" /T | Out-Null
+            Write-Log "Set execute permissions for Everyone on $connectDir" -Level "INFO"
+        }
+        catch {
+            Write-Log "Failed to set permissions on BigFix directories: $($_.Exception.Message). Script may require admin privileges." -Level "WARNING"
+        }
+
+        Write-Log "BigFix API configuration initialized successfully." -Level "INFO"
+        return $true
     }
     catch {
-        Handle-Error $_.Exception.Message -Source "Enable-BESClientLocalAPI"
+        Write-Log "Error initializing BigFix API config: $($_.Exception.Message)" -Level "ERROR"
+        return $false
     }
 }
 
-function Get-RelevantSecurityUpdates {
+function Get-BigFixRelevanceResult {
     param(
-        [int]$Port = 52315,
-        [string]$Address = "127.0.0.1"
+        [string]$RelevanceQuery
     )
     try {
-        Write-Log "Checking for BigFix security updates at ${Address}:$Port" -Level "INFO"
-        $baseUrl = "http://${Address}:$Port/api/query"
-        $relevance = "names of relevant fixlets whose (exists category of it and category of it as lowercase contains 'security') of bes computer"
-        $encoded = [System.Net.WebUtility]::UrlEncode($relevance)
-        $response = Invoke-WebRequest -Uri "$baseUrl?relevance=$encoded" -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
-        [xml]$xml = $response.Content
-        $updates = @()
-        foreach ($ans in $xml.BESAPI.Query.Result.Answer) {
-            if ($ans.'#text') { $updates += $ans.'#text' }
-        }
-        if ($updates.Count -gt 0) {
-            Write-Log "BigFix security updates found: $($updates -join ', ')" -Level "INFO"
+        $comObject = New-Object -ComObject "BESClientEval"
+        $comObject.Expression = $RelevanceQuery
+        if ($comObject.Evaluate()) {
+            return $comObject.Result
         } else {
-            Write-Log "No relevant BigFix security updates detected." -Level "INFO"
+            return "Evaluation failed"
         }
-        return $updates
     } catch {
-        Handle-Error $_.Exception.Message -Source "Get-RelevantSecurityUpdates"
-        return @()
+        Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
+        return "Error: $($_.Exception.Message)"
     }
 }
-# End of Get-RelevantSecurityUpdates
 
+function Generate-BigFixComplianceReport {
+    try {
+        Write-Log "Gathering BigFix compliance info..." -Level "INFO"
+        $reportPath = Join-Path $ScriptDir "BigFixComplianceReport.txt"
+        $jsonPath = Join-Path $ScriptDir "BigFixComplianceReport.json"
 
+        $computerName = Get-BigFixRelevanceResult "name of computer"
+        $clientVersion = Get-BigFixRelevanceResult "version of client as string"
+        $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else `"No Relay`""
+        $lastReport = Get-BigFixRelevanceResult "last report time of client as string"
+        $ipAddress = Get-BigFixRelevanceResult "ip address of client as string"
+        $siteList = Get-BigFixRelevanceResult "names of sites whose (subscribed of it = true)"
+        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
 
-Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
+        $sites = @()
+        if ($siteList -is [string] -and -not [string]::IsNullOrWhiteSpace($siteList)) {
+            $sites = $siteList -split "`n" | Where-Object { $_ -match "\S" } # Filter empty lines
+        }
+
+        $fixlets = @()
+        if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList)) {
+            $fixlets = $fixletList -split "`n" | Where-Object { $_ -match "\S" } # Filter empty lines
+        }
+
+        $report = @(
+            "BigFix Compliance Report - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+            "------------------------------------------------------------",
+            "Computer Name  : $computerName",
+            "Client Version : $clientVersion",
+            "Relay Address  : $relay",
+            "IP Address     : $ipAddress",
+            "Last Reported  : $lastReport",
+            "",
+            "Subscribed Sites:",
+            "-----------------"
+        )
+        if ($sites.Count -gt 0) {
+            $report += $sites | ForEach-Object { " - $_" }
+        } else {
+            $report += "No subscribed sites found."
+        }
+        $report += @("", "Applicable Fixlets (Non-Baselines):", "----------------------------------")
+        if ($fixlets.Count -gt 0) {
+            $report += $fixlets | ForEach-Object { " - $_" }
+        } else {
+            $report += "No applicable fixlets found."
+        }
+
+        $report | Out-File -FilePath $reportPath -Encoding UTF8
+        $reportJson = @{
+            Timestamp         = (Get-Date)
+            ComputerName      = $computerName
+            ClientVersion     = $clientVersion
+            Relay             = $relay
+            IPAddress         = $ipAddress
+            LastReportTime    = $lastReport
+            SubscribedSites   = $sites
+            ApplicableFixlets = $fixlets
+        }
+        $reportJson | ConvertTo-Json -Depth 3 | Out-File -FilePath $jsonPath -Encoding UTF8
+        Write-Log "BigFix compliance report written to $reportPath and $jsonPath" -Level "INFO"
+    } catch {
+        Write-Log "Error generating BigFix compliance report: $($_.Exception.Message)" -Level "ERROR"
+    }
+}
 
 # ============================================================
 # MODULE: Configuration Management
@@ -236,7 +314,6 @@ function Get-DefaultConfig {
         AnnouncementsLastState = "{}"
         SupportLastState       = "{}"
         Version               = $ScriptVersion
-        PatchInfoFilePath     = "C:\temp\X-Fixlet-Source_Count.txt"
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
@@ -312,16 +389,17 @@ if (-not (Test-Path $LogDirectory)) {
 }
 Rotate-LogFile
 
-Enable-BESClientLocalAPI
-
 function Log-DotNetVersion {
     try {
         $dotNetVersion = [System.Environment]::Version.ToString()
         Write-Log ".NET Version: $dotNetVersion" -Level "INFO"
         $frameworkDescription = [System.Runtime.InteropServices.RuntimeInformation]::FrameworkDescription
         Write-Log ".NET Framework Description: $frameworkDescription" -Level "INFO"
-    } catch {}
+    } catch {
+        Write-Log "Error logging .NET version: $($_.Exception.Message)" -Level "ERROR"
+    }
 }
+
 # ============================================================
 # D) Import Required Assemblies
 # ============================================================
@@ -431,12 +509,12 @@ $xamlString = @"
       </StackPanel>
     </ScrollViewer>
     <Grid Grid.Row="2" Margin="0,5,0,0">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
 </Window>
@@ -517,11 +595,15 @@ try {
             $window.Hide()
         }
     })
+
+    # Initialize BigFix API configuration
+    Initialize-BigFixAPIConfig
 }
 catch {
-    Handle-Error "Failed to load the XAML layout: $($_.Exception.Message)" -Source "XAML"
+    Handle-Error "Failed to load the XAML layout or initialize BigFix API: $($_.Exception.Message)" -Source "XAML"
     exit
 }
+
 # ============================================================
 # H) Modularized System Information Functions
 # ============================================================
@@ -559,7 +641,6 @@ function Fetch-ContentData {
     $url = $config.ContentDataUrl
 
     try {
-        $url = $config.ContentDataUrl
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
         # Async fetch using job to avoid blocking
@@ -624,7 +705,10 @@ function Get-VirtualSmartCardCertExpiry {
         $cert = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Subject -match "Virtual" } | Sort-Object NotAfter -Descending | Select-Object -First 1
         if (-not $cert) { return "No certificate found." }
         return "Microsoft Virtual Smart Card: Expires: $($cert.NotAfter.ToString("yyyy-MM-dd"))"
-    } catch { return "Microsoft Virtual Smart Card: Unable to check status." }
+    } catch {
+        Write-Log "Virtual Smart Card check error: $($_.Exception.Message)" -Level "ERROR"
+        return "Microsoft Virtual Smart Card: Unable to check status."
+    }
 }
 
 function Update-CertificateInfo {
@@ -635,7 +719,9 @@ function Update-CertificateInfo {
         $combinedStatus = "$ykStatus`n$vscStatus"
         $global:CachedCertificateStatus = $combinedStatus
         $window.Dispatcher.Invoke({ $global:YubiKeyComplianceText.Text = $combinedStatus })
-    } catch { Handle-Error $_.Exception.Message -Source "Update-CertificateInfo" }
+    } catch {
+        Handle-Error $_.Exception.Message -Source "Update-CertificateInfo"
+    }
 }
 
 function Get-PendingRestartStatus {
@@ -655,14 +741,84 @@ function Get-PendingRestartStatus {
     }
 }
 
-$global:LastPatchTimestamp = $null
-
 function Get-WindowsBuildNumber {
     try {
         $buildInfo = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
         $productName = if ($buildInfo.CurrentBuildNumber -ge 22000) { "Windows 11" } else { "Windows 10" }
         return "$productName Build: $($buildInfo.DisplayVersion)"
-    } catch { return "Windows Build: Unknown" }
+    } catch {
+        Write-Log "Windows build number check error: $($_.Exception.Message)" -Level "ERROR"
+        return "Windows Build: Unknown"
+    }
+}
+
+function Convert-MarkdownToTextBlock {
+    param(
+        [string]$Text,
+        [System.Windows.Controls.TextBlock]$TargetTextBlock
+    )
+    
+    $TargetTextBlock.Inlines.Clear()
+    
+    $regexBold = "\*\*(.*?)\*\*"
+    $regexItalic = "\*(.*?)\*"
+    $regexUnderline = "__(.*?)__"
+    $regexColor = "\[(green|red|yellow)\](.*?)\[/\1\]"
+    
+    $currentText = $Text
+    $lastIndex = 0
+    $matches = @()
+
+    # Find all bold, italic, underline, and color matches
+    $boldMatches = [regex]::Matches($Text, $regexBold)
+    $italicMatches = [regex]::Matches($Text, $regexItalic)
+    $underlineMatches = [regex]::Matches($Text, $regexUnderline)
+    $colorMatches = [regex]::Matches($Text, $regexColor)
+    
+    # Combine and sort matches by index
+    foreach ($match in $boldMatches) {
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Bold" }
+    }
+    foreach ($match in $italicMatches) {
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Italic" }
+    }
+    foreach ($match in $underlineMatches) {
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Underline" }
+    }
+    foreach ($match in $colorMatches) {
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[2].Value; Type = "Color"; Color = $match.Groups[1].Value }
+    }
+    $matches = $matches | Sort-Object Index
+
+    foreach ($match in $matches) {
+        # Add text before the match
+        if ($match.Index -gt $lastIndex) {
+            $plainText = $currentText.Substring($lastIndex, $match.Index - $lastIndex)
+            $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($plainText)))
+        }
+        
+        # Add formatted text
+        $run = New-Object System.Windows.Documents.Run($match.Text)
+        if ($match.Type -eq "Bold") {
+            $run.FontWeight = [System.Windows.FontWeights]::Bold
+        } elseif ($match.Type -eq "Italic") {
+            $run.FontStyle = [System.Windows.FontStyles]::Italic
+        } elseif ($match.Type -eq "Underline") {
+            $run.TextDecorations = [System.Windows.TextDecorations]::Underline
+        } elseif ($match.Type -eq "Color") {
+            $colorBrush = [System.Windows.Media.Brushes]::($match.Color.Substring(0,1).ToUpper() + $match.Color.Substring(1))
+            $run.Foreground = $colorBrush
+        }
+        $TargetTextBlock.Inlines.Add($run)
+        
+        $lastIndex = $match.Index + $match.Length
+    }
+    
+    # Add remaining text
+    if ($lastIndex -lt $currentText.Length) {
+        $plainText = $currentText.Substring($lastIndex)
+        $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($plainText)))
+    }
 }
 
 function Update-Announcements {
@@ -682,8 +838,8 @@ function Update-Announcements {
         if ($isNew) {
             $global:AnnouncementsAlertIcon.Visibility = "Visible"
         }
-        $global:AnnouncementsText.Text = $newAnnouncementsObject.Text
-        $global:AnnouncementsDetailsText.Text = $newAnnouncementsObject.Details
+        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
+        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Details -TargetTextBlock $global:AnnouncementsDetailsText
         $global:AnnouncementsLinksPanel.Children.Clear()
         if ($newAnnouncementsObject.Links) {
             foreach ($link in $newAnnouncementsObject.Links) {
@@ -713,7 +869,7 @@ function Update-Support {
         if ($isNew) {
             $global:SupportAlertIcon.Visibility = "Visible"
         }
-        $global:SupportText.Text = $newSupportObject.Text
+        Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
         $global:SupportLinksPanel.Children.Clear()
         if ($newSupportObject.Links) {
             foreach ($link in $newSupportObject.Links) {
@@ -731,26 +887,20 @@ function Update-PatchingAndSystem {
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
-    $patchFile = $config.PatchInfoFilePath
-    if (Test-Path $patchFile) {
-        $fileTimestamp = (Get-Item $patchFile).LastWriteTime
-        if ($global:LastPatchTimestamp -ne $fileTimestamp) {
-            $rawPatchText = Get-Content -Path $patchFile -Raw -ErrorAction SilentlyContinue
-            $global:LastPatchText = if ([string]::IsNullOrWhiteSpace($rawPatchText)) { "No pending updates listed." } else { $rawPatchText }
-            $global:LastPatchTimestamp = $fileTimestamp
-        }
-        $finalPatchText = $global:LastPatchText
-    } else {
-        $finalPatchText = "Patch info file not found."
-    }
+    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
+    $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
 
-    $securityUpdates = Get-RelevantSecurityUpdates
-    if ($securityUpdates.Count -gt 0) {
-        $securityText = "Security Updates from BigFix:`n - " + ($securityUpdates -join "`n - ")
+    $finalPatchText = ""
+    if ($patchResult -match "Error" -or $patchResult -match "Evaluation failed" -or $patchResult -match "nonexistent object") {
+        $finalPatchText = "No pending updates listed."
     } else {
-        $securityText = "No relevant security updates detected."
+        $fixlets = if ($patchResult -is [string] -and -not [string]::IsNullOrWhiteSpace($patchResult)) {
+            $patchResult -split "`n" | Where-Object { $_ -match "\S" } | ForEach-Object { " - $_" }
+        } else {
+            @("No applicable fixlets found.")
+        }
+        $finalPatchText = $fixlets -join "`n"
     }
-    $finalPatchText = "$finalPatchText`n$securityText"
 
     $windowsBuild = Get-WindowsBuildNumber
 
@@ -876,7 +1026,6 @@ echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
 # ============================================================
 # I) Tray Icon Management
 # ============================================================
-
 $global:BlinkingTimer = $null
 $global:MainIcon = $null
 $global:WarningIcon = $null
@@ -971,7 +1120,9 @@ function Initialize-TrayIcon {
         ))
         $global:TrayIcon.ContextMenuStrip = $ContextMenuStrip
         $global:TrayIcon.add_MouseClick({ if ($_.Button -eq 'Left') { Toggle-WindowVisibility } })
-    } catch { Handle-Error $_.Exception.Message -Source "Initialize-TrayIcon" }
+    } catch {
+        Handle-Error $_.Exception.Message -Source "Initialize-TrayIcon"
+    }
 }
 
 # ============================================================
@@ -1001,6 +1152,7 @@ function Toggle-WindowVisibility {
         }
     })
 }
+
 # ============================================================
 # O) Main Update Cycle and DispatcherTimer
 # ============================================================
@@ -1021,11 +1173,15 @@ function Main-UpdateCycle {
         
         if (Check-ScriptUpdate) { return }  # Stop cycle if update started
         
+        Generate-BigFixComplianceReport
+        
         Update-TrayIcon
         Save-Configuration -Config $config
         Rotate-LogFile
     }
-    catch { Handle-Error $_.Exception.Message -Source "Main-UpdateCycle" }
+    catch {
+        Handle-Error $_.Exception.Message -Source "Main-UpdateCycle"
+    }
 }
 
 # ============================================================
@@ -1053,12 +1209,16 @@ try {
 
     Initialize-TrayIcon
     Log-DotNetVersion
+    Initialize-BigFixAPIConfig  # Ensure BigFix API is configured before queries
     Main-UpdateCycle -ForceCertificateCheck $true
     
     $global:DispatcherTimer.Start()
     Write-Log "Main timer started." -Level "INFO"
     
-    $window.Dispatcher.Add_UnhandledException({ Handle-Error $_.Exception.Message -Source "Dispatcher"; $_.Handled = $true })
+    $window.Dispatcher.Add_UnhandledException({ 
+        Handle-Error $_.Exception.Message -Source "Dispatcher"
+        $_.Handled = $true 
+    })
 
     Write-Log "Application startup complete. Running dispatcher." -Level "INFO"
     if (-not $global:IsUpdating) {
