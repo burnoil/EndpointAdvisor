@@ -1,7 +1,14 @@
-Start-Process : This command cannot be run because "RedirectStandardOutput" and "RedirectStandardError" are same. Give
-different inputs and Run your command again.
-At C:\LLNOTIFY\LLNOTIFY.ps1:165 char:35
-+ ... r32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s  ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : InvalidOperation: (:) [Start-Process], InvalidOperationException
-    + FullyQualifiedErrorId : InvalidOperationException,Microsoft.PowerShell.Commands.StartProcessCommand
+[2025-07-31 10:08:23] [INFO] BESClientEval COM object not registered. Attempting to register: C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll
+[2025-07-31 10:08:24] [INFO] Successfully registered BigFix COM DLL: C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll
+[2025-07-31 10:08:24] [INFO] Set write permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\RequestDir
+[2025-07-31 10:08:24] [INFO] Set read permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\ResponseDir
+[2025-07-31 10:08:24] [INFO] Set execute permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\ConnectDir
+[2025-07-31 10:08:24] [INFO] BigFix API configuration initialized successfully.
+[2025-07-31 10:08:24] [INFO] Main update cycle running...
+[2025-07-31 10:08:24] [INFO] Attempting to fetch content from: https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json
+[2025-07-31 10:08:25] [INFO] Successfully fetched content from Git repository (Status: 200).
+[2025-07-31 10:08:25] [INFO] Content data validated successfully.
+[2025-07-31 10:08:25] [INFO] Updating Announcements section...
+[2025-07-31 10:08:25] [INFO] Updating Support section...
+[2025-07-31 10:08:25] [INFO] Updating Patching and System section...
+[2025-07-31 10:08:25] [ERROR] BigFix relevance query failed: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Run script as administrator and ensure BESClientComplianceMOD.dll is registered at C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll.
