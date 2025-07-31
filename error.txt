@@ -1,1 +1,1 @@
-[2025-07-31 08:28:38] [ERROR] BigFix relevance query error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+[2025-07-31 08:41:18] [ERROR] BigFix relevance query failed: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Run script as administrator and ensure BESClientComplianceMOD.dll is registered at C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll.
