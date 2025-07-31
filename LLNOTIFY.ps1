@@ -1,5 +1,14 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.8 (Used 32-bit Regsvr32 for COM registration, added unregistration step, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.9 (Added bitness detection and relaunch in 32-bit PowerShell for BigFix COM compatibility, fixed SSA log file issue, restricted site info to reports)
+
+# Detect if running in 64-bit PowerShell and relaunch in 32-bit if necessary
+if ([Environment]::Is64BitProcess) {
+    Write-Host "Relaunching in 32-bit PowerShell for BigFix COM compatibility..."
+    $scriptPath = $PSCommandPath
+    $32bitPS = "$env:windir\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+    Start-Process -FilePath $32bitPS -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait
+    exit
+}
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +18,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.8"
+$ScriptVersion = "4.6.9"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -41,7 +50,7 @@ function Invoke-WithRetry {
             if ($attempt -ge $MaxRetries) {
                 throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
             }
-            Start-Sleep -Milliseconds $retryDelayMs
+            Start-Sleep -Milliseconds $RetryDelayMs
         }
     }
 }
