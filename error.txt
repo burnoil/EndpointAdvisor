@@ -1,39 +1,22 @@
-[2025-07-31 12:19:16] [WARNING] Dependency check failed for C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll: Exception calling "LoadFile" with "1" argument(s): "The module was expected to contain an assembly manifest. (Exception from HRESULT: 0x80131018)"
-[2025-07-31 12:19:16] [WARNING] BESClientComplianceMod.Session CLSID not found in registry.
-[2025-07-31 12:19:16] [INFO] BESClientComplianceMod.Session COM object already registered.
-[2025-07-31 12:19:16] [INFO] Set write permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\RequestDir
-[2025-07-31 12:19:16] [INFO] Set read permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\ResponseDir
-[2025-07-31 12:19:16] [INFO] Set execute permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\ConnectDir
-[2025-07-31 12:19:16] [INFO] BigFix API configuration initialized successfully.
-[2025-07-31 12:19:17] [INFO] .NET Version: 4.0.30319.42000
-[2025-07-31 12:19:17] [INFO] .NET Framework Description: .NET Framework 4.8.9310.0
-[2025-07-31 12:19:17] [INFO] Checking and initializing BigFix Client Compliance API configuration...
-[2025-07-31 12:19:17] [INFO] Checking and registering BigFix COM object (BESClientComplianceMod.Session)...
-[2025-07-31 12:19:17] [INFO] BigFix client service (BESClient) is running.
-[2025-07-31 12:19:17] [WARNING] Dependency check failed for C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll: Exception calling "LoadFile" with "1" argument(s): "The module was expected to contain an assembly manifest. (Exception from HRESULT: 0x80131018)"
-[2025-07-31 12:19:17] [WARNING] BESClientComplianceMod.Session CLSID not found in registry.
-[2025-07-31 12:19:17] [INFO] BESClientComplianceMod.Session COM object already registered.
-[2025-07-31 12:19:17] [INFO] Set write permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\RequestDir
-[2025-07-31 12:19:17] [INFO] Set read permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\ResponseDir
-[2025-07-31 12:19:17] [INFO] Set execute permissions for Everyone on C:\Program Files (x86)\BigFix Enterprise\BES Client\ConnectDir
-[2025-07-31 12:19:17] [INFO] BigFix API configuration initialized successfully.
-[2025-07-31 12:19:17] [INFO] Main update cycle running...
-[2025-07-31 12:19:17] [INFO] Attempting to fetch content from: https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json
-[2025-07-31 12:19:19] [INFO] Successfully fetched content from Git repository (Status: 200).
-[2025-07-31 12:19:19] [INFO] Content data validated successfully.
-[2025-07-31 12:19:19] [INFO] Updating Announcements section...
-[2025-07-31 12:19:19] [INFO] Updating Support section...
-[2025-07-31 12:19:20] [INFO] Updating Patching and System section...
-[2025-07-31 12:19:20] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:20] [INFO] Updating certificate info...
-[2025-07-31 12:19:34] [INFO] Checking for script update from: https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt
-[2025-07-31 12:19:36] [INFO] No new script version available.
-[2025-07-31 12:19:36] [INFO] Gathering BigFix compliance info...
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix relevance query error: Cannot find an overload for "Open" and the argument count: "0"
-[2025-07-31 12:19:36] [ERROR] BigFix compliance report failed due to API unavailability.
+At C:\LLNOTIFY\LLNOTIFY.ps1:1387 char:84
++ ... orceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get
++                                                                          ~
+Missing closing ')' in expression.
+At C:\LLNOTIFY\LLNOTIFY.ps1:1387 char:85
++ ... orceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get
++                                                                           ~
+Missing closing ')' after expression in 'if' statement.
+At C:\LLNOTIFY\LLNOTIFY.ps1:1379 char:9
++     try {
++         ~
+Missing closing '}' in statement block or type definition.
+At C:\LLNOTIFY\LLNOTIFY.ps1:1387 char:84
++ ... orceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get
++                                                                          ~
+The Try statement is missing its Catch or Finally block.
+At C:\LLNOTIFY\LLNOTIFY.ps1:1377 char:27
++ function Main-UpdateCycle {
++                           ~
+Missing closing '}' in statement block or type definition.
+    + CategoryInfo          : ParserError: (:) [], ParseException
+    + FullyQualifiedErrorId : MissingEndParenthesisInExpression
