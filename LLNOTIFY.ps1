@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.4 (Added BigFix COM object registration, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.5 (Improved BigFix COM registration logging, fixed SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.4"
+$ScriptVersion = "4.6.5"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -160,13 +160,17 @@ function Register-BigFixCOMObject {
         if ($_.Exception.HResult -eq 0x80040154) {
             Write-Log "BESClientEval COM object not registered. Attempting to register: $dllPath" -Level "INFO"
             try {
-                # Register the DLL using Regsvr32 (requires admin privileges)
-                $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -PassThru
+                # Register the DLL using Regsvr32 and capture output
+                $tempOutputFile = [System.IO.Path]::GetTempFileName()
+                $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempOutputFile -PassThru
+                $regsvr32Output = Get-Content -Path $tempOutputFile -Raw
+                Remove-Item -Path $tempOutputFile -Force
+                
                 if ($regsvr32Result.ExitCode -eq 0) {
                     Write-Log "Successfully registered BigFix COM DLL: $dllPath" -Level "INFO"
                     return $true
                 } else {
-                    throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode)"
+                    throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode). Output: $regsvr32Output"
                 }
             }
             catch {
@@ -273,10 +277,11 @@ function Get-BigFixRelevanceResult {
     } catch [System.Runtime.InteropServices.COMException] {
         if ($_.Exception.HResult -eq 0x80040154) {
             Write-Log "BigFix relevance query failed: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Run script as administrator and ensure BESClientComplianceMOD.dll is registered at $($config.BigFixDLL_Path)." -Level "ERROR"
+            return "Error: BESClientEval COM object not registered. Contact IT."
         } else {
             Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
+            return "Error: $($_.Exception.Message)"
         }
-        return "Error: $($_.Exception.Message)"
     } catch {
         Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
         return "Error: $($_.Exception.Message)"
@@ -297,13 +302,31 @@ function Generate-BigFixComplianceReport {
         $siteList = Get-BigFixRelevanceResult "names of sites whose (subscribed of it = true)"
         $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
 
+        # Check if all queries failed
+        if ($computerName -like "Error:*" -and $clientVersion -like "Error:*" -and $relay -like "Error:*" -and 
+            $lastReport -like "Error:*" -and $ipAddress -like "Error:*" -and $siteList -like "Error:*" -and $fixletList -like "Error:*") {
+            $report = @(
+                "BigFix Compliance Report - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
+                "------------------------------------------------------------",
+                "Error: BigFix API not available. Contact IT for assistance."
+            )
+            $report | Out-File -FilePath $reportPath -Encoding UTF8
+            $reportJson = @{
+                Timestamp = (Get-Date)
+                Error = "BigFix API not available. Contact IT for assistance."
+            }
+            $reportJson | ConvertTo-Json -Depth 3 | Out-File -FilePath $jsonPath -Encoding UTF8
+            Write-Log "BigFix compliance report failed due to API unavailability." -Level "ERROR"
+            return
+        }
+
         $sites = @()
-        if ($siteList -is [string] -and -not [string]::IsNullOrWhiteSpace($siteList)) {
+        if ($siteList -is [string] -and -not [string]::IsNullOrWhiteSpace($siteList) -and $siteList -notlike "Error:*") {
             $sites = $siteList -split "`n" | Where-Object { $_ -match "\S" } # Filter empty lines
         }
 
         $fixlets = @()
-        if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList)) {
+        if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList) -and $fixletList -notlike "Error:*") {
             $fixlets = $fixletList -split "`n" | Where-Object { $_ -match "\S" } # Filter empty lines
         }
 
@@ -965,10 +988,10 @@ function Update-PatchingAndSystem {
     $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
 
     $finalPatchText = ""
-    if ($patchResult -match "Error" -or $patchResult -match "Evaluation failed" -or $patchResult -match "nonexistent object") {
-        $finalPatchText = "No pending updates listed."
+    if ($patchResult -like "Error:*") {
+        $finalPatchText = "BigFix API not available. Contact IT."
     } else {
-        $fixlets = if ($patchResult -is [string] -and -not [string]::IsNullOrWhiteSpace($patchResult)) {
+        $fixlets = if ($patchResult -is [string] -and -not [string]::IsNullOrWhiteSpace($patchResult) -and $patchResult -notlike "Evaluation failed") {
             $patchResult -split "`n" | Where-Object { $_ -match "\S" } | ForEach-Object { " - $_" }
         } else {
             @("No applicable fixlets found.")
