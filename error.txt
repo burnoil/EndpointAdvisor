@@ -1,21 +1,7 @@
-folder create "C:\temp"
-
-if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)") > 0} 
-   appendfile {concatenation "%0d%0a" of unique values of values of headers "Subject" of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)")}   
-endif
-
-if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments") > 0} 
-   appendfile {concatenation "%0d%0a" of unique values of values of headers "Subject" of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments")}
-endif
-
-// Only move if __appendfile was created (i.e. it exists)
-if {exists file "__appendfile"}
-    delete "C:\Temp\X-Fixlet-Source_Count.txt" // safely remove if already exists
-    move __appendfile "C:\Temp\X-Fixlet-Source_Count.txt"
-endif
-
-if {number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL ISD Managed (Workstations)") = 0 and number of relevant fixlets whose (value of header "X-Fixlet-Source" of it contains "Update") of site whose (name of it is "LL Application Deployments") = 0}
-delete "C:\Temp\X-Fixlet-Source_Count.txt"
-
-endif
-
+Error: ENOENT: no such file or directory, lstat 'C:\Users\TO33767\AppData\Local\BigFix\BigFixSSA\logs\main_20250731.log'
+    at lstatSync (node:fs:1566:3)
+    at t.lstatSync (node:electron/js2c/asar_bundle:2:3776)
+    at exports.ssalog (C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\resources\app.asar\utils\ssalog.js:7:3608)
+    at initConfig (C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\resources\app.asar\main.js:7:8678)
+    at App.<anonymous> (C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\resources\app.asar\main.js:7:18188)
+    at App.emit (node:events:513:28)
