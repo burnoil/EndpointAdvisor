@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.1 (Restricted BigFix site info to reports, not UI)
+# Version 4.6.2 (Fixed BigFix SSA log directory issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.1"
+$ScriptVersion = "4.6.2"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -562,6 +562,17 @@ try {
             if ([string]::IsNullOrWhiteSpace($ssaPath) -or -not (Test-Path $ssaPath)) {
                 throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
             }
+
+            # Ensure BigFix SSA log directory exists
+            $ssaLogDir = Join-Path $env:LOCALAPPDATA "BigFix\BigFixSSA\logs"
+            if (-not (Test-Path $ssaLogDir)) {
+                Write-Log "Creating BigFix SSA log directory: $ssaLogDir" -Level "INFO"
+                New-Item -Path $ssaLogDir -ItemType Directory -Force | Out-Null
+                if (-not (Test-Path $ssaLogDir)) {
+                    throw "Failed to create BigFix SSA log directory: $ssaLogDir"
+                }
+            }
+
             Write-Log "Launching BigFix SSA: $ssaPath" -Level "INFO"
             Start-Process -FilePath $ssaPath
         }
