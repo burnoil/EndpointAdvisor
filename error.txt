@@ -1,1 +1,7 @@
-[2025-07-31 08:41:18] [ERROR] BigFix relevance query failed: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Run script as administrator and ensure BESClientComplianceMOD.dll is registered at C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll.
+Start-Process : This command cannot be run because "RedirectStandardOutput" and "RedirectStandardError" are same. Give
+different inputs and Run your command again.
+At C:\LLNOTIFY\LLNOTIFY.ps1:165 char:35
++ ... r32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) [Start-Process], InvalidOperationException
+    + FullyQualifiedErrorId : InvalidOperationException,Microsoft.PowerShell.Commands.StartProcessCommand
