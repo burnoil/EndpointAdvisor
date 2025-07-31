@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.15 (Fixed -q flag in qna.exe, uses BESClientComplianceMod.Session, removed outdated BESClientEval, enhanced COM diagnostics, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.16 (Fixed COM Open method error, removed invalid dependency check, ensured qna.exe fallback, fixed SSA log file issue, restricted site info to reports)
 
 # Detect if running in 64-bit PowerShell and relaunch in 32-bit if necessary
 if ([Environment]::Is64BitProcess) {
@@ -18,7 +18,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.15"
+$ScriptVersion = "4.6.16"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -168,15 +168,6 @@ function Register-BigFixCOMObject {
             Write-Log "BigFix client service (BESClient) is running." -Level "INFO"
         }
 
-        # Check DLL dependencies
-        try {
-            [System.Reflection.Assembly]::LoadFile($dllPath) | Out-Null
-            Write-Log "DLL dependencies for $dllPath appear to be satisfied." -Level "INFO"
-        }
-        catch {
-            Write-Log "Dependency check failed for ${dllPath}: $($_.Exception.Message)" -Level "WARNING"
-        }
-
         # Check registry for BESClientComplianceMod.Session CLSID
         $clsid = (Get-ItemProperty -Path "HKCR\BESClientComplianceMod.Session\CLSID" -ErrorAction SilentlyContinue)."(default)"
         if ($clsid) {
@@ -188,7 +179,7 @@ function Register-BigFixCOMObject {
         # Attempt to create the COM object
         try {
             $comObject = New-Object -ComObject "BESClientComplianceMod.Session" -ErrorAction Stop
-            Write-Log "BESClientComplianceMod.Session COM object already registered." -Level "INFO"
+            Write-Log "BESClientComplianceMod.Session COM object successfully instantiated." -Level "INFO"
             return $true
         }
         catch [System.Runtime.InteropServices.COMException] {
@@ -227,7 +218,6 @@ function Register-BigFixCOMObject {
                     
                     if ($regResult.ExitCode -eq 0) {
                         Write-Log "32-bit Regsvr32 reported success for: $dllPath. Verifying COM object..." -Level "INFO"
-                        # Verify COM object availability
                         try {
                             $comObject = New-Object -ComObject "BESClientComplianceMod.Session" -ErrorAction Stop
                             Write-Log "BESClientComplianceMod.Session COM object successfully verified after registration." -Level "INFO"
@@ -344,7 +334,14 @@ function Get-BigFixRelevanceResult {
         while ($attempt -lt $maxRetries) {
             try {
                 $session = New-Object -ComObject "BESClientComplianceMod.Session" -ErrorAction Stop
-                $session.Open()
+                # Try Open with no parameters, then with empty string if needed
+                try {
+                    $session.Open()
+                }
+                catch {
+                    Write-Log "Open() failed, trying Open(''): $($_.Exception.Message)" -Level "WARNING"
+                    $session.Open("")
+                }
                 $session.Expression = $RelevanceQuery
                 if ($session.Evaluate()) {
                     $result = $session.Result
@@ -1387,72 +1384,4 @@ function Main-UpdateCycle {
         Update-Support
         Update-PatchingAndSystem
         
-        if ($ForceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get-Date) - $global:LastCertificateCheck).TotalSeconds -ge $config.CertificateCheckInterval)) {
-            Update-CertificateInfo
-            $global:LastCertificateCheck = Get-Date
-        }
-        
-        if (Check-ScriptUpdate) { return }  # Stop cycle if update started
-        
-        Generate-BigFixComplianceReport
-        
-        Update-TrayIcon
-        Save-Configuration -Config $config
-        Rotate-LogFile
-    }
-    catch {
-        Handle-Error $_.Exception.Message -Source "Main-UpdateCycle"
-    }
-}
-
-# ============================================================
-# P) Initial Setup & Application Start
-# ============================================================
-try {
-    $global:blinkingTickAction = {
-        if ($global:TrayIcon.Icon.Handle -eq $global:WarningIcon.Handle) {
-            $global:TrayIcon.Icon = $global:MainIcon
-        } else {
-            $global:TrayIcon.Icon = $global:WarningIcon
-        }
-    }
-    $global:BlinkingTimer = New-Object System.Windows.Threading.DispatcherTimer
-    $global:BlinkingTimer.Interval = [TimeSpan]::FromSeconds(1)
-    $global:BlinkingTimer.add_Tick($global:blinkingTickAction)
-
-    $global:mainTickAction = {
-        param($sender, $e)
-        Main-UpdateCycle
-    }
-    $global:DispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
-    $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterval)
-    $global:DispatcherTimer.add_Tick($global:mainTickAction)
-
-    Initialize-TrayIcon
-    Log-DotNetVersion
-    Initialize-BigFixAPIConfig  # Ensure BigFix API is configured before queries
-    Main-UpdateCycle -ForceCertificateCheck $true
-    
-    $global:DispatcherTimer.Start()
-    Write-Log "Main timer started." -Level "INFO"
-    
-    $window.Dispatcher.Add_UnhandledException({ 
-        Handle-Error $_.Exception.Message -Source "Dispatcher"
-        $_.Handled = $true 
-    })
-
-    Write-Log "Application startup complete. Running dispatcher." -Level "INFO"
-    if (-not $global:IsUpdating) {
-        [System.Windows.Threading.Dispatcher]::Run()
-    }
-}
-catch {
-    Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
-}
-finally {
-    Write-Log "--- LLNOTIFY Script Exiting ---"
-    if ($global:DispatcherTimer) { $global:DispatcherTimer.Stop() }
-    if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
-    if ($global:MainIcon) { $global:MainIcon.Dispose() }
-    if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
-}
+        if ($ForceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get
