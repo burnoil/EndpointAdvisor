@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.3 (Fixed BigFix SSA log file creation issue, restricted site info to reports)
+# Version 4.6.4 (Added BigFix COM object registration, fixed SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.3"
+$ScriptVersion = "4.6.4"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -143,10 +143,56 @@ Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
 # ============================================================
 # BigFix Compliance Reporting Functions
 # ============================================================
+function Register-BigFixCOMObject {
+    try {
+        Write-Log "Checking and registering BigFix COM object (BESClientEval)..." -Level "INFO"
+        $dllPath = $config.BigFixDLL_Path
+        if (-not (Test-Path $dllPath)) {
+            throw "BigFix COM DLL not found at: $dllPath"
+        }
+
+        # Attempt to create the COM object to check if it's already registered
+        $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
+        Write-Log "BESClientEval COM object already registered." -Level "INFO"
+        return $true
+    }
+    catch [System.Runtime.InteropServices.COMException] {
+        if ($_.Exception.HResult -eq 0x80040154) {
+            Write-Log "BESClientEval COM object not registered. Attempting to register: $dllPath" -Level "INFO"
+            try {
+                # Register the DLL using Regsvr32 (requires admin privileges)
+                $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -PassThru
+                if ($regsvr32Result.ExitCode -eq 0) {
+                    Write-Log "Successfully registered BigFix COM DLL: $dllPath" -Level "INFO"
+                    return $true
+                } else {
+                    throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode)"
+                }
+            }
+            catch {
+                Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator and the DLL path is correct." -Level "ERROR"
+                return $false
+            }
+        } else {
+            Write-Log "Unexpected COM error when testing BESClientEval: $($_.Exception.Message)" -Level "ERROR"
+            return $false
+        }
+    }
+    catch {
+        Write-Log "Error checking or registering BigFix COM object: $($_.Exception.Message)" -Level "ERROR"
+        return $false
+    }
+}
+
 function Initialize-BigFixAPIConfig {
     try {
         Write-Log "Checking and initializing BigFix Client Compliance API configuration..." -Level "INFO"
         
+        # Register the COM object first
+        if (-not (Register-BigFixCOMObject)) {
+            Write-Log "BigFix COM object registration failed. Relevance queries may not work." -Level "WARNING"
+        }
+
         # Registry key for 64-bit Windows
         $regKeyPath = "HKLM:\SOFTWARE\WOW6432Node\BigFix\ClientComplianceAPI"
         $bigFixBasePath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
@@ -224,6 +270,13 @@ function Get-BigFixRelevanceResult {
         } else {
             return "Evaluation failed"
         }
+    } catch [System.Runtime.InteropServices.COMException] {
+        if ($_.Exception.HResult -eq 0x80040154) {
+            Write-Log "BigFix relevance query failed: BESClientEval COM object not registered (REGDB_E_CLASSNOTREG). Run script as administrator and ensure BESClientComplianceMOD.dll is registered at $($config.BigFixDLL_Path)." -Level "ERROR"
+        } else {
+            Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
+        }
+        return "Error: $($_.Exception.Message)"
     } catch {
         Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
         return "Error: $($_.Exception.Message)"
@@ -315,6 +368,7 @@ function Get-DefaultConfig {
         SupportLastState       = "{}"
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
+        BigFixDLL_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
         ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
