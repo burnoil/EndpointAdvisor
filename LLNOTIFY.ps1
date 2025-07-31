@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.7 (Added COM registration verification, qna.exe fallback, fixed Start-Process redirection, SSA log file issue, restricted site info to reports)
+# Version 4.6.8 (Used 32-bit Regsvr32 for COM registration, added unregistration step, fixed SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.7"
+$ScriptVersion = "4.6.8"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -41,7 +41,7 @@ function Invoke-WithRetry {
             if ($attempt -ge $MaxRetries) {
                 throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
             }
-            Start-Sleep -Milliseconds $RetryDelayMs
+            Start-Sleep -Milliseconds $retryDelayMs
         }
     }
 }
@@ -160,51 +160,66 @@ function Register-BigFixCOMObject {
         }
 
         # Attempt to create the COM object to check if it's already registered
-        try {
-            $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
-            Write-Log "BESClientEval COM object already registered." -Level "INFO"
-            return $true
-        }
-        catch [System.Runtime.InteropServices.COMException] {
-            if ($_.Exception.HResult -eq 0x80040154) {
-                Write-Log "BESClientEval COM object not registered. Attempting to register: $dllPath" -Level "INFO"
-                try {
-                    # Register the DLL using Regsvr32 with separate output and error files
-                    $tempOutputFile = [System.IO.Path]::GetTempFileName()
-                    $tempErrorFile = [System.IO.Path]::GetTempFileName()
-                    $regsvr32Result = Start-Process -FilePath "regsvr32.exe" -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempErrorFile -PassThru
-                    $regsvr32Output = Get-Content -Path $tempOutputFile -Raw
-                    $regsvr32Error = Get-Content -Path $tempErrorFile -Raw
-                    Remove-Item -Path $tempOutputFile -Force -ErrorAction SilentlyContinue
-                    Remove-Item -Path $tempErrorFile -Force -ErrorAction SilentlyContinue
-                    
-                    $combinedOutput = ""
-                    if ($regsvr32Output) { $combinedOutput += "StdOut: $regsvr32Output`n" }
-                    if ($regsvr32Error) { $combinedOutput += "StdErr: $regsvr32Error" }
-                    
-                    if ($regsvr32Result.ExitCode -eq 0) {
-                        Write-Log "Regsvr32 reported success for: $dllPath. Verifying COM object..." -Level "INFO"
-                        # Verify COM object availability
-                        try {
-                            $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
-                            Write-Log "BESClientEval COM object successfully verified after registration." -Level "INFO"
-                            return $true
-                        }
-                        catch {
-                            throw "COM object registration verification failed: $($_.Exception.Message)"
-                        }
-                    } else {
-                        throw "Regsvr32 failed to register $dllPath with exit code: $($regsvr32Result.ExitCode). Output: $combinedOutput"
+        $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
+        Write-Log "BESClientEval COM object already registered." -Level "INFO"
+        return $true
+    }
+    catch [System.Runtime.InteropServices.COMException] {
+        if ($_.Exception.HResult -eq 0x80040154) {
+            Write-Log "BESClientEval COM object not registered. Attempting to unregister and re-register with 32-bit Regsvr32: $dllPath" -Level "INFO"
+            try {
+                # Use 32-bit Regsvr32 for unregistration and registration
+                $regsvr32Path = "C:\Windows\SysWOW64\regsvr32.exe"
+
+                # Unregister first to clean up
+                $tempUnregOutputFile = [System.IO.Path]::GetTempFileName()
+                $tempUnregErrorFile = [System.IO.Path]::GetTempFileName()
+                $unregResult = Start-Process -FilePath $regsvr32Path -ArgumentList "/u /s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempUnregOutputFile -RedirectStandardError $tempUnregErrorFile -PassThru
+                $unregOutput = Get-Content -Path $tempUnregOutputFile -Raw
+                $unregError = Get-Content -Path $tempUnregErrorFile -Raw
+                Remove-Item -Path $tempUnregOutputFile -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $tempUnregErrorFile -Force -ErrorAction SilentlyContinue
+                
+                $unregCombined = ""
+                if ($unregOutput) { $unregCombined += "StdOut: $unregOutput`n" }
+                if ($unregError) { $unregCombined += "StdErr: $unregError" }
+                Write-Log "Unregistration result (exit code: $($unregResult.ExitCode)): $unregCombined" -Level "INFO"
+
+                # Register
+                $tempRegOutputFile = [System.IO.Path]::GetTempFileName()
+                $tempRegErrorFile = [System.IO.Path]::GetTempFileName()
+                $regResult = Start-Process -FilePath $regsvr32Path -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempRegOutputFile -RedirectStandardError $tempRegErrorFile -PassThru
+                $regOutput = Get-Content -Path $tempRegOutputFile -Raw
+                $regError = Get-Content -Path $tempRegErrorFile -Raw
+                Remove-Item -Path $tempRegOutputFile -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path $tempRegErrorFile -Force -ErrorAction SilentlyContinue
+                
+                $regCombined = ""
+                if ($regOutput) { $regCombined += "StdOut: $regOutput`n" }
+                if ($regError) { $regCombined += "StdErr: $regError" }
+                
+                if ($regResult.ExitCode -eq 0) {
+                    Write-Log "32-bit Regsvr32 reported success for: $dllPath. Verifying COM object..." -Level "INFO"
+                    # Verify COM object availability
+                    try {
+                        $comObject = New-Object -ComObject "BESClientEval" -ErrorAction Stop
+                        Write-Log "BESClientEval COM object successfully verified after registration." -Level "INFO"
+                        return $true
                     }
+                    catch {
+                        throw "COM object registration verification failed: $($_.Exception.Message)"
+                    }
+                } else {
+                    throw "32-bit Regsvr32 failed to register $dllPath with exit code: $($regResult.ExitCode). Output: $regCombined"
                 }
-                catch {
-                    Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator, the DLL path is correct, and dependencies are installed." -Level "ERROR"
-                    return $false
-                }
-            } else {
-                Write-Log "Unexpected COM error when testing BESClientEval: $($_.Exception.Message)" -Level "ERROR"
+            }
+            catch {
+                Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator, the DLL path is correct, and dependencies are installed." -Level "ERROR"
                 return $false
             }
+        } else {
+            Write-Log "Unexpected COM error when testing BESClientEval: $($_.Exception.Message)" -Level "ERROR"
+            return $false
         }
     }
     catch {
