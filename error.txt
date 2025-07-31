@@ -1,7 +1,1 @@
-Error: ENOENT: no such file or directory, lstat 'C:\Users\TO33767\AppData\Local\BigFix\BigFixSSA\logs\main_20250731.log'
-    at lstatSync (node:fs:1566:3)
-    at t.lstatSync (node:electron/js2c/asar_bundle:2:3776)
-    at exports.ssalog (C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\resources\app.asar\utils\ssalog.js:7:3608)
-    at initConfig (C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\resources\app.asar\main.js:7:8678)
-    at App.<anonymous> (C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\resources\app.asar\main.js:7:18188)
-    at App.emit (node:events:513:28)
+[2025-07-31 08:28:38] [ERROR] BigFix relevance query error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
