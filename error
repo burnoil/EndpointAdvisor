@@ -1,6 +1,20 @@
-At C:\LLNOTIFY\LLNOTIFY.ps1:960 char:126
-+ ... contains `\"microsoft`\" or name of it as lowercase contains `\"secur ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Unexpected token 'microsoft`\" or name of it as lowercase contains `\"security' in expression or statement.
-    + CategoryInfo          : ParserError: (:) [], ParseException
-    + FullyQualifiedErrorId : UnexpectedToken
+[2025-08-01 06:49:56] [ERROR] qna.exe failed to evaluate query, returned query string: name of computer
+[2025-08-01 06:49:56] [INFO] Executing relevance query with qna.exe: version of client as string
+[2025-08-01 06:49:58] [INFO] qna.exe raw output: Q: version of client as string A: 11.0.3.82 
+[2025-08-01 06:49:58] [ERROR] qna.exe failed to evaluate query, returned query string: version of client as string
+[2025-08-01 06:49:58] [INFO] Executing relevance query with qna.exe: if exists relay service then (address of relay service as string) else 'No Relay'
+[2025-08-01 06:49:59] [INFO] qna.exe raw output: Q: if exists relay service then (address of relay service as string) else 'No Relay' E: This expression contained a character which is not allowed. 
+[2025-08-01 06:49:59] [ERROR] qna.exe failed to evaluate query, returned query string: if exists relay service then (address of relay service as string) else 'No Relay'
+[2025-08-01 06:49:59] [INFO] Executing relevance query with qna.exe: last report time of client as string
+[2025-08-01 06:50:01] [INFO] qna.exe raw output: Q: last report time of client as string E: No inspector context. 
+[2025-08-01 06:50:01] [ERROR] qna.exe failed to evaluate query, returned query string: last report time of client as string
+[2025-08-01 06:50:01] [INFO] Executing relevance query with qna.exe: ip address of client as string
+[2025-08-01 06:50:03] [INFO] qna.exe raw output: Q: ip address of client as string E: The operator "ip address" is not defined. 
+[2025-08-01 06:50:03] [ERROR] qna.exe failed to evaluate query, returned query string: ip address of client as string
+[2025-08-01 06:50:03] [INFO] Executing relevance query with qna.exe: names of sites whose (subscribed of it = true)
+[2025-08-01 06:50:04] [INFO] qna.exe raw output: Q: names of sites whose (subscribed of it = true) E: The operator "subscribed" is not defined. 
+[2025-08-01 06:50:04] [ERROR] qna.exe failed to evaluate query, returned query string: names of sites whose (subscribed of it = true)
+[2025-08-01 06:50:04] [INFO] Executing relevance query with qna.exe: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of sites
+[2025-08-01 06:50:06] [INFO] qna.exe raw output: Q: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of sites E: This expression contained a character which is not allowed. 
+[2025-08-01 06:50:06] [ERROR] qna.exe failed to evaluate query, returned query string: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of sites
+[2025-08-01 06:50:06] [ERROR] BigFix compliance report failed due to API unavailability.
