@@ -1,25 +1,26 @@
-BigFix Compliance Report - 2025-08-01 12:14:55
+BigFix Compliance Report - 2025-08-01 12:58:37
 ------------------------------------------------------------
-Computer Name  : Error: Q: E: The operator "bes computer" is not defined.
+Computer Name  : 606141-MITLL
+T: 3204
 
-Q: 
+Q:
 Client Version : 11.0.3.82
-T: 3946
+T: 4045
 
 Q:
 Relay Address  : No Relay
-T: 139471
+T: 216755
 
 Q:
-IP Address     : Error: Q: E: The operator "bes computer" is not defined.
+IP Address     : Error: Q: E: The operator "ip addresses" is not defined.
 
 Q: 
-Last Reported  : Error: Q: E: The operator "bes client" is not defined.
+Last Reported  : Error: Q: E: The operator "last report time" is not defined.
 
 Q: 
 
 Applicable Fixlets (Non-Baselines):
 ----------------------------------
-Error: Q: E: The operator "bes sites" is not defined.
+Error: Q: E: The operator "fixlets" is not defined.
 
 Q: 
