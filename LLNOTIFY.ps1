@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.32 (Fixed try/catch parsing error, improved QnA.exe error handling)
+# Version 4.3.33 (Fixed try/catch parsing error in Get-BigFixRelevanceResult, prioritized piped input for QnA.exe)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.32"
+$ScriptVersion = "4.3.33"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -35,73 +35,36 @@ function Get-BigFixRelevanceResult {
         if (-not $qnaPath -or -not (Test-Path $qnaPath)) {
             throw "QnA.exe not found at configured path: '$qnaPath'. Please verify BigFix client installation."
         }
+
+        # Log QnA.exe version for debugging
+        try {
+            $qnaVersion = & $qnaPath -version 2>&1
+            Write-Log "QnA.exe version: $qnaVersion" -Level "INFO"
+        } catch {
+            Write-Log "Failed to retrieve QnA.exe version: $($_.Exception.Message)" -Level "WARNING"
+        }
+
         Write-Log "Executing QnA.exe for query: $RelevanceQuery" -Level "INFO"
 
-        # Try QnA.exe with -f option first
-        try {
-            $tempFile = [System.IO.Path]::GetTempFileName()
-            $RelevanceQuery | Out-File -FilePath $tempFile -Encoding ASCII -Force
-            
-            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-            $processInfo.FileName = $qnaPath
-            $processInfo.Arguments = "-f `"$tempFile`""
-            $processInfo.RedirectStandardOutput = $true
-            $processInfo.RedirectStandardError = $true
-            $processInfo.UseShellExecute = $false
-            $processInfo.CreateNoWindow = $true
+        # Try piped input first (more reliable across versions)
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = $qnaPath
+        $processInfo.RedirectStandardInput = $true
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.UseShellExecute = $false
+        $processInfo.CreateNoWindow = $true
 
-            Write-Log "Running command: $qnaPath -f `"$tempFile`"" -Level "INFO"
-            $process = [System.Diagnostics.Process]::Start($processInfo)
-            $output = $process.StandardOutput.ReadToEnd()
-            $errorOutput = $process.StandardError.ReadToEnd()
-            $process.WaitForExit()
-            $exitCode = $process.ExitCode
+        Write-Log "Running command: echo $RelevanceQuery | $qnaPath" -Level "INFO"
+        $process = [System.Diagnostics.Process]::Start($processInfo)
+        $process.StandardInput.WriteLine($RelevanceQuery)
+        $process.StandardInput.Close()
+        $output = $process.StandardOutput.ReadToEnd()
+        $errorOutput = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
 
-            Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-            
-            if ($exitCode -ne 0) {
-                Write-Log "QnA.exe -f failed with exit code $exitCode`: $errorOutput" -Level "WARNING"
-                throw "QnA.exe -f failed: $errorOutput"
-            }
-            if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Log "QnA.exe -f returned empty output for query: $RelevanceQuery" -Level "WARNING"
-                return "No data returned"
-            }
-            $result = $output.Trim()
-            if ($result -is [array]) {
-                $result = $result -join "`n"
-            }
-            Write-Log "QnA -f query succeeded: $result" -Level "INFO"
-            return $result
-        }
-        catch {
-            Write-Log "QnA.exe -f attempt failed: $($_.Exception.Message). Falling back to piped input." -Level "WARNING"
-            
-            # Fallback to piping query to QnA.exe
-            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-            $processInfo.FileName = $qnaPath
-            $processInfo.RedirectStandardInput = $true
-            $processInfo.RedirectStandardOutput = $true
-            $processInfo.RedirectStandardError = $true
-            $processInfo.UseShellExecute = $false
-            $processInfo.CreateNoWindow = $true
-
-            Write-Log "Running command: echo $RelevanceQuery | $qnaPath" -Level "INFO"
-            $process = [System.Diagnostics.Process]::Start($processInfo)
-            $process.StandardInput.WriteLine($RelevanceQuery)
-            $process.StandardInput.Close()
-            $output = $process.StandardOutput.ReadToEnd()
-            $errorOutput = $process.StandardError.ReadToEnd()
-            $process.WaitForExit()
-            $exitCode = $process.ExitCode
-
-            if ($exitCode -ne 0) {
-                throw "QnA.exe piped input failed with exit code $exitCode`: $errorOutput"
-            }
-            if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Log "QnA.exe piped input returned empty output for query: $RelevanceQuery" -Level "WARNING"
-                return "No data returned"
-            }
+        if ($exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($output)) {
             $result = $output.Trim()
             if ($result -is [array]) {
                 $result = $result -join "`n"
@@ -109,6 +72,42 @@ function Get-BigFixRelevanceResult {
             Write-Log "QnA piped query succeeded: $result" -Level "INFO"
             return $result
         }
+
+        # Fallback to -f option if piped input fails
+        Write-Log "Piped input failed with exit code $exitCode`: $errorOutput. Trying -f option." -Level "WARNING"
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        $RelevanceQuery | Out-File -FilePath $tempFile -Encoding ASCII -Force
+        
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = $qnaPath
+        $processInfo.Arguments = "-f `"$tempFile`""
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.UseShellExecute = $false
+        $processInfo.CreateNoWindow = $true
+
+        Write-Log "Running command: $qnaPath -f `"$tempFile`"" -Level "INFO"
+        $process = [System.Diagnostics.Process]::Start($processInfo)
+        $output = $process.StandardOutput.ReadToEnd()
+        $errorOutput = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+        
+        if ($exitCode -ne 0) {
+            throw "QnA.exe -f failed with exit code $exitCode`: $errorOutput"
+        }
+        if ([string]::IsNullOrWhiteSpace($output)) {
+            Write-Log "QnA.exe -f returned empty output for query: $RelevanceQuery" -Level "WARNING"
+            return "No data returned"
+        }
+        $result = $output.Trim()
+        if ($result -is [array]) {
+            $result = $result -join "`n"
+        }
+        Write-Log "QnA -f query succeeded: $result" -Level "INFO"
+        return $result
     }
     catch {
         Write-Log "QnA query failed: $($_.Exception.Message)" -Level "ERROR"
@@ -178,7 +177,7 @@ function Generate-BigFixComplianceReport {
     }
 }
 
-# ... [Rest of the script unchanged from version 4.3.31, including Get-DefaultConfig, Load-Configuration, Save-Configuration, XAML, etc.] ...
+# ... [Previous sections: Get-DefaultConfig, Load-Configuration, Save-Configuration unchanged] ...
 
 # ============================================================
 # F) Load and Verify XAML
@@ -217,7 +216,49 @@ try {
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
 
-    # ... [Rest of F) Load and Verify XAML unchanged] ...
+    $global:PatchingSSAButton.Add_Click({
+        try {
+            $ssaPath = $config.BigFixSSA_Path
+            if ([string]::IsNullOrWhiteSpace($ssaPath) -or -not (Test-Path $ssaPath)) {
+                throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
+            }
+            Write-Log "Launching BigFix SSA: $ssaPath" -Level "INFO"
+            Start-Process -FilePath $ssaPath
+        }
+        catch {
+            Handle-Error $_.Exception.Message -Source "PatchingSSAButton"
+        }
+    })
+    
+    $global:ClearAlertsButton.Add_Click({
+        Write-Log "Clear Alerts button clicked by user." -Level "INFO"
+
+        if ($global:contentData) {
+            $config.AnnouncementsLastState = $global:contentData.Data.Announcements | ConvertTo-Json -Compress
+            $config.SupportLastState = $global:contentData.Data.Support | ConvertTo-Json -Compress
+        }
+
+        $window.Dispatcher.Invoke({
+            $global:AnnouncementsAlertIcon.Visibility = 'Hidden'
+            $global:SupportAlertIcon.Visibility = 'Hidden'
+        })
+
+        $global:BlinkingTimer.Stop()
+        Update-TrayIcon
+        
+        Save-Configuration -Config $config
+    })
+
+    $window.Add_Closing({
+        if (-not $global:IsUpdating) {
+            $_.Cancel = $true
+            $window.Hide()
+        }
+    })
+}
+catch {
+    Handle-Error "Failed to load the XAML layout: $($_.Exception.Message)" -Source "XAML"
+    exit
 }
 
-# ... [Rest of the script unchanged from version 4.3.31] ...
+# ... [Rest of the script unchanged from version 4.3.32, including Update-PatchingAndSystem, Initialize-TrayIcon, etc.] ...
