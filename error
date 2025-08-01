@@ -1,6 +1,14 @@
-At C:\LLNOTIFY\LLNOTIFY.ps1:980 char:125
-+ ...  contains \"microsoft\" or name of it as lowercase contains \"securit ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Unexpected token 'microsoft\" or name of it as lowercase contains \"security' in expression or statement.
-    + CategoryInfo          : ParserError: (:) [], ParseException
-    + FullyQualifiedErrorId : UnexpectedToken
+[2025-08-01 07:21:00] [ERROR] qna.exe returned error: Q: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of bes sites E: This expression contained a character which is not allowed. 
+[2025-08-01 07:21:00] [INFO] Updating certificate info...
+[2025-08-01 07:21:15] [INFO] Checking for script update from: https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt
+[2025-08-01 07:21:16] [INFO] No new script version available.
+[2025-08-01 07:21:16] [INFO] Gathering BigFix compliance info...
+[2025-08-01 07:21:16] [INFO] Executing relevance query with qna.exe: name of computer
+[2025-08-01 07:21:18] [INFO] qna.exe raw output: Q: name of computer E: The operator "computer" is not defined. 
+[2025-08-01 07:21:18] [ERROR] qna.exe returned error: Q: name of computer E: The operator "computer" is not defined. 
+[2025-08-01 07:21:18] [INFO] Executing relevance query with qna.exe: version of client as string
+[2025-08-01 07:21:20] [INFO] qna.exe raw output: Q: version of client as string A: 11.0.3.82 
+[2025-08-01 07:21:20] [INFO] qna.exe relevance query succeeded: version of client as string. Result: 11.0.3.82
+[2025-08-01 07:21:20] [INFO] Executing relevance query with qna.exe: if exists relay of client then name of relay of client else 'No Relay'
+[2025-08-01 07:21:22] [INFO] qna.exe raw output: Q: if exists relay of client then name of relay of client else 'No Relay' E: This expression contained a character which is not allowed. 
+[2025-08-01 07:21:22] [ERROR] qna.exe returned error: Q: if exists relay of client then name of relay of client else 'No Relay' E: This expression contained a character which is not allowed. 
