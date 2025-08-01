@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.18 (Uses qna.exe exclusively, removed 32-bit PowerShell relaunch, removed COM API and DLL references, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.19 (Uses qna.exe exclusively, added q: prefix for queries, improved qna.exe error handling, runs in 64-bit PowerShell, removed COM API, fixed SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.18"
+$ScriptVersion = "4.6.19"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -233,9 +233,19 @@ function Get-BigFixRelevanceResult {
 
         Write-Log "Executing relevance query with qna.exe: $RelevanceQuery" -Level "INFO"
         $tempQueryFile = [System.IO.Path]::GetTempFileName()
-        $RelevanceQuery | Out-File -FilePath $tempQueryFile -Encoding ASCII
+        "q: $RelevanceQuery" | Out-File -FilePath $tempQueryFile -Encoding ASCII
         $qnaResult = & $qnaPath $tempQueryFile
         Remove-Item -Path $tempQueryFile -Force -ErrorAction SilentlyContinue
+        
+        # Log raw output for debugging
+        Write-Log "qna.exe raw output: $qnaResult" -Level "INFO"
+        
+        # Check if result matches the query (indicating failure)
+        if ($qnaResult -contains $RelevanceQuery -or $qnaResult -contains "q: $RelevanceQuery") {
+            Write-Log "qna.exe failed to evaluate query, returned query string: $RelevanceQuery" -Level "ERROR"
+            return "Error: Query evaluation failed."
+        }
+
         if ($qnaResult) {
             $result = $qnaResult -join "`n"
             Write-Log "qna.exe relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
@@ -259,11 +269,11 @@ function Generate-BigFixComplianceReport {
 
         $computerName = Get-BigFixRelevanceResult "name of computer"
         $clientVersion = Get-BigFixRelevanceResult "version of client as string"
-        $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else `"No Relay`""
+        $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else `\"No Relay`\""
         $lastReport = Get-BigFixRelevanceResult "last report time of client as string"
         $ipAddress = Get-BigFixRelevanceResult "ip address of client as string"
         $siteList = Get-BigFixRelevanceResult "names of sites whose (subscribed of it = true)"
-        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
+        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `\"microsoft`\" or name of it as lowercase contains `\"security update`\")) of sites"
 
         # Check if all queries failed
         if ($computerName -like "Error:*" -and $clientVersion -like "Error:*" -and $relay -like "Error:*" -and 
@@ -947,7 +957,7 @@ function Update-PatchingAndSystem {
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
-    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
+    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `\"microsoft`\" or name of it as lowercase contains `\"security update`\")) of sites"
     $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
 
     $finalPatchText = ""
@@ -1265,7 +1275,6 @@ try {
     }
     $global:DispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
     $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterval)
-    $global:DispatcherTimerynos
     $global:DispatcherTimer.add_Tick($global:mainTickAction)
 
     Initialize-TrayIcon
