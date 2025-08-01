@@ -144,27 +144,38 @@ Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
 # BigFix Compliance Reporting Functions
 # ============================================================
 function Get-BigFixRelevanceResult {
-    param(
-        [string]$RelevanceQuery
-    )
-
+    param([string]$RelevanceQuery)
     try {
-        $comObject = New-Object -ComObject "BESClientEval"
-        $comObject.Expression = $RelevanceQuery
-        if ($comObject.Evaluate()) {
-            return $comObject.Result
-        } else {
-            return "Evaluation failed"
+        $qnaPath = $config.BigFixQnA_Path
+        if (-not $qnaPath -or -not (Test-Path $qnaPath)) {
+            throw "QnA.exe not found at configured path: '$qnaPath'. Please verify BigFix client installation."
         }
+        Write-Log "Executing QnA.exe for query: $RelevanceQuery" -Level "INFO"
+        
+        # Write query to temp file and run QnA.exe
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        $RelevanceQuery | Out-File $tempFile -Encoding ASCII
+        $result = & $qnaPath -f $tempFile 2>&1
+        $exitCode = $LASTEXITCODE
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+        
+        if ($exitCode -ne 0) {
+            throw "QnA.exe failed with exit code $exitCode: $result"
+        }
+        if ($result -is [array]) {
+            $result = $result -join "`n"  # Join multi-line results
+        }
+        Write-Log "QnA query succeeded: $result" -Level "INFO"
+        return $result.Trim()
     } catch {
-        return "Error: $_"
+        Write-Log "QnA query failed: $($_.Exception.Message)" -Level "ERROR"
+        return "Error: BigFix QnA failed: $($_.Exception.Message)"
     }
 }
 
 function Generate-BigFixComplianceReport {
-    # MODIFIED: Now returns the report data as a PSCustomObject for GUI integration, in addition to writing files.
     try {
-        Write-Log "Gathering BigFix compliance info..." -Level "INFO"
+        Write-Log "Gathering BigFix compliance info using QnA.exe..." -Level "INFO"
         $reportPath = Join-Path $ScriptDir "BigFixComplianceReport.txt"
         $jsonPath = Join-Path $ScriptDir "BigFixComplianceReport.json"
 
@@ -176,8 +187,10 @@ function Generate-BigFixComplianceReport {
         $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of sites"
 
         $fixlets = @()
-        if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList)) {
-            $fixlets = $fixletList -split "`n" | Where-Object { $_ -match "\S" } # Split and filter empty lines
+        if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList) -and -not $fixletList.StartsWith("Error:")) {
+            $fixlets = $fixletList -split "`n" | Where-Object { $_ -match "\S" }
+        } elseif ($fixletList.StartsWith("Error:")) {
+            $fixlets = @($fixletList)
         }
 
         $report = @(
@@ -192,10 +205,10 @@ function Generate-BigFixComplianceReport {
             "Applicable Fixlets (Non-Baselines):",
             "----------------------------------"
         )
-        if ($fixlets.Count -gt 0) {
+        if ($fixlets.Count -gt 0 -and -not $fixlets[0].StartsWith("Error:")) {
             $report += $fixlets | ForEach-Object { " - $_" }
         } else {
-            $report += "No applicable fixlets found."
+            $report += $fixlets[0] -eq $null ? "No applicable fixlets found." : $fixlets[0]
         }
 
         $report | Out-File -FilePath $reportPath -Encoding UTF8
@@ -211,10 +224,10 @@ function Generate-BigFixComplianceReport {
         $reportData | ConvertTo-Json -Depth 3 | Out-File -FilePath $jsonPath -Encoding UTF8
         Write-Log "BigFix compliance report written to $reportPath and $jsonPath" -Level "INFO"
         
-        return $reportData  # NEW: Return the data for use elsewhere (e.g., GUI).
+        return $reportData
     } catch {
         Write-Log "Error generating BigFix compliance report: $($_.Exception.Message)" -Level "ERROR"
-        return $null  # NEW: Return null on error.
+        return $null
     }
 }
 
@@ -223,7 +236,7 @@ function Generate-BigFixComplianceReport {
 # ============================================================
 function Get-DefaultConfig {
     return @{
-        RefreshInterval       = 900  # Default to 15 minutes (900 seconds)
+        RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
         ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
@@ -238,6 +251,7 @@ function Get-DefaultConfig {
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
+        BigFixQnA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe"  # Configurable QnA path
         BlinkingEnabled       = $true
         ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
         VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
@@ -319,6 +333,7 @@ function Log-DotNetVersion {
         Write-Log ".NET Framework Description: $frameworkDescription" -Level "INFO"
     } catch {}
 }
+
 # ============================================================
 # D) Import Required Assemblies
 # ============================================================
@@ -400,8 +415,8 @@ $xamlString = @"
               <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
               <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
               <TextBlock x:Name="PatchingUpdatesText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
-              <TextBlock Text="BigFix Client Info:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>  <!-- NEW: Added for displaying BigFix client details -->
-              <TextBlock x:Name="BigFixClientInfoText" FontSize="11" TextWrapping="Wrap"/>  <!-- NEW: TextBlock for BigFix client version and last report -->
+              <TextBlock Text="BigFix Client Info:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
+              <TextBlock x:Name="BigFixClientInfoText" FontSize="11" TextWrapping="Wrap"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -434,7 +449,7 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="Â© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
     </Grid>
   </Grid>
@@ -466,14 +481,14 @@ try {
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
         "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText",
-        "BigFixClientInfoText"  # NEW: Added mapping for the new TextBlock
+        "BigFixClientInfoText"
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
     }
     Write-Log "UI elements mapped to variables." -Level "INFO"
 
-    $global:FooterText.Text = "$([char]169) 2025 Lincoln Laboratory v$ScriptVersion"
+    $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion"
 
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
@@ -522,6 +537,7 @@ catch {
     Handle-Error "Failed to load the XAML layout: $($_.Exception.Message)" -Source "XAML"
     exit
 }
+
 # ============================================================
 # H) Modularized System Information Functions
 # ============================================================
@@ -551,7 +567,6 @@ function Validate-ContentData {
 }
 
 function Fetch-ContentData {
-    # Guard: ensure ContentDataUrl is set
     if (-not $config -or [string]::IsNullOrWhiteSpace($config.ContentDataUrl)) {
         Write-Log "ContentDataUrl is not set! Check your Get-DefaultConfig return value." -Level "ERROR"
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
@@ -559,10 +574,8 @@ function Fetch-ContentData {
     $url = $config.ContentDataUrl
 
     try {
-        $url = $config.ContentDataUrl
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
-        # Async fetch using job to avoid blocking
         $job = Start-Job -ScriptBlock {
             param($url)
             Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
@@ -680,13 +693,11 @@ function Convert-MarkdownToTextBlock {
     $lastIndex = 0
     $matches = @()
 
-    # Find all bold, italic, underline, and color matches
     $boldMatches = [regex]::Matches($Text, $regexBold)
     $italicMatches = [regex]::Matches($Text, $regexItalic)
     $underlineMatches = [regex]::Matches($Text, $regexUnderline)
     $colorMatches = [regex]::Matches($Text, $regexColor)
     
-    # Combine and sort matches by index
     foreach ($match in $boldMatches) {
         $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Bold" }
     }
@@ -702,13 +713,11 @@ function Convert-MarkdownToTextBlock {
     $matches = $matches | Sort-Object Index
 
     foreach ($match in $matches) {
-        # Add text before the match
         if ($match.Index -gt $lastIndex) {
             $plainText = $currentText.Substring($lastIndex, $match.Index - $lastIndex)
             $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($plainText)))
         }
         
-        # Add formatted text
         $run = New-Object System.Windows.Documents.Run($match.Text)
         if ($match.Type -eq "Bold") {
             $run.FontWeight = [System.Windows.FontWeights]::Bold
@@ -725,7 +734,6 @@ function Convert-MarkdownToTextBlock {
         $lastIndex = $match.Index + $match.Length
     }
     
-    # Add remaining text
     if ($lastIndex -lt $currentText.Length) {
         $plainText = $currentText.Substring($lastIndex)
         $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($plainText)))
@@ -794,33 +802,36 @@ function Update-Support {
 }
 
 function Update-PatchingAndSystem {
-    # MODIFIED: Now integrates BigFix data (e.g., fixlets, client version) from the report.
     Write-Log "Updating Patching and System section..." -Level "INFO"
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
     $windowsBuild = Get-WindowsBuildNumber
 
-    # Use global BigFix data (set in Main-UpdateCycle)
-    $fixletText = if ($global:bigFixData -and $global:bigFixData.ApplicableFixlets.Count -gt 0) {
+    $fixletText = if ($global:bigFixData -and $global:bigFixData.ApplicableFixlets.Count -gt 0 -and -not $global:bigFixData.ApplicableFixlets[0].StartsWith("Error:")) {
         $global:bigFixData.ApplicableFixlets -join "`n"
     } else {
-        "No applicable Microsoft or security updates found via BigFix."
+        $global:bigFixData -and $global:bigFixData.ApplicableFixlets[0].StartsWith("Error:") ? $global:bigFixData.ApplicableFixlets[0] : "No applicable Microsoft or security updates found via BigFix."
     }
-    $clientInfoText = if ($global:bigFixData) {
+    $clientInfoText = if ($global:bigFixData -and -not $global:bigFixData.ClientVersion.StartsWith("Error:")) {
         "Client Version: $($global:bigFixData.ClientVersion)`nLast Report: $($global:bigFixData.LastReportTime)"
     } else {
-        "BigFix data unavailable."
+        "BigFix client unavailable. Please ensure BigFix is installed."
+    }
+    $computerName = if ($global:bigFixData -and -not $global:bigFixData.ComputerName.StartsWith("Error:")) {
+        $global:bigFixData.ComputerName -replace '[^\w\s\-\.]', ''  # Sanitize for GUI display
+    } else {
+        "Unknown"
     }
 
     $window.Dispatcher.Invoke({
         $global:PatchingDescriptionText.Text = "Lists available software updates. Updates marked (R) require a restart."
         $global:PendingRestartStatusText.Text = $restartStatusText
         $global:PendingRestartStatusText.Foreground = $statusColor
-        $global:PatchingUpdatesText.Text = $fixletText  # MODIFIED: Now sets from BigFix fixlets.
-        $global:BigFixClientInfoText.Text = $clientInfoText  # NEW: Sets BigFix client info.
+        $global:PatchingUpdatesText.Text = $fixletText
+        $global:BigFixClientInfoText.Text = $clientInfoText
         $global:WindowsBuildText.Text = $windowsBuild
-        $global:FooterText.Text = "$([char]169) 2025 Lincoln Laboratory v$ScriptVersion - Computer: $($global:bigFixData.ComputerName)"  # MODIFIED: Added computer name from BigFix relevance.
+        $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion - Computer: $computerName"
     })
 }
 
@@ -864,7 +875,6 @@ function Perform-AutoUpdate {
         $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
         $batchPath = Join-Path $ScriptDir "update.bat"
         
-        # Remove any existing batch file to avoid conflicts
         if (Test-Path $batchPath) {
             Remove-Item $batchPath -Force
             if (Test-Path $batchPath) {
@@ -874,7 +884,6 @@ function Perform-AutoUpdate {
             }
         }
 
-        # Download new script
         $job = Start-Job -ScriptBlock {
             param($url, $path)
             Invoke-WebRequest -Uri $url -UseBasicParsing -OutFile $path
@@ -886,7 +895,6 @@ function Perform-AutoUpdate {
             throw "Failed to download new script."
         }
 
-        # Create batch file for replacement and restart with reliable self-delete
         try {
             $batchContent = @"
 @echo off
@@ -920,10 +928,9 @@ echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
             throw "Failed to create batch file: $($_.Exception.Message)"
         }
 
-        # Start the batch and exit
         Start-Process -FilePath $batchPath -WindowStyle Hidden
         Write-Log "Auto-update initiated. Exiting current instance." -Level "INFO"
-        Start-Sleep -Milliseconds 500  # Brief delay for cleanup
+        Start-Sleep -Milliseconds 500
         $global:IsUpdating = $true
         $window.Dispatcher.InvokeShutdown()
     } catch {
@@ -937,7 +944,6 @@ echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
 # ============================================================
 # I) Tray Icon Management
 # ============================================================
-
 $global:BlinkingTimer = $null
 $global:MainIcon = $null
 $global:WarningIcon = $null
@@ -996,7 +1002,6 @@ function Initialize-TrayIcon {
 
         $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
         
-        # Submenu for Set Update Interval
         $intervalSubMenu = New-Object System.Windows.Forms.ToolStripMenuItem("Set Update Interval")
         $tenMin = New-Object System.Windows.Forms.ToolStripMenuItem("10 minutes", $null, { 
             $config.RefreshInterval = 600
@@ -1062,6 +1067,7 @@ function Toggle-WindowVisibility {
         }
     })
 }
+
 # ============================================================
 # O) Main Update Cycle and DispatcherTimer
 # ============================================================
@@ -1071,7 +1077,6 @@ function Main-UpdateCycle {
         Write-Log "Main update cycle running..." -Level "INFO"
         $global:contentData = Fetch-ContentData
         
-        # NEW: Call BigFix report and store data globally for use in updates.
         $global:bigFixData = Generate-BigFixComplianceReport
         
         Update-Announcements
@@ -1083,7 +1088,7 @@ function Main-UpdateCycle {
             $global:LastCertificateCheck = Get-Date
         }
         
-        if (Check-ScriptUpdate) { return }  # Stop cycle if update started
+        if (Check-ScriptUpdate) { return }
         
         Update-TrayIcon
         Save-Configuration -Config $config
