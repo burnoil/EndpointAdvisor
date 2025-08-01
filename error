@@ -1,15 +1,25 @@
-Write-Log : The term 'Write-Log' is not recognized as the name of a cmdlet, function, script file, or operable
-program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
-At C:\LLNOTIFY\LLNOTIFY.ps1:26 char:1
-+ Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
-+ ~~~~~~~~~
-    + CategoryInfo          : ObjectNotFound: (Write-Log:String) [], CommandNotFoundException
-    + FullyQualifiedErrorId : CommandNotFoundException
+BigFix Compliance Report - 2025-08-01 12:14:55
+------------------------------------------------------------
+Computer Name  : Error: Q: E: The operator "bes computer" is not defined.
 
-Handle-Error : The term 'Handle-Error' is not recognized as the name of a cmdlet, function, script file, or operable
-program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
-At C:\LLNOTIFY\LLNOTIFY.ps1:228 char:5
-+     Handle-Error "Failed to load the XAML layout: $($_.Exception.Mess ...
-+     ~~~~~~~~~~~~
-    + CategoryInfo          : ObjectNotFound: (Handle-Error:String) [], CommandNotFoundException
-    + FullyQualifiedErrorId : CommandNotFoundException
+Q: 
+Client Version : 11.0.3.82
+T: 3946
+
+Q:
+Relay Address  : No Relay
+T: 139471
+
+Q:
+IP Address     : Error: Q: E: The operator "bes computer" is not defined.
+
+Q: 
+Last Reported  : Error: Q: E: The operator "bes client" is not defined.
+
+Q: 
+
+Applicable Fixlets (Non-Baselines):
+----------------------------------
+Error: Q: E: The operator "bes sites" is not defined.
+
+Q: 
