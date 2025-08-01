@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.29 (Added markup ability and BigFix compliance reporting)
+# Version 4.3.30 (Switched to QnA.exe for BigFix queries, fixed syntax errors)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.29"
+$ScriptVersion = "4.3.30"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -160,7 +160,7 @@ function Get-BigFixRelevanceResult {
         Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
         
         if ($exitCode -ne 0) {
-            throw "QnA.exe failed with exit code $exitCode: $result"
+            throw "QnA.exe failed with exit code $exitCode`: $($result -join ' ')"
         }
         if ($result -is [array]) {
             $result = $result -join "`n"  # Join multi-line results
@@ -208,7 +208,11 @@ function Generate-BigFixComplianceReport {
         if ($fixlets.Count -gt 0 -and -not $fixlets[0].StartsWith("Error:")) {
             $report += $fixlets | ForEach-Object { " - $_" }
         } else {
-            $report += $fixlets[0] -eq $null ? "No applicable fixlets found." : $fixlets[0]
+            if ($fixlets[0]) {
+                $report += $fixlets[0]
+            } else {
+                $report += "No applicable fixlets found."
+            }
         }
 
         $report | Out-File -FilePath $reportPath -Encoding UTF8
@@ -251,7 +255,7 @@ function Get-DefaultConfig {
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
-        BigFixQnA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe"  # Configurable QnA path
+        BigFixQnA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe"
         BlinkingEnabled       = $true
         ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
         VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
@@ -808,10 +812,14 @@ function Update-PatchingAndSystem {
     
     $windowsBuild = Get-WindowsBuildNumber
 
-    $fixletText = if ($global:bigFixData -and $global:bigFixData.ApplicableFixlets.Count -gt 0 -and -not $global:bigFixData.ApplicableFixlets[0].StartsWith("Error:")) {
-        $global:bigFixData.ApplicableFixlets -join "`n"
+    $fixletText = if ($global:bigFixData -and $global:bigFixData.ApplicableFixlets.Count -gt 0) {
+        if ($global:bigFixData.ApplicableFixlets[0].StartsWith("Error:")) {
+            $global:bigFixData.ApplicableFixlets[0]
+        } else {
+            $global:bigFixData.ApplicableFixlets -join "`n"
+        }
     } else {
-        $global:bigFixData -and $global:bigFixData.ApplicableFixlets[0].StartsWith("Error:") ? $global:bigFixData.ApplicableFixlets[0] : "No applicable Microsoft or security updates found via BigFix."
+        "No applicable Microsoft or security updates found via BigFix."
     }
     $clientInfoText = if ($global:bigFixData -and -not $global:bigFixData.ClientVersion.StartsWith("Error:")) {
         "Client Version: $($global:bigFixData.ClientVersion)`nLast Report: $($global:bigFixData.LastReportTime)"
@@ -819,7 +827,7 @@ function Update-PatchingAndSystem {
         "BigFix client unavailable. Please ensure BigFix is installed."
     }
     $computerName = if ($global:bigFixData -and -not $global:bigFixData.ComputerName.StartsWith("Error:")) {
-        $global:bigFixData.ComputerName -replace '[^\w\s\-\.]', ''  # Sanitize for GUI display
+        $global:bigFixData.ComputerName -replace '[^\w\s\-\.]', ''
     } else {
         "Unknown"
     }
