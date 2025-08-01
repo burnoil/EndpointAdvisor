@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.22 (Uses qna.exe exclusively, added 32-bit PowerShell relaunch for qna.exe compatibility, added q: prefix, improved qna.exe error handling, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.23 (Fixed quote escaping, updated queries for BigFix 11.0.3.82, improved qna.exe output parsing, uses 32-bit PowerShell for qna.exe compatibility, removed COM API, fixed SSA log file issue, restricted site info to reports)
 
 # Relaunch in 32-bit PowerShell for qna.exe compatibility
 if ([Environment]::Is64BitProcess) {
@@ -18,7 +18,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.22"
+$ScriptVersion = "4.6.23"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -50,7 +50,7 @@ function Invoke-WithRetry {
             if ($attempt -ge $MaxRetries) {
                 throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
             }
-            Start-Sleep -Milliseconds $retryDelayMs
+            Start-Sleep -Milliseconds $RetryDelayMs
         }
     }
 }
@@ -85,7 +85,7 @@ function Write-Log {
             if ($attempt -eq $MaxRetries) {
                 Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
             } else {
-                Start-Sleep -Milliseconds $retryDelayMs
+                Start-Sleep -Milliseconds $RetryDelayMs
             }
         }
     }
@@ -249,13 +249,12 @@ function Get-BigFixRelevanceResult {
         # Log raw output for debugging
         Write-Log "qna.exe raw output: $qnaResult" -Level "INFO"
         
-        # Parse qna.exe output to extract result after 'A:'
-        $result = ""
+        # Parse qna.exe output to collect all 'A:' results
+        $results = @()
         if ($qnaResult) {
             foreach ($line in $qnaResult) {
                 if ($line -match "^A:\s*(.*)$") {
-                    $result = $matches[1]
-                    break
+                    $results += $matches[1]
                 }
             }
         }
@@ -265,11 +264,12 @@ function Get-BigFixRelevanceResult {
             Write-Log "qna.exe returned error: $qnaResult" -Level "ERROR"
             return "Error: $($qnaResult -join ' ')"
         }
-        if (-not $result -or $result -eq $RelevanceQuery -or $result -eq "q: $RelevanceQuery") {
-            Write-Log "qna.exe failed to evaluate query, returned query string or no result: $RelevanceQuery" -Level "ERROR"
+        if (-not $results) {
+            Write-Log "qna.exe failed to evaluate query, returned no result: $RelevanceQuery" -Level "ERROR"
             return "Error: Query evaluation failed."
         }
 
+        $result = $results -join "`n"
         Write-Log "qna.exe relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
         return $result
     }
@@ -285,17 +285,20 @@ function Generate-BigFixComplianceReport {
         $reportPath = Join-Path $ScriptDir "BigFixComplianceReport.txt"
         $jsonPath = Join-Path $ScriptDir "BigFixComplianceReport.json"
 
-        $computerName = Get-BigFixRelevanceResult "name of computer"
+        # Use PowerShell fallback for computer name
+        $computerName = $env:COMPUTERNAME
+        Write-Log "Using PowerShell fallback for computer name: $computerName" -Level "INFO"
         $clientVersion = Get-BigFixRelevanceResult "version of client as string"
-        $relay = Get-BigFixRelevanceResult "if exists relay of client then name of relay of client else ""No Relay"" "
+        $relay = "Unknown Relay" # Fallback due to relay inspector not defined
+        Write-Log "Using fallback for relay: $relay" -Level "INFO"
         $lastReport = Get-BigFixRelevanceResult "now"
         $ipAddress = Get-BigFixRelevanceResult "addresses of adapters of network as string"
-        $siteList = Get-BigFixRelevanceResult "names of bes sites"
-        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains ""microsoft"" or name of it as lowercase contains ""security update"")) of bes sites"
+        $siteList = "Unknown Sites" # Fallback due to bes sites not defined
+        Write-Log "Using fallback for site list: $siteList" -Level "INFO"
+        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update'))"
 
-        # Check if all queries failed
-        if ($computerName -like "Error:*" -and $clientVersion -like "Error:*" -and $relay -like "Error:*" -and 
-            $lastReport -like "Error:*" -and $ipAddress -like "Error:*" -and $siteList -like "Error:*" -and $fixletList -like "Error:*") {
+        # Check if critical queries failed
+        if ($clientVersion -like "Error:*" -and $lastReport -like "Error:*" -and $ipAddress -like "Error:*" -and $fixletList -like "Error:*") {
             $report = @(
                 "BigFix Compliance Report - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
                 "------------------------------------------------------------",
@@ -865,16 +868,16 @@ function Convert-MarkdownToTextBlock {
     
     # Combine and sort matches by index
     foreach ($match in $boldMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Bold" }
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $matches[1].Value; Type = "Bold" }
     }
     foreach ($match in $italicMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Italic" }
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $matches[1].Value; Type = "Italic" }
     }
     foreach ($match in $underlineMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Underline" }
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $matches[1].Value; Type = "Underline" }
     }
     foreach ($match in $colorMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[2].Value; Type = "Color"; Color = $match.Groups[1].Value }
+        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $matches[2].Value; Type = "Color"; Color = $matches[1].Value }
     }
     $matches = $matches | Sort-Object Index
 
@@ -975,7 +978,7 @@ function Update-PatchingAndSystem {
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
-    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains ""microsoft"" or name of it as lowercase contains ""security update"")) of bes sites"
+    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update'))"
     $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
 
     $finalPatchText = ""
