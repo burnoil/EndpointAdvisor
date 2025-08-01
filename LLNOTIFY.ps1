@@ -1,14 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.16 (Fixed COM Open method error, removed invalid dependency check, ensured qna.exe fallback, fixed SSA log file issue, restricted site info to reports)
-
-# Detect if running in 64-bit PowerShell and relaunch in 32-bit if necessary
-if ([Environment]::Is64BitProcess) {
-    Write-Host "Relaunching in 32-bit PowerShell for BigFix COM compatibility..."
-    $scriptPath = $PSCommandPath
-    $32bitPS = "$env:windir\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
-    Start-Process -FilePath $32bitPS -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait
-    exit
-}
+# Version 4.6.18 (Uses qna.exe exclusively, removed 32-bit PowerShell relaunch, removed COM API and DLL references, fixed SSA log file issue, restricted site info to reports)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -18,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.16"
+$ScriptVersion = "4.6.18"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -152,111 +143,10 @@ Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
 # ============================================================
 # BigFix Compliance Reporting Functions
 # ============================================================
-function Register-BigFixCOMObject {
-    try {
-        Write-Log "Checking and registering BigFix COM object (BESClientComplianceMod.Session)..." -Level "INFO"
-        $dllPath = $config.BigFixDLL_Path
-        if (-not (Test-Path $dllPath)) {
-            throw "BigFix COM DLL not found at: $dllPath"
-        }
-
-        # Check if BigFix client service is running
-        $service = Get-Service -Name "BESClient" -ErrorAction SilentlyContinue
-        if (-not $service -or $service.Status -ne "Running") {
-            Write-Log "BigFix client service (BESClient) is not running or not installed. COM registration may fail." -Level "WARNING"
-        } else {
-            Write-Log "BigFix client service (BESClient) is running." -Level "INFO"
-        }
-
-        # Check registry for BESClientComplianceMod.Session CLSID
-        $clsid = (Get-ItemProperty -Path "HKCR\BESClientComplianceMod.Session\CLSID" -ErrorAction SilentlyContinue)."(default)"
-        if ($clsid) {
-            Write-Log "Found BESClientComplianceMod.Session CLSID in registry: $clsid" -Level "INFO"
-        } else {
-            Write-Log "BESClientComplianceMod.Session CLSID not found in registry." -Level "WARNING"
-        }
-
-        # Attempt to create the COM object
-        try {
-            $comObject = New-Object -ComObject "BESClientComplianceMod.Session" -ErrorAction Stop
-            Write-Log "BESClientComplianceMod.Session COM object successfully instantiated." -Level "INFO"
-            return $true
-        }
-        catch [System.Runtime.InteropServices.COMException] {
-            if ($_.Exception.HResult -eq 0x80040154) {
-                Write-Log "BESClientComplianceMod.Session COM object not registered. Attempting to unregister and re-register with 32-bit Regsvr32: $dllPath" -Level "INFO"
-                try {
-                    # Use 32-bit Regsvr32 for unregistration and registration
-                    $regsvr32Path = "C:\Windows\SysWOW64\regsvr32.exe"
-
-                    # Unregister first to clean up
-                    $tempUnregOutputFile = [System.IO.Path]::GetTempFileName()
-                    $tempUnregErrorFile = [System.IO.Path]::GetTempFileName()
-                    $unregResult = Start-Process -FilePath $regsvr32Path -ArgumentList "/u /s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempUnregOutputFile -RedirectStandardError $tempUnregErrorFile -PassThru
-                    $unregOutput = Get-Content -Path $tempUnregOutputFile -Raw
-                    $unregError = Get-Content -Path $tempUnregErrorFile -Raw
-                    Remove-Item -Path $tempUnregOutputFile -Force -ErrorAction SilentlyContinue
-                    Remove-Item -Path $tempUnregErrorFile -Force -ErrorAction SilentlyContinue
-                    
-                    $unregCombined = ""
-                    if ($unregOutput) { $unregCombined += "StdOut: $unregOutput`n" }
-                    if ($unregError) { $unregCombined += "StdErr: $unregError" }
-                    Write-Log "Unregistration result (exit code: $($unregResult.ExitCode)): $unregCombined" -Level "INFO"
-
-                    # Register
-                    $tempRegOutputFile = [System.IO.Path]::GetTempFileName()
-                    $tempRegErrorFile = [System.IO.Path]::GetTempFileName()
-                    $regResult = Start-Process -FilePath $regsvr32Path -ArgumentList "/s `"$dllPath`"" -Wait -NoNewWindow -RedirectStandardOutput $tempRegOutputFile -RedirectStandardError $tempRegErrorFile -PassThru
-                    $regOutput = Get-Content -Path $tempRegOutputFile -Raw
-                    $regError = Get-Content -Path $tempRegErrorFile -Raw
-                    Remove-Item -Path $tempRegOutputFile -Force -ErrorAction SilentlyContinue
-                    Remove-Item -Path $tempRegErrorFile -Force -ErrorAction SilentlyContinue
-                    
-                    $regCombined = ""
-                    if ($regOutput) { $regCombined += "StdOut: $regOutput`n" }
-                    if ($regError) { $regCombined += "StdErr: $regError" }
-                    
-                    if ($regResult.ExitCode -eq 0) {
-                        Write-Log "32-bit Regsvr32 reported success for: $dllPath. Verifying COM object..." -Level "INFO"
-                        try {
-                            $comObject = New-Object -ComObject "BESClientComplianceMod.Session" -ErrorAction Stop
-                            Write-Log "BESClientComplianceMod.Session COM object successfully verified after registration." -Level "INFO"
-                            $clsid = (Get-ItemProperty -Path "HKCR\BESClientComplianceMod.Session\CLSID" -ErrorAction SilentlyContinue)."(default)"
-                            if ($clsid) { Write-Log "Post-registration CLSID: $clsid" -Level "INFO" }
-                            return $true
-                        }
-                        catch {
-                            throw "COM object registration verification failed: $($_.Exception.Message)"
-                        }
-                    } else {
-                        throw "32-bit Regsvr32 failed to register $dllPath with exit code: $($regResult.ExitCode). Output: $regCombined"
-                    }
-                }
-                catch {
-                    Write-Log "Failed to register BigFix COM DLL: $($_.Exception.Message). Ensure the script is run as administrator, the DLL path is correct, and dependencies are installed." -Level "ERROR"
-                    return $false
-                }
-            } else {
-                Write-Log "Unexpected COM error when testing BESClientComplianceMod.Session: $($_.Exception.Message)" -Level "ERROR"
-                return $false
-            }
-        }
-    }
-    catch {
-        Write-Log "Error checking or registering BigFix COM object: $($_.Exception.Message)" -Level "ERROR"
-        return $false
-    }
-}
-
 function Initialize-BigFixAPIConfig {
     try {
-        Write-Log "Checking and initializing BigFix Client Compliance API configuration..." -Level "INFO"
+        Write-Log "Checking and initializing BigFix client configuration for qna.exe..." -Level "INFO"
         
-        # Register the COM object
-        if (-not (Register-BigFixCOMObject)) {
-            Write-Log "BigFix COM object registration failed. Falling back to qna.exe if available." -Level "WARNING"
-        }
-
         # Registry key for 64-bit Windows
         $regKeyPath = "HKLM:\SOFTWARE\WOW6432Node\BigFix\ClientComplianceAPI"
         $bigFixBasePath = "C:\Program Files (x86)\BigFix Enterprise\BES Client"
@@ -313,11 +203,19 @@ function Initialize-BigFixAPIConfig {
             Write-Log "Failed to set permissions on BigFix directories: $($_.Exception.Message). Script may require admin privileges." -Level "WARNING"
         }
 
-        Write-Log "BigFix API configuration initialized successfully." -Level "INFO"
+        # Verify qna.exe exists
+        $qnaPath = $config.BigFixQna_Path
+        if (-not (Test-Path $qnaPath)) {
+            Write-Log "qna.exe not found at: $qnaPath. BigFix queries will fail." -Level "ERROR"
+        } else {
+            Write-Log "qna.exe found at: $qnaPath" -Level "INFO"
+        }
+
+        Write-Log "BigFix client configuration initialized successfully." -Level "INFO"
         return $true
     }
     catch {
-        Write-Log "Error initializing BigFix API config: $($_.Exception.Message)" -Level "ERROR"
+        Write-Log "Error initializing BigFix client config: $($_.Exception.Message)" -Level "ERROR"
         return $false
     }
 }
@@ -327,83 +225,28 @@ function Get-BigFixRelevanceResult {
         [string]$RelevanceQuery
     )
     try {
-        # Try COM object with retries
-        $maxRetries = 3
-        $retryDelayMs = 1000
-        $attempt = 0
-        while ($attempt -lt $maxRetries) {
-            try {
-                $session = New-Object -ComObject "BESClientComplianceMod.Session" -ErrorAction Stop
-                # Try Open with no parameters, then with empty string if needed
-                try {
-                    $session.Open()
-                }
-                catch {
-                    Write-Log "Open() failed, trying Open(''): $($_.Exception.Message)" -Level "WARNING"
-                    $session.Open("")
-                }
-                $session.Expression = $RelevanceQuery
-                if ($session.Evaluate()) {
-                    $result = $session.Result
-                    Write-Log "BigFix relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
-                    $session.Close()
-                    return $result
-                } else {
-                    Write-Log "BigFix relevance query evaluation failed: $RelevanceQuery" -Level "WARNING"
-                    $session.Close()
-                    return "Evaluation failed"
-                }
-            }
-            catch [System.Runtime.InteropServices.COMException] {
-                if ($_.Exception.HResult -eq 0x80040154) {
-                    $attempt++
-                    if ($attempt -eq $maxRetries) {
-                        Write-Log "BigFix relevance query failed after $maxRetries attempts: BESClientComplianceMod.Session COM object not registered (REGDB_E_CLASSNOTREG). Attempting qna.exe fallback." -Level "ERROR"
-                        break
-                    }
-                    Write-Log "COM object not ready (attempt $attempt/$maxRetries). Retrying in $retryDelayMs ms..." -Level "WARNING"
-                    Start-Sleep -Milliseconds $retryDelayMs
-                } else {
-                    Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
-                    return "Error: $($_.Exception.Message)"
-                }
-            }
-            finally {
-                if ($session) {
-                    try { $session.Close() } catch {}
-                }
-            }
-        }
-
-        # Fallback to qna.exe
         $qnaPath = $config.BigFixQna_Path
         if (-not (Test-Path $qnaPath)) {
             Write-Log "qna.exe not found at: $qnaPath. Cannot execute relevance query." -Level "ERROR"
             return "Error: BigFix API not available. Contact IT."
         }
 
-        try {
-            Write-Log "Executing relevance query with qna.exe: $RelevanceQuery" -Level "INFO"
-            $tempQueryFile = [System.IO.Path]::GetTempFileName()
-            $RelevanceQuery | Out-File -FilePath $tempQueryFile -Encoding ASCII
-            $qnaResult = & $qnaPath $tempQueryFile
-            Remove-Item -Path $tempQueryFile -Force -ErrorAction SilentlyContinue
-            if ($qnaResult) {
-                $result = $qnaResult -join "`n"
-                Write-Log "qna.exe relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
-                return $result
-            } else {
-                Write-Log "qna.exe relevance query returned no results: $RelevanceQuery" -Level "WARNING"
-                return "Evaluation failed"
-            }
-        }
-        catch {
-            Write-Log "qna.exe relevance query error: $($_.Exception.Message)" -Level "ERROR"
-            return "Error: $($_.Exception.Message)"
+        Write-Log "Executing relevance query with qna.exe: $RelevanceQuery" -Level "INFO"
+        $tempQueryFile = [System.IO.Path]::GetTempFileName()
+        $RelevanceQuery | Out-File -FilePath $tempQueryFile -Encoding ASCII
+        $qnaResult = & $qnaPath $tempQueryFile
+        Remove-Item -Path $tempQueryFile -Force -ErrorAction SilentlyContinue
+        if ($qnaResult) {
+            $result = $qnaResult -join "`n"
+            Write-Log "qna.exe relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
+            return $result
+        } else {
+            Write-Log "qna.exe relevance query returned no results: $RelevanceQuery" -Level "WARNING"
+            return "Evaluation failed"
         }
     }
     catch {
-        Write-Log "BigFix relevance query error: $($_.Exception.Message)" -Level "ERROR"
+        Write-Log "qna.exe relevance query error: $($_.Exception.Message)" -Level "ERROR"
         return "Error: $($_.Exception.Message)"
     }
 }
@@ -511,7 +354,6 @@ function Get-DefaultConfig {
         SupportLastState       = "{}"
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
-        BigFixDLL_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\BESClientComplianceMOD.dll"
         BigFixQna_Path        = "C:\Program Files (x86)\BigFix Enterprise\BES Client\qna.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
@@ -814,11 +656,11 @@ try {
         }
     })
 
-    # Initialize BigFix API configuration
+    # Initialize BigFix client configuration
     Initialize-BigFixAPIConfig
 }
 catch {
-    Handle-Error "Failed to load the XAML layout or initialize BigFix API: $($_.Exception.Message)" -Source "XAML"
+    Handle-Error "Failed to load the XAML layout or initialize BigFix client: $($_.Exception.Message)" -Source "XAML"
     exit
 }
 
@@ -1384,4 +1226,73 @@ function Main-UpdateCycle {
         Update-Support
         Update-PatchingAndSystem
         
-        if ($ForceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get
+        if ($ForceCertificateCheck -or (-not $global:LastCertificateCheck -or ((Get-Date) - $global:LastCertificateCheck).TotalSeconds -ge $config.CertificateCheckInterval)) {
+            Update-CertificateInfo
+            $global:LastCertificateCheck = Get-Date
+        }
+        
+        if (Check-ScriptUpdate) { return }  # Stop cycle if update started
+        
+        Generate-BigFixComplianceReport
+        
+        Update-TrayIcon
+        Save-Configuration -Config $config
+        Rotate-LogFile
+    }
+    catch {
+        Handle-Error $_.Exception.Message -Source "Main-UpdateCycle"
+    }
+}
+
+# ============================================================
+# P) Initial Setup & Application Start
+# ============================================================
+try {
+    $global:blinkingTickAction = {
+        if ($global:TrayIcon.Icon.Handle -eq $global:WarningIcon.Handle) {
+            $global:TrayIcon.Icon = $global:MainIcon
+        } else {
+            $global:TrayIcon.Icon = $global:WarningIcon
+        }
+    }
+    $global:BlinkingTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $global:BlinkingTimer.Interval = [TimeSpan]::FromSeconds(1)
+    $global:BlinkingTimer.add_Tick($global:blinkingTickAction)
+
+    $global:mainTickAction = {
+        param($sender, $e)
+        Main-UpdateCycle
+    }
+    $global:DispatcherTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds($config.RefreshInterval)
+    $global:DispatcherTimerynos
+    $global:DispatcherTimer.add_Tick($global:mainTickAction)
+
+    Initialize-TrayIcon
+    Log-DotNetVersion
+    Initialize-BigFixAPIConfig  # Ensure BigFix client is configured before queries
+    Main-UpdateCycle -ForceCertificateCheck $true
+    
+    $global:DispatcherTimer.Start()
+    Write-Log "Main timer started." -Level "INFO"
+    
+    $window.Dispatcher.Add_UnhandledException({ 
+        Handle-Error $_.Exception.Message -Source "Dispatcher"
+        $_.Handled = $true 
+    })
+
+    Write-Log "Application startup complete. Running dispatcher." -Level "INFO"
+    if (-not $global:IsUpdating) {
+        [System.Windows.Threading.Dispatcher]::Run()
+    }
+}
+catch {
+    Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
+}
+finally {
+    Write-Log "--- LLNOTIFY Script Exiting ---"
+    if ($global:DispatcherTimer) { $global:DispatcherTimer.Stop() }
+    if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
+    if ($global:MainIcon) { $global:MainIcon.Dispose() }
+    if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
+}
