@@ -1,27 +1,11 @@
-[2025-08-01 07:35:48] [ERROR] qna.exe returned error: Q: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of bes sites E: The operator "bes sites" is not defined. 
-[2025-08-01 07:35:48] [INFO] Updating certificate info...
-[2025-08-01 07:36:02] [INFO] Checking for script update from: https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt
-[2025-08-01 07:36:04] [INFO] No new script version available.
-[2025-08-01 07:36:04] [INFO] Gathering BigFix compliance info...
-[2025-08-01 07:36:04] [INFO] Executing relevance query with qna.exe: name of computer
-[2025-08-01 07:36:05] [INFO] qna.exe raw output: Q: name of computer E: The operator "computer" is not defined. 
-[2025-08-01 07:36:05] [ERROR] qna.exe returned error: Q: name of computer E: The operator "computer" is not defined. 
-[2025-08-01 07:36:05] [INFO] Executing relevance query with qna.exe: version of client as string
-[2025-08-01 07:36:08] [INFO] qna.exe raw output: Q: version of client as string A: 11.0.3.82 
-[2025-08-01 07:36:08] [INFO] qna.exe relevance query succeeded: version of client as string. Result: 11.0.3.82
-[2025-08-01 07:36:08] [INFO] Executing relevance query with qna.exe: if exists relay of client then name of relay of client else "No Relay" 
-[2025-08-01 07:36:10] [INFO] qna.exe raw output: Q: if exists relay of client then name of relay of client else "No Relay"  E: The operator "relay" is not defined. 
-[2025-08-01 07:36:10] [ERROR] qna.exe returned error: Q: if exists relay of client then name of relay of client else "No Relay"  E: The operator "relay" is not defined. 
-[2025-08-01 07:36:10] [INFO] Executing relevance query with qna.exe: now
-[2025-08-01 07:36:11] [INFO] qna.exe raw output: Q: now A: Fri, 01 Aug 2025 07:36:11 -0700 
-[2025-08-01 07:36:11] [INFO] qna.exe relevance query succeeded: now. Result: Fri, 01 Aug 2025 07:36:11 -0700
-[2025-08-01 07:36:11] [INFO] Executing relevance query with qna.exe: addresses of adapters of network as string
-[2025-08-01 07:36:13] [INFO] qna.exe raw output: Q: addresses of adapters of network as string A: 172.30.133.238 A: 192.168.50.59 
-[2025-08-01 07:36:13] [INFO] qna.exe relevance query succeeded: addresses of adapters of network as string. Result: 172.30.133.238
-[2025-08-01 07:36:13] [INFO] Executing relevance query with qna.exe: names of bes sites
-[2025-08-01 07:36:15] [INFO] qna.exe raw output: Q: names of bes sites E: The operator "bes sites" is not defined. 
-[2025-08-01 07:36:15] [ERROR] qna.exe returned error: Q: names of bes sites E: The operator "bes sites" is not defined. 
-[2025-08-01 07:36:15] [INFO] Executing relevance query with qna.exe: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of bes sites
-[2025-08-01 07:36:17] [INFO] qna.exe raw output: Q: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of bes sites E: The operator "bes sites" is not defined. 
-[2025-08-01 07:36:17] [ERROR] qna.exe returned error: Q: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of bes sites E: The operator "bes sites" is not defined. 
-[2025-08-01 07:36:17] [INFO] BigFix compliance report written to C:\LLNOTIFY\BigFixComplianceReport.txt and C:\LLNOTIFY\BigFixComplianceReport.json
+BigFix Compliance Report - 2025-08-01 08:10:05
+------------------------------------------------------------
+Computer Name  : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+Client Version : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+Relay Address  : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+IP Address     : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+Last Reported  : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+
+Applicable Fixlets (Non-Baselines):
+----------------------------------
+ - Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
