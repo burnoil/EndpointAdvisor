@@ -1,5 +1,16 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.19 (Uses qna.exe exclusively, added q: prefix for queries, improved qna.exe error handling, runs in 64-bit PowerShell, removed COM API, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.20 (Fixed quote escaping in fixlet query, uses qna.exe exclusively, added q: prefix, improved qna.exe error handling, optional 32-bit PowerShell relaunch, removed COM API, fixed SSA log file issue, restricted site info to reports)
+
+# Optional: Relaunch in 32-bit PowerShell if configured
+if ($true -eq $false) { # Change to $true to enable 32-bit relaunch
+    if ([Environment]::Is64BitProcess) {
+        Write-Host "Relaunching in 32-bit PowerShell for BigFix compatibility..."
+        $scriptPath = $PSCommandPath
+        $32bitPS = "$env:windir\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+        Start-Process -FilePath $32bitPS -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait
+        exit
+    }
+}
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +20,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.6.19"
+$ScriptVersion = "4.6.20"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -76,7 +87,7 @@ function Write-Log {
             if ($attempt -eq $MaxRetries) {
                 Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
             } else {
-                Start-Sleep -Milliseconds $retryDelayMs
+                Start-Sleep -Milliseconds $RetryDelayMs
             }
         }
     }
@@ -269,11 +280,11 @@ function Generate-BigFixComplianceReport {
 
         $computerName = Get-BigFixRelevanceResult "name of computer"
         $clientVersion = Get-BigFixRelevanceResult "version of client as string"
-        $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else `\"No Relay`\""
+        $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else 'No Relay'"
         $lastReport = Get-BigFixRelevanceResult "last report time of client as string"
         $ipAddress = Get-BigFixRelevanceResult "ip address of client as string"
         $siteList = Get-BigFixRelevanceResult "names of sites whose (subscribed of it = true)"
-        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `\"microsoft`\" or name of it as lowercase contains `\"security update`\")) of sites"
+        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of sites"
 
         # Check if all queries failed
         if ($computerName -like "Error:*" -and $clientVersion -like "Error:*" -and $relay -like "Error:*" -and 
@@ -957,7 +968,7 @@ function Update-PatchingAndSystem {
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
-    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains `\"microsoft`\" or name of it as lowercase contains `\"security update`\")) of sites"
+    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of sites"
     $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
 
     $finalPatchText = ""
