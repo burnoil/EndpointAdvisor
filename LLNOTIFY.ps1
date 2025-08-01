@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.36 (Fixed Write-Log/Handle-Error not recognized, retained QnA.exe fixes)
+# Version 4.3.37 (Fixed Write-Log/Handle-Error not recognized, updated BigFix relevance queries)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.36"
+$ScriptVersion = "4.3.37"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -187,8 +187,8 @@ function Get-BigFixRelevanceResult {
         if ($result -is [array]) {
             $result = $result -join "`n"
         }
-        # Clean up BigFix query prompt (e.g., remove "Q: A:" prefixes)
-        $result = $result -replace "^Q: A: ", "" -replace "^Q:", "" -replace "^T: \d+", "" | Where-Object { $_ -match "\S" } | Out-String
+        # Clean up BigFix query prompt and timing data
+        $result = $result -replace "^Q: A: ", "" -replace "^Q:", "" -replace "^T: \d+", "" -replace "\r\n", "`n" | Where-Object { $_ -match "\S" } | Out-String
         Write-Log "QnA query succeeded: $result" -Level "INFO"
         return $result.Trim()
     }
@@ -204,12 +204,12 @@ function Generate-BigFixComplianceReport {
         $reportPath = Join-Path $ScriptDir "BigFixComplianceReport.txt"
         $jsonPath = Join-Path $ScriptDir "BigFixComplianceReport.json"
 
-        $computerName = Get-BigFixRelevanceResult "name of bes computer"
+        $computerName = Get-BigFixRelevanceResult "computer name"
         $clientVersion = Get-BigFixRelevanceResult "version of client as string"
         $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else `"No Relay`""
-        $lastReport = Get-BigFixRelevanceResult "last report time of bes client as string"
-        $ipAddress = Get-BigFixRelevanceResult "addresses of bes computer as string"
-        $fixletList = Get-BigFixRelevanceResult "names of fixlets whose (not baseline of it and (name of it as lowercase contains `"microsoft`" or name of it as lowercase contains `"security update`")) of bes sites"
+        $lastReport = Get-BigFixRelevanceResult "last report time as string"
+        $ipAddress = Get-BigFixRelevanceResult "ip addresses as string"
+        $fixletList = Get-BigFixRelevanceResult "names of fixlets whose (not baseline flag of it and (it as lowercase contains `"microsoft`" or it as lowercase contains `"security update`"))"
 
         $fixlets = @()
         if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList) -and -not $fixletList.StartsWith("Error:")) {
