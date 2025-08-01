@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.6.21 (Uses qna.exe exclusively, fixed quote escaping in queries, parsed qna.exe output to extract results, runs in 64-bit PowerShell, optional 32-bit relaunch, removed COM API, fixed SSA log file issue, restricted site info to reports)
+# Version 4.6.21 (Fixed quote escaping, improved qna.exe output parsing, updated queries for BigFix 11.0.3.82, uses qna.exe exclusively, optional 32-bit PowerShell relaunch, removed COM API, fixed SSA log file issue, restricted site info to reports)
 
 # Optional: Relaunch in 32-bit PowerShell if configured
 if ($true -eq $false) { # Change to $true to enable 32-bit relaunch
@@ -87,7 +87,7 @@ function Write-Log {
             if ($attempt -eq $MaxRetries) {
                 Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
             } else {
-                Start-Sleep -Milliseconds $retryDelayMs
+                Start-Sleep -Milliseconds $RetryDelayMs
             }
         }
     }
@@ -249,31 +249,31 @@ function Get-BigFixRelevanceResult {
         Remove-Item -Path $tempQueryFile -Force -ErrorAction SilentlyContinue
         
         # Log raw output for debugging
-        $rawOutput = $qnaResult -join "`n"
-        Write-Log "qna.exe raw output: $rawOutput" -Level "INFO"
+        Write-Log "qna.exe raw output: $qnaResult" -Level "INFO"
         
-        # Parse qna.exe output
+        # Parse qna.exe output to extract result after 'A:'
         $result = ""
-        $errorMsg = ""
-        foreach ($line in $qnaResult) {
-            if ($line -match "^A: (.*)$") {
-                $result += $matches[1] + "`n"
-            } elseif ($line -match "^E: (.*)$") {
-                $errorMsg += $matches[1] + "`n"
+        if ($qnaResult) {
+            foreach ($line in $qnaResult) {
+                if ($line -match "^A:\s*(.*)$") {
+                    $result = $matches[1]
+                    break
+                }
             }
         }
-        
-        if ($errorMsg) {
-            Write-Log "qna.exe returned error: $errorMsg" -Level "ERROR"
-            return "Error: $errorMsg"
-        } elseif ($result) {
-            $result = $result.TrimEnd("`n")
-            Write-Log "qna.exe relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
-            return $result
-        } else {
-            Write-Log "qna.exe relevance query returned no results: $RelevanceQuery" -Level "WARNING"
-            return "Evaluation failed"
+
+        # Check for errors or invalid output
+        if ($qnaResult -match "^E:") {
+            Write-Log "qna.exe returned error: $qnaResult" -Level "ERROR"
+            return "Error: $($qnaResult -join ' ')"
         }
+        if (-not $result -or $result -eq $RelevanceQuery -or $result -eq "q: $RelevanceQuery") {
+            Write-Log "qna.exe failed to evaluate query, returned query string or no result: $RelevanceQuery" -Level "ERROR"
+            return "Error: Query evaluation failed."
+        }
+
+        Write-Log "qna.exe relevance query succeeded: $RelevanceQuery. Result: $result" -Level "INFO"
+        return $result
     }
     catch {
         Write-Log "qna.exe relevance query error: $($_.Exception.Message)" -Level "ERROR"
@@ -289,11 +289,11 @@ function Generate-BigFixComplianceReport {
 
         $computerName = Get-BigFixRelevanceResult "name of computer"
         $clientVersion = Get-BigFixRelevanceResult "version of client as string"
-        $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else \"No Relay\""
-        $lastReport = Get-BigFixRelevanceResult "last report time of client as string"
-        $ipAddress = Get-BigFixRelevanceResult "ip address of client as string"
-        $siteList = Get-BigFixRelevanceResult "names of sites whose (subscribed of it = true)"
-        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains \"microsoft\" or name of it as lowercase contains \"security update\")) of sites"
+        $relay = Get-BigFixRelevanceResult "if exists relay of client then name of relay of client else 'No Relay'"
+        $lastReport = Get-BigFixRelevanceResult "now"
+        $ipAddress = Get-BigFixRelevanceResult "addresses of adapters of network as string"
+        $siteList = Get-BigFixRelevanceResult "names of bes sites"
+        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of bes sites"
 
         # Check if all queries failed
         if ($computerName -like "Error:*" -and $clientVersion -like "Error:*" -and $relay -like "Error:*" -and 
@@ -977,7 +977,7 @@ function Update-PatchingAndSystem {
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
-    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains \"microsoft\" or name of it as lowercase contains \"security update\")) of sites"
+    $relevanceQuery = "names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains 'microsoft' or name of it as lowercase contains 'security update')) of bes sites"
     $patchResult = Get-BigFixRelevanceResult -RelevanceQuery $relevanceQuery
 
     $finalPatchText = ""
