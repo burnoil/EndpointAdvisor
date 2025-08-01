@@ -1,11 +1,15 @@
-BigFix Compliance Report - 2025-08-01 08:10:05
-------------------------------------------------------------
-Computer Name  : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
-Client Version : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
-Relay Address  : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
-IP Address     : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
-Last Reported  : Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
-
-Applicable Fixlets (Non-Baselines):
-----------------------------------
- - Error: Retrieving the COM class factory for component with CLSID {00000000-0000-0000-0000-000000000000} failed due to the following error: 80040154 Class not registered (Exception from HRESULT: 0x80040154 (REGDB_E_CLASSNOTREG)).
+At C:\LLNOTIFY\LLNOTIFY.ps1:163 char:50
++             throw "QnA.exe failed with exit code $exitCode: $result"
++                                                  ~~~~~~~~~~
+Variable reference is not valid. ':' was not followed by a valid variable name character. Consider using ${} to
+delimit the name.
+At C:\LLNOTIFY\LLNOTIFY.ps1:211 char:46
++             $report += $fixlets[0] -eq $null ? "No applicable fixlets ...
++                                              ~
+Unexpected token '?' in expression or statement.
+At C:\LLNOTIFY\LLNOTIFY.ps1:814 char:94
++ ... global:bigFixData.ApplicableFixlets[0].StartsWith("Error:") ? $global ...
++                                                                 ~
+Unexpected token '?' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParseException
+    + FullyQualifiedErrorId : InvalidVariableReferenceWithDrive
