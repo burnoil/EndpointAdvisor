@@ -1,15 +1,42 @@
-Write-Log : The term 'Write-Log' is not recognized as the name of a cmdlet, function, script file, or operable
-program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
-At C:\LLNOTIFY\LLNOTIFY.ps1:26 char:1
-+ Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
-+ ~~~~~~~~~
-    + CategoryInfo          : ObjectNotFound: (Write-Log:String) [], CommandNotFoundException
-    + FullyQualifiedErrorId : CommandNotFoundException
+[2025-08-01 10:08:45] [INFO] Running command: echo name of computer | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
+[2025-08-01 10:08:47] [INFO] QnA piped query succeeded: Q: E: The operator "computer" is not defined.
 
-Handle-Error : The term 'Handle-Error' is not recognized as the name of a cmdlet, function, script file, or operable
-program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
-At C:\LLNOTIFY\LLNOTIFY.ps1:260 char:5
-+     Handle-Error "Failed to load the XAML layout: $($_.Exception.Mess ...
-+     ~~~~~~~~~~~~
-    + CategoryInfo          : ObjectNotFound: (Handle-Error:String) [], CommandNotFoundException
-    + FullyQualifiedErrorId : CommandNotFoundException
+Q:
+[2025-08-01 10:08:49] [INFO] QnA.exe version: -version: Invalid argument
+[2025-08-01 10:08:49] [INFO] Executing QnA.exe for query: version of client as string
+[2025-08-01 10:08:49] [INFO] Running command: echo version of client as string | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
+[2025-08-01 10:08:51] [INFO] QnA piped query succeeded: Q: A: 11.0.3.82
+T: 3835
+
+Q:
+[2025-08-01 10:08:53] [INFO] QnA.exe version: -version: Invalid argument
+[2025-08-01 10:08:53] [INFO] Executing QnA.exe for query: if exists relay service then (address of relay service as string) else "No Relay"
+[2025-08-01 10:08:53] [INFO] Running command: echo if exists relay service then (address of relay service as string) else "No Relay" | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
+[2025-08-01 10:08:55] [INFO] QnA piped query succeeded: Q: A: No Relay
+T: 287468
+
+Q:
+[2025-08-01 10:08:57] [INFO] QnA.exe version: -version: Invalid argument
+[2025-08-01 10:08:57] [INFO] Executing QnA.exe for query: last report time of client as string
+[2025-08-01 10:08:57] [INFO] Running command: echo last report time of client as string | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
+[2025-08-01 10:08:58] [INFO] QnA piped query succeeded: Q: E: No inspector context.
+T: 4511
+
+Q:
+[2025-08-01 10:09:00] [INFO] QnA.exe version: -version: Invalid argument
+[2025-08-01 10:09:00] [INFO] Executing QnA.exe for query: ip address of client as string
+[2025-08-01 10:09:00] [INFO] Running command: echo ip address of client as string | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
+[2025-08-01 10:09:02] [INFO] QnA piped query succeeded: Q: E: The operator "ip address" is not defined.
+
+Q:
+[2025-08-01 10:09:03] [INFO] QnA.exe version: -version: Invalid argument
+[2025-08-01 10:09:03] [INFO] Executing QnA.exe for query: names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of sites
+[2025-08-01 10:09:03] [INFO] Running command: echo names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of sites | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
+[2025-08-01 10:09:06] [INFO] QnA piped query succeeded: Q: E: The operator "baseline flag" is not defined.
+
+Q:
+[2025-08-01 10:09:06] [INFO] BigFix compliance report written to C:\LLNOTIFY\BigFixComplianceReport.txt and C:\LLNOTIFY\BigFixComplianceReport.json
+[2025-08-01 10:09:06] [INFO] Updating Announcements section...
+[2025-08-01 10:09:06] [INFO] Updating Support section...
+[2025-08-01 10:09:06] [INFO] Updating Patching and System section...
+[2025-08-01 10:09:06] [INFO] Updating certificate info...
