@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.31 (Fixed QnA.exe -f argument issue, improved error handling)
+# Version 4.3.32 (Fixed try/catch parsing error, improved QnA.exe error handling)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.31"
+$ScriptVersion = "4.3.32"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -36,42 +36,81 @@ function Get-BigFixRelevanceResult {
             throw "QnA.exe not found at configured path: '$qnaPath'. Please verify BigFix client installation."
         }
         Write-Log "Executing QnA.exe for query: $RelevanceQuery" -Level "INFO"
-        
-        # Write query to temp file
-        $tempFile = [System.IO.Path]::GetTempFileName()
-        $RelevanceQuery | Out-File -FilePath $tempFile -Encoding ASCII -Force
-        
-        # Use Start-Process for better argument control and output capture
-        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $processInfo.FileName = $qnaPath
-        $processInfo.Arguments = "-f `"$tempFile`""
-        $processInfo.RedirectStandardOutput = $true
-        $processInfo.RedirectStandardError = $true
-        $processInfo.UseShellExecute = $false
-        $processInfo.CreateNoWindow = $true
 
-        $process = [System.Diagnostics.Process]::Start($processInfo)
-        $output = $process.StandardOutput.ReadToEnd()
-        $errorOutput = $process.StandardError.ReadToEnd()
-        $process.WaitForExit()
-        $exitCode = $process.ExitCode
+        # Try QnA.exe with -f option first
+        try {
+            $tempFile = [System.IO.Path]::GetTempFileName()
+            $RelevanceQuery | Out-File -FilePath $tempFile -Encoding ASCII -Force
+            
+            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $processInfo.FileName = $qnaPath
+            $processInfo.Arguments = "-f `"$tempFile`""
+            $processInfo.RedirectStandardOutput = $true
+            $processInfo.RedirectStandardError = $true
+            $processInfo.UseShellExecute = $false
+            $processInfo.CreateNoWindow = $true
 
-        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
-        
-        if ($exitCode -ne 0) {
-            throw "QnA.exe failed with exit code $exitCode`: $errorOutput"
+            Write-Log "Running command: $qnaPath -f `"$tempFile`"" -Level "INFO"
+            $process = [System.Diagnostics.Process]::Start($processInfo)
+            $output = $process.StandardOutput.ReadToEnd()
+            $errorOutput = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            $exitCode = $process.ExitCode
+
+            Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+            
+            if ($exitCode -ne 0) {
+                Write-Log "QnA.exe -f failed with exit code $exitCode`: $errorOutput" -Level "WARNING"
+                throw "QnA.exe -f failed: $errorOutput"
+            }
+            if ([string]::IsNullOrWhiteSpace($output)) {
+                Write-Log "QnA.exe -f returned empty output for query: $RelevanceQuery" -Level "WARNING"
+                return "No data returned"
+            }
+            $result = $output.Trim()
+            if ($result -is [array]) {
+                $result = $result -join "`n"
+            }
+            Write-Log "QnA -f query succeeded: $result" -Level "INFO"
+            return $result
         }
-        if ([string]::IsNullOrWhiteSpace($output)) {
-            Write-Log "QnA.exe returned empty output for query: $RelevanceQuery" -Level "WARNING"
-            return "No data returned"
+        catch {
+            Write-Log "QnA.exe -f attempt failed: $($_.Exception.Message). Falling back to piped input." -Level "WARNING"
+            
+            # Fallback to piping query to QnA.exe
+            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $processInfo.FileName = $qnaPath
+            $processInfo.RedirectStandardInput = $true
+            $processInfo.RedirectStandardOutput = $true
+            $processInfo.RedirectStandardError = $true
+            $processInfo.UseShellExecute = $false
+            $processInfo.CreateNoWindow = $true
+
+            Write-Log "Running command: echo $RelevanceQuery | $qnaPath" -Level "INFO"
+            $process = [System.Diagnostics.Process]::Start($processInfo)
+            $process.StandardInput.WriteLine($RelevanceQuery)
+            $process.StandardInput.Close()
+            $output = $process.StandardOutput.ReadToEnd()
+            $errorOutput = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            $exitCode = $process.ExitCode
+
+            if ($exitCode -ne 0) {
+                throw "QnA.exe piped input failed with exit code $exitCode`: $errorOutput"
+            }
+            if ([string]::IsNullOrWhiteSpace($output)) {
+                Write-Log "QnA.exe piped input returned empty output for query: $RelevanceQuery" -Level "WARNING"
+                return "No data returned"
+            }
+            $result = $output.Trim()
+            if ($result -is [array]) {
+                $result = $result -join "`n"
+            }
+            Write-Log "QnA piped query succeeded: $result" -Level "INFO"
+            return $result
         }
-        $result = $output.Trim()
-        if ($result -is [array]) {
-            $result = $result -join "`n"
-        }
-        Write-Log "QnA query succeeded: $result" -Level "INFO"
-        return $result
-    } catch {
+    }
+    catch {
         Write-Log "QnA query failed: $($_.Exception.Message)" -Level "ERROR"
         return "Error: BigFix QnA failed: $($_.Exception.Message)"
     }
@@ -139,7 +178,7 @@ function Generate-BigFixComplianceReport {
     }
 }
 
-# ... [Previous sections: Get-DefaultConfig, Load-Configuration, Save-Configuration unchanged] ...
+# ... [Rest of the script unchanged from version 4.3.31, including Get-DefaultConfig, Load-Configuration, Save-Configuration, XAML, etc.] ...
 
 # ============================================================
 # F) Load and Verify XAML
@@ -181,4 +220,4 @@ try {
     # ... [Rest of F) Load and Verify XAML unchanged] ...
 }
 
-# ... [Rest of the script unchanged from version 4.3.30] ...
+# ... [Rest of the script unchanged from version 4.3.31] ...
