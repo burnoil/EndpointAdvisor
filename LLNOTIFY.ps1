@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.37 (Fixed Write-Log/Handle-Error not recognized, updated BigFix relevance queries)
+# Version 4.3.38 (Fixed Write-Log/Handle-Error not recognized, updated BigFix relevance queries for 11.0.3.82)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.37"
+$ScriptVersion = "4.3.38"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -77,7 +77,7 @@ function Invoke-WithRetry {
             if ($attempt -ge $MaxRetries) {
                 throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
             }
-            Start-Sleep -Milliseconds $RetryDelayMs
+            Start-Sleep -Milliseconds $retryDelayMs
         }
     }
 }
@@ -207,9 +207,9 @@ function Generate-BigFixComplianceReport {
         $computerName = Get-BigFixRelevanceResult "computer name"
         $clientVersion = Get-BigFixRelevanceResult "version of client as string"
         $relay = Get-BigFixRelevanceResult "if exists relay service then (address of relay service as string) else `"No Relay`""
-        $lastReport = Get-BigFixRelevanceResult "last report time as string"
-        $ipAddress = Get-BigFixRelevanceResult "ip addresses as string"
-        $fixletList = Get-BigFixRelevanceResult "names of fixlets whose (not baseline flag of it and (it as lowercase contains `"microsoft`" or it as lowercase contains `"security update`"))"
+        $lastReport = Get-BigFixRelevanceResult "now - last report time of client > 0 * second as string"
+        $ipAddress = Get-BigFixRelevanceResult "addresses of adapters of network as string"
+        $fixletList = Get-BigFixRelevanceResult "names of relevant fixlets whose (not baseline flag of it and (it as lowercase contains `"microsoft`" or it as lowercase contains `"security update`")) of action site"
 
         $fixlets = @()
         if ($fixletList -is [string] -and -not [string]::IsNullOrWhiteSpace($fixletList) -and -not $fixletList.StartsWith("Error:")) {
