@@ -1,15 +1,6 @@
-BigFix Compliance Report - 2025-08-01 06:30:43
-------------------------------------------------------------
-Computer Name  : name of computer
-Client Version : version of client as string
-Relay Address  : if exists relay service then (address of relay service as string) else "No Relay"
-IP Address     : ip address of client as string
-Last Reported  : last report time of client as string
-
-Subscribed Sites:
------------------
- - names of sites whose (subscribed of it = true)
-
-Applicable Fixlets (Non-Baselines):
-----------------------------------
- - names of relevant fixlets whose (baseline flag of it = false and (name of it as lowercase contains "microsoft" or name of it as lowercase contains "security update")) of sites
+At C:\LLNOTIFY\LLNOTIFY.ps1:960 char:126
++ ... contains `\"microsoft`\" or name of it as lowercase contains `\"secur ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected token 'microsoft`\" or name of it as lowercase contains `\"security' in expression or statement.
+    + CategoryInfo          : ParserError: (:) [], ParseException
+    + FullyQualifiedErrorId : UnexpectedToken
