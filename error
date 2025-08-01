@@ -1,15 +1,6 @@
-At C:\LLNOTIFY\LLNOTIFY.ps1:163 char:50
-+             throw "QnA.exe failed with exit code $exitCode: $result"
-+                                                  ~~~~~~~~~~
-Variable reference is not valid. ':' was not followed by a valid variable name character. Consider using ${} to
-delimit the name.
-At C:\LLNOTIFY\LLNOTIFY.ps1:211 char:46
-+             $report += $fixlets[0] -eq $null ? "No applicable fixlets ...
-+                                              ~
-Unexpected token '?' in expression or statement.
-At C:\LLNOTIFY\LLNOTIFY.ps1:814 char:94
-+ ... global:bigFixData.ApplicableFixlets[0].StartsWith("Error:") ? $global ...
-+                                                                 ~
-Unexpected token '?' in expression or statement.
+At C:\LLNOTIFY\LLNOTIFY.ps1:182 char:2
++ }
++  ~
+The Try statement is missing its Catch or Finally block.
     + CategoryInfo          : ParserError: (:) [], ParseException
-    + FullyQualifiedErrorId : InvalidVariableReferenceWithDrive
+    + FullyQualifiedErrorId : MissingCatchOrFinally
