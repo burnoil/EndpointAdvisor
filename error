@@ -1,6 +1,15 @@
-At C:\LLNOTIFY\LLNOTIFY.ps1:182 char:2
-+ }
-+  ~
-The Try statement is missing its Catch or Finally block.
-    + CategoryInfo          : ParserError: (:) [], ParseException
-    + FullyQualifiedErrorId : MissingCatchOrFinally
+Write-Log : The term 'Write-Log' is not recognized as the name of a cmdlet, function, script file, or operable
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At C:\LLNOTIFY\LLNOTIFY.ps1:26 char:1
++ Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
++ ~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Write-Log:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+Handle-Error : The term 'Handle-Error' is not recognized as the name of a cmdlet, function, script file, or operable
+program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At C:\LLNOTIFY\LLNOTIFY.ps1:260 char:5
++     Handle-Error "Failed to load the XAML layout: $($_.Exception.Mess ...
++     ~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Handle-Error:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
