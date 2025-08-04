@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.39 (Removed BigFix Client API and QnA.exe references, fixed Write-Log/Handle-Error not recognized)
+# Version 4.3.39 (Removed BigFix API/QnA, reads X-Fixlet-Source_Count.txt for Patching UI)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -158,6 +158,7 @@ function Get-DefaultConfig {
         AnnouncementsLastState = "{}"
         SupportLastState       = "{}"
         Version               = $ScriptVersion
+        BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
         ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
@@ -312,7 +313,8 @@ $xamlString = @"
         <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Patching and System Status" VerticalAlignment="Center"/>
+              <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
+              <Button x:Name="PatchingSSAButton" Content="Launch Updates" Margin="10,0,0,0" ToolTip="Launch BigFix Self-Service Application"/>
             </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
@@ -320,6 +322,7 @@ $xamlString = @"
               <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap"/>
               <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
               <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
+              <TextBlock x:Name="PatchingUpdatesText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
             </StackPanel>
           </Border>
         </Expander>
@@ -381,9 +384,9 @@ try {
     $uiElements = @(
         "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
-        "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
-        "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
-        "ScriptUpdateText", "FooterText"
+        "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
+        "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText"
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
@@ -395,6 +398,20 @@ try {
     $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
     $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
 
+    $global:PatchingSSAButton.Add_Click({
+        try {
+            $ssaPath = $config.BigFixSSA_Path
+            if ([string]::IsNullOrWhiteSpace($ssaPath) -or -not (Test-Path $ssaPath)) {
+                throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
+            }
+            Write-Log "Launching BigFix SSA: $ssaPath" -Level "INFO"
+            Start-Process -FilePath $ssaPath
+        }
+        catch {
+            Handle-Error $_.Exception.Message -Source "PatchingSSAButton"
+        }
+    })
+    
     $global:ClearAlertsButton.Add_Click({
         Write-Log "Clear Alerts button clicked by user." -Level "INFO"
 
@@ -543,7 +560,9 @@ function Get-PendingRestartStatus {
     $rebootKeys = @(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired',
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress'
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress',
+        'HKLM:\SOFTWARE\Wow6432Node\BigFix\EnterpriseClient\BESPendingRestart',
+        'HKLM:\SOFTWARE\BigFix\EnterpriseClient\BESPendingRestart'
     )
     $global:PendingRestart = $rebootKeys | ForEach-Object { Test-Path $_ } | Where-Object { $_ } | Select-Object -First 1
     
@@ -560,6 +579,42 @@ function Get-WindowsBuildNumber {
         $productName = if ($buildInfo.CurrentBuildNumber -ge 22000) { "Windows 11" } else { "Windows 10" }
         return "$productName Build: $($buildInfo.DisplayVersion)"
     } catch { return "Windows Build: Unknown" }
+}
+
+function Update-PatchingAndSystem {
+    Write-Log "Updating Patching and System section..." -Level "INFO"
+    $restartStatusText = Get-PendingRestartStatus
+    $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
+    
+    $windowsBuild = Get-WindowsBuildNumber
+    $fixletPath = "C:\temp\X-Fixlet-Source_Count.txt"
+    $fixletText = "No fixlet data available."
+
+    try {
+        if (Test-Path $fixletPath) {
+            $fixletText = Get-Content -Path $fixletPath -Raw | Out-String
+            if ([string]::IsNullOrWhiteSpace($fixletText)) {
+                $fixletText = "X-Fixlet-Source_Count.txt is empty."
+                Write-Log "X-Fixlet-Source_Count.txt is empty." -Level "WARNING"
+            } else {
+                Write-Log "Successfully read fixlet data from $fixletPath - $fixletText" -Level "INFO"
+            }
+        } else {
+            Write-Log "X-Fixlet-Source_Count.txt not found at $fixletPath." -Level "WARNING"
+        }
+    } catch {
+        $fixletText = "Error reading X-Fixlet-Source_Count.txt: $($_.Exception.Message)"
+        Write-Log $fixletText -Level "ERROR"
+    }
+
+    $window.Dispatcher.Invoke({
+        $global:PatchingDescriptionText.Text = "Lists available software updates. Updates marked (R) require a restart."
+        $global:PendingRestartStatusText.Text = $restartStatusText
+        $global:PendingRestartStatusText.Foreground = $statusColor
+        $global:PatchingUpdatesText.Text = $fixletText
+        $global:WindowsBuildText.Text = $windowsBuild
+        $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion"
+    })
 }
 
 function Convert-MarkdownToTextBlock {
@@ -685,21 +740,6 @@ function Update-Support {
     })
     
     $config.SupportLastState = $newJsonState
-}
-
-function Update-PatchingAndSystem {
-    Write-Log "Updating Patching and System section..." -Level "INFO"
-    $restartStatusText = Get-PendingRestartStatus
-    $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
-    
-    $windowsBuild = Get-WindowsBuildNumber
-
-    $window.Dispatcher.Invoke({
-        $global:PatchingDescriptionText.Text = "System status information."
-        $global:PendingRestartStatusText.Text = $restartStatusText
-        $global:PendingRestartStatusText.Foreground = $statusColor
-        $global:WindowsBuildText.Text = $windowsBuild
-    })
 }
 
 function Check-ScriptUpdate {
