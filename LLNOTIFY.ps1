@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.43 (Renamed to LLNOTIFY.ps1, improved auto-update reliability)
+# Version 4.3.45 (Fixed colon-related parsing errors in Save-CachedContentData and Load-CachedContentData)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.43"
+$ScriptVersion = "4.3.45"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -114,19 +114,19 @@ function Rotate-LogFile {
                                 Write-Log "Deleted old archive: $($file.FullName)" -Level "INFO"
                             }
                             catch {
-                                Write-Log "Failed to delete old archive $($file.FullName): $($_.Exception.Message)" -Level "ERROR"
+                                Write-Log "Failed to delete old archive $($file.FullName) - $($_.Exception.Message)" -Level "ERROR"
                             }
                         }
                     }
                 }
                 catch {
-                    Write-Log "Failed to rotate log file: $($_.Exception.Message)" -Level "ERROR"
+                    Write-Log "Failed to rotate log file - $($_.Exception.Message)" -Level "ERROR"
                 }
             }
         }
     }
     catch {
-        Write-Log "Error checking log file size for rotation: $($_.Exception.Message)" -Level "ERROR"
+        Write-Log "Error checking log file size for rotation - $($_.Exception.Message)" -Level "ERROR"
     }
     finally {
         $global:IsRotatingLog = $false
@@ -152,7 +152,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -165,8 +165,7 @@ function Get-DefaultConfig {
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
-        ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
-        VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
+        CachePath             = Join-Path $ScriptDir "ContentData.cache.json"
     }
 }
 
@@ -185,7 +184,7 @@ function Load-Configuration {
             }
         }
         catch {
-            Write-Log "Failed to load or merge existing config file. Reverting to full defaults. Error: $($_.Exception.Message)" -Level "WARNING"
+            Write-Log "Failed to load or merge existing config file. Reverting to full defaults - $($_.Exception.Message)" -Level "WARNING"
         }
     }
     try {
@@ -193,7 +192,7 @@ function Load-Configuration {
         Write-Log "Configuration file validated and saved." -Level "INFO"
     }
     catch {
-        Handle-Error "Could not save the updated configuration to '$Path'. Error: $($_.Exception.Message)"
+        Write-Log "Could not save the updated configuration to $Path - $($_.Exception.Message)" -Level "ERROR"
     }
     return $finalConfig
 }
@@ -205,8 +204,9 @@ function Save-Configuration {
     )
     try {
         $Config | ConvertTo-Json -Depth 100 | Out-File $Path -Force
+        Write-Log "Configuration file saved to $Path" -Level "INFO"
     } catch {
-        Handle-Error "Could not save state to configuration file '$Path'. Error: $($_.Exception.Message)"
+        Write-Log "Could not save state to configuration file $Path - $($_.Exception.Message)" -Level "ERROR"
     }
 }
 
@@ -225,7 +225,7 @@ Write-Log "Warning icon path: $warningIconPath" -Level "INFO"
 
 $defaultContentData = @{
     Announcements = @{ Text = "No announcements at this time."; Details = ""; Links = @() }
-    Support = @{ Text  = "Contact IT Support."; Links = @() }
+    Support = @{ Text = "Contact IT Support."; Links = @() }
 }
 
 # ============================================================
@@ -261,7 +261,7 @@ function Import-RequiredAssemblies {
         return $true
     }
     catch {
-        Write-Log "Failed to load required GUI assemblies: $($_.Exception.Message)" -Level "ERROR"
+        Write-Log "Failed to load required GUI assemblies - $($_.Exception.Message)" -Level "ERROR"
         return $false
     }
 }
@@ -351,7 +351,6 @@ $xamlString = @"
           </Border>
         </Expander>
         <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-        <TextBlock x:Name="ScriptUpdateText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0" Foreground="Red" Visibility="Hidden"/>
       </StackPanel>
     </ScrollViewer>
     <Grid Grid.Row="2" Margin="0,5,0,0">
@@ -390,7 +389,7 @@ try {
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "ScriptUpdateText", "FooterText"
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "FooterText"
     )
     foreach ($elementName in $uiElements) {
         Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
@@ -425,8 +424,8 @@ try {
         }
 
         $window.Dispatcher.Invoke({
-            $global:AnnouncementsAlertIcon.Visibility = 'Hidden'
-            $global:SupportAlertIcon.Visibility = 'Hidden'
+            $global:AnnouncementsAlertIcon.Visibility = "Hidden"
+            $global:SupportAlertIcon.Visibility = "Hidden"
         })
 
         $global:BlinkingTimer.Stop()
@@ -436,10 +435,8 @@ try {
     })
 
     $window.Add_Closing({
-        if (-not $global:IsUpdating) {
-            $_.Cancel = $true
-            $window.Hide()
-        }
+        $_.Cancel = $true
+        $window.Hide()
     })
 }
 catch {
@@ -475,10 +472,49 @@ function Validate-ContentData {
     return $true
 }
 
+function Save-CachedContentData {
+    param(
+        [psobject]$ContentData,
+        [string]$Path = $config.CachePath
+    )
+    try {
+        $ContentData.Data | ConvertTo-Json -Depth 100 | Out-File $Path -Force
+        Write-Log "Saved cached content data to $Path" -Level "INFO"
+    } catch {
+        Write-Log "Failed to save cached content data to $Path - $($_.Exception.Message)" -Level "ERROR"
+    }
+}
+
+function Load-CachedContentData {
+    param([string]$Path = $config.CachePath)
+    try {
+        if (Test-Path $Path) {
+            $contentData = Get-Content $Path -Raw | ConvertFrom-Json
+            Validate-ContentData -Data $contentData
+            $lastWriteTime = (Get-Item $Path).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+            Write-Log "Loaded cached content data from $Path (Last updated: $lastWriteTime)" -Level "INFO"
+            return [PSCustomObject]@{
+                Data = $contentData
+                Source = "Cached ($lastWriteTime)"
+            }
+        } else {
+            Write-Log "No cached content data found at $Path" -Level "WARNING"
+            return $null
+        }
+    } catch {
+        Write-Log "Failed to load cached content data from $Path - $($_.Exception.Message)" -Level "ERROR"
+        return $null
+    }
+}
+
 function Fetch-ContentData {
     if (-not $config -or [string]::IsNullOrWhiteSpace($config.ContentDataUrl)) {
         Write-Log "ContentDataUrl is not set! Check your Get-DefaultConfig return value." -Level "ERROR"
         $global:FailedFetchAttempts++
+        $cachedData = Load-CachedContentData
+        if ($cachedData) {
+            return $cachedData
+        }
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
     }
     $url = $config.ContentDataUrl
@@ -508,15 +544,20 @@ function Fetch-ContentData {
         $contentData = $response.Content | ConvertFrom-Json
         Validate-ContentData -Data $contentData
         Write-Log "Content data validated successfully." -Level "INFO"
+        Save-CachedContentData -ContentData ([PSCustomObject]@{ Data = $contentData })
         $global:FailedFetchAttempts = 0
 
         return [PSCustomObject]@{ Data = $contentData; Source = "Remote" }
     }
     catch {
         $global:FailedFetchAttempts++
-        Write-Log "Failed to fetch or validate content from $url (Attempt $global:FailedFetchAttempts): $($_.Exception.Message)" -Level "ERROR"
+        Write-Log "Failed to fetch or validate content from $url (Attempt $global:FailedFetchAttempts) - $($_.Exception.Message)" -Level "ERROR"
         if ($global:FailedFetchAttempts -ge 3) {
             Write-Log "Multiple consecutive fetch failures ($global:FailedFetchAttempts). Check network or URL configuration." -Level "WARNING"
+        }
+        $cachedData = Load-CachedContentData
+        if ($cachedData) {
+            return $cachedData
         }
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
     }
@@ -553,8 +594,8 @@ function Get-YubiKeyCertExpiryDays {
         return "YubiKey Certificate: No PIV certificate found."
     }
     catch {
-        Write-Log "YubiKey check error: $($_.Exception.Message)" -Level "ERROR"
-        return "YubiKey Certificate: No PIV certificate found."
+        Write-Log "YubiKey check error - $($_.Exception.Message)" -Level "ERROR"
+        return "YubiKey Certificate: Unable to determine status."
     }
 }
 
@@ -638,6 +679,67 @@ function Update-PatchingAndSystem {
     })
 }
 
+function Update-Announcements {
+    Write-Log "Updating Announcements section..." -Level "INFO"
+    $newAnnouncementsObject = $global:contentData.Data.Announcements
+    if (-not $newAnnouncementsObject) { return }
+
+    $newJsonState = $newAnnouncementsObject | ConvertTo-Json -Compress
+
+    $isNew = $false
+    if ($config.AnnouncementsLastState -ne $newJsonState) {
+        Write-Log "New announcement content detected." -Level "INFO"
+        $isNew = $true
+    }
+
+    $window.Dispatcher.Invoke({
+        if ($isNew) {
+            $global:AnnouncementsAlertIcon.Visibility = "Visible"
+        }
+        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
+        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Details -TargetTextBlock $global:AnnouncementsDetailsText
+        $global:AnnouncementsLinksPanel.Children.Clear()
+        if ($newAnnouncementsObject.Links) {
+            foreach ($link in $newAnnouncementsObject.Links) {
+                $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+            }
+        }
+        $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
+    })
+    
+    $config.AnnouncementsLastState = $newJsonState
+}
+
+function Update-Support {
+    Write-Log "Updating Support section..." -Level "INFO"
+    $newSupportObject = $global:contentData.Data.Support
+    if (-not $newSupportObject) { return }
+
+    $newJsonState = $newSupportObject | ConvertTo-Json -Compress
+
+    $isNew = $false
+    if ($config.SupportLastState -ne $newJsonState) {
+        Write-Log "New support content detected." -Level "INFO"
+        $isNew = $true
+    }
+
+    $window.Dispatcher.Invoke({
+        if ($isNew) {
+            $global:SupportAlertIcon.Visibility = "Visible"
+        }
+        Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
+        $global:SupportLinksPanel.Children.Clear()
+        if ($newSupportObject.Links) {
+            foreach ($link in $newSupportObject.Links) {
+                $global:SupportLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+            }
+        }
+        $global:SupportSourceText.Text = "Source: $($global:contentData.Source)"
+    })
+    
+    $config.SupportLastState = $newJsonState
+}
+
 function Convert-MarkdownToTextBlock {
     param(
         [string]$Text,
@@ -702,214 +804,6 @@ function Convert-MarkdownToTextBlock {
     }
 }
 
-function Update-Announcements {
-    Write-Log "Updating Announcements section..." -Level "INFO"
-    $newAnnouncementsObject = $global:contentData.Data.Announcements
-    if (-not $newAnnouncementsObject) { return }
-
-    $newJsonState = $newAnnouncementsObject | ConvertTo-Json -Compress
-
-    $isNew = $false
-    if ($config.AnnouncementsLastState -ne $newJsonState) {
-        Write-Log "New announcement content detected." -Level "INFO"
-        $isNew = $true
-    }
-
-    $window.Dispatcher.Invoke({
-        if ($isNew) {
-            $global:AnnouncementsAlertIcon.Visibility = "Visible"
-        }
-        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
-        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Details -TargetTextBlock $global:AnnouncementsDetailsText
-        $global:AnnouncementsLinksPanel.Children.Clear()
-        if ($newAnnouncementsObject.Links) {
-            foreach ($link in $newAnnouncementsObject.Links) {
-                $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
-            }
-        }
-        $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
-    })
-    
-    $config.AnnouncementsLastState = $newJsonState
-}
-
-function Update-Support {
-    Write-Log "Updating Support section..." -Level "INFO"
-    $newSupportObject = $global:contentData.Data.Support
-    if (-not $newSupportObject) { return }
-
-    $newJsonState = $newSupportObject | ConvertTo-Json -Compress
-
-    $isNew = $false
-    if ($config.SupportLastState -ne $newJsonState) {
-        Write-Log "New support content detected." -Level "INFO"
-        $isNew = $true
-    }
-
-    $window.Dispatcher.Invoke({
-        if ($isNew) {
-            $global:SupportAlertIcon.Visibility = "Visible"
-        }
-        Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
-        $global:SupportLinksPanel.Children.Clear()
-        if ($newSupportObject.Links) {
-            foreach ($link in $newSupportObject.Links) {
-                $global:SupportLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
-            }
-        }
-        $global:SupportSourceText.Text = "Source: $($global:contentData.Source)"
-    })
-    
-    $config.SupportLastState = $newJsonState
-}
-
-function Check-ScriptUpdate {
-    try {
-        $versionUrl = $config.VersionUrl
-        Write-Log "Checking for script update from: $versionUrl" -Level "INFO"
-        
-        $response = Invoke-WithRetry -Action {
-            $job = Start-Job -ScriptBlock {
-                param($url)
-                Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
-            } -ArgumentList $versionUrl
-            $jobResult = Wait-Job $job -Timeout 30
-            if (-not $jobResult) {
-                throw "Background job timed out after 30 seconds."
-            }
-            $result = Receive-Job $job
-            Remove-Job $job
-            if (-not $result) {
-                throw "No response received from Invoke-WebRequest."
-            }
-            return $result
-        } -MaxRetries 3 -RetryDelayMs 500
-
-        Write-Log "Successfully fetched version from $versionUrl (Status: $($response.StatusCode))." -Level "INFO"
-
-        $remoteVersion = $response.Content.Trim()
-        if ([version]$remoteVersion -gt [version]$ScriptVersion) {
-            Write-Log "New script version available: $remoteVersion" -Level "INFO"
-            $window.Dispatcher.Invoke({
-                $global:ScriptUpdateText.Text = "New version $remoteVersion available. Updating now..."
-                $global:ScriptUpdateText.Visibility = "Visible"
-            })
-            Perform-AutoUpdate -RemoteVersion $remoteVersion
-            return $true
-        }
-        Write-Log "No new script version available." -Level "INFO"
-        $window.Dispatcher.Invoke({
-            $global:ScriptUpdateText.Visibility = "Hidden"
-        })
-        $global:FailedFetchAttempts = 0
-        return $false
-    } catch {
-        $global:FailedFetchAttempts++
-        Write-Log "Failed to check for script update from $versionUrl (Attempt $global:FailedFetchAttempts): $($_.Exception.Message)" -Level "WARNING"
-        if ($global:FailedFetchAttempts -ge 3) {
-            Write-Log "Multiple consecutive fetch failures ($global:FailedFetchAttempts). Check network or URL configuration." -Level "WARNING"
-        }
-        return $false
-    }
-}
-
-function Perform-AutoUpdate {
-    param([string]$RemoteVersion)
-    try {
-        $scriptUrl = $config.ScriptUrl
-        $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
-        $batchPath = Join-Path $ScriptDir "update.bat"
-        $scriptPath = Join-Path $ScriptDir "LLNOTIFY.ps1"
-        
-        # Check if script file is writable
-        try {
-            [System.IO.File]::Open($scriptPath, 'Open', 'Write').Close()
-            Write-Log "Script file $scriptPath is writable." -Level "INFO"
-        } catch {
-            throw "Script file $scriptPath is locked or not writable: $($_.Exception.Message)"
-        }
-
-        if (Test-Path $batchPath) {
-            Remove-Item $batchPath -Force
-            if (Test-Path $batchPath) {
-                Write-Log "Warning: Could not remove existing update.bat" -Level "WARNING"
-            } else {
-                Write-Log "Removed existing update.bat" -Level "INFO"
-            }
-        }
-
-        $job = Start-Job -ScriptBlock {
-            param($url, $path)
-            Invoke-WebRequest -Uri $url -UseBasicParsing -OutFile $path -ErrorAction Stop
-        } -ArgumentList $scriptUrl, $newScriptPath
-        $jobResult = Wait-Job $job -Timeout 60
-        if (-not $jobResult) {
-            Remove-Job $job -Force
-            throw "Download job timed out after 60 seconds."
-        }
-        $result = Receive-Job $job
-        Remove-Job $job
-        
-        if (-not (Test-Path $newScriptPath)) {
-            throw "Failed to download new script to $newScriptPath."
-        }
-
-        try {
-            $batchContent = @"
-@echo off
-echo Batch started %date% %time% >> "%PSScriptRoot%\batch_log.txt"
-echo Waiting for script to release file lock >> "%PSScriptRoot%\batch_log.txt"
-timeout /t 10 /nobreak >nul
-set /a attempts=0
-:retry
-set /a attempts+=1
-echo Attempt %attempts% to move %newScriptPath% to %PSScriptRoot%\LLNOTIFY.ps1 >> "%PSScriptRoot%\batch_log.txt"
-move /Y "%newScriptPath%" "%PSScriptRoot%\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
-if ERRORLEVEL 1 (
-  if %attempts% GEQ 5 (
-    echo Failed to move script after 5 attempts >> "%PSScriptRoot%\batch_log.txt"
-    echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
-    goto :eof
-  )
-  echo Waiting 3 seconds before retry >> "%PSScriptRoot%\batch_log.txt"
-  timeout /t 3 /nobreak >nul
-  goto retry
-)
-echo Move succeeded >> "%PSScriptRoot%\batch_log.txt"
-echo Starting powershell >> "%PSScriptRoot%\batch_log.txt"
-powershell -ExecutionPolicy Bypass -File "%PSScriptRoot%\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
-if ERRORLEVEL 1 (
-  echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
-) else (
-  echo Relaunch succeeded >> "%PSScriptRoot%\batch_log.txt"
-)
-echo Relaunch complete >> "%PSScriptRoot%\batch_log.txt"
-start /b "" cmd /c del "%~f0" & exit
-"@
-            $batchContent | Out-File $batchPath -Encoding ascii -Force
-            if (-not (Test-Path $batchPath)) {
-                throw "Batch file creation failed without error."
-            }
-            Write-Log "Created new update.bat at $batchPath" -Level "INFO"
-        } catch {
-            throw "Failed to create batch file: $($_.Exception.Message)"
-        }
-
-        Write-Log "Auto-update initiated. Waiting 2 seconds before shutdown." -Level "INFO"
-        Start-Sleep -Milliseconds 2000
-        Start-Process -FilePath $batchPath -WindowStyle Hidden
-        Write-Log "Auto-update batch launched. Exiting current instance." -Level "INFO"
-        $global:IsUpdating = $true
-        $window.Dispatcher.InvokeShutdown()
-    } catch {
-        Write-Log "Auto-update failed: $($_.Exception.Message)" -Level "ERROR"
-        $window.Dispatcher.Invoke({
-            $global:ScriptUpdateText.Text = "Update failed. Please update manually."
-            $global:ScriptUpdateText.Visibility = "Visible"
-        })
-    }
-}
-
 # ============================================================
 # I) Tray Icon Management
 # ============================================================
@@ -924,7 +818,7 @@ function Get-Icon {
             return New-Object System.Drawing.Icon($Path)
         }
         catch {
-            Write-Log "Error loading icon from `"$Path`": $($_.Exception.Message)" -Level "ERROR"
+            Write-Log "Error loading icon from `"$Path`" - $($_.Exception.Message)" -Level "ERROR"
         }
     }
     return [System.Drawing.SystemIcons]::Application
@@ -1055,8 +949,6 @@ function Main-UpdateCycle {
             $global:LastCertificateCheck = Get-Date
         }
         
-        if (Check-ScriptUpdate) { return }
-        
         Update-TrayIcon
         Save-Configuration -Config $config
         Rotate-LogFile
@@ -1097,9 +989,7 @@ try {
     $window.Dispatcher.Add_UnhandledException({ Handle-Error $_.Exception.Message -Source "Dispatcher"; $_.Handled = $true })
 
     Write-Log "Application startup complete. Running dispatcher." -Level "INFO"
-    if (-not $global:IsUpdating) {
-        [System.Windows.Threading.Dispatcher]::Run()
-    }
+    [System.Windows.Threading.Dispatcher]::Run()
 }
 catch {
     Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
@@ -1111,6 +1001,3 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-
-
-
