@@ -1,5 +1,5 @@
-# LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.39 (Removed BigFix API/QnA, reads X-Fixlet-Source_Count.txt for Patching UI)
+# LLNOTIFY_test.ps1 - Lincoln Laboratory Notification System
+# Version 4.3.41 (Fixed null-valued expression error, updated URLs, added retry logic)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.39"
+$ScriptVersion = "4.3.41"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -20,6 +20,9 @@ $global:PendingRestart = $false
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
 $global:CachedCertificateStatus = $null
+
+# Global counter for failed fetch attempts
+$global:FailedFetchAttempts = 0
 
 # ============================================================
 # A) Advanced Logging & Error Handling
@@ -44,14 +47,14 @@ function Write-Log {
     $attempt = 0
     $success = $false
     
-    while ($attempt -lt $MaxRetries -and -not $success) {
+    while ($attempt -lt $maxRetries -and -not $success) {
         try {
             $attempt++
             Add-Content -Path $logPath -Value $logEntry -Force -ErrorAction Stop
             $success = $true
         }
         catch {
-            if ($attempt -eq $MaxRetries) {
+            if ($attempt -eq $maxRetries) {
                 Write-Host "[$timestamp] [$Level] $Message (Failed to write to log after $maxRetries attempts: $($_.Exception.Message))"
             } else {
                 Start-Sleep -Milliseconds $retryDelayMs
@@ -70,14 +73,15 @@ function Invoke-WithRetry {
     while ($attempt -lt $MaxRetries) {
         try {
             $attempt++
-            $Action.Invoke()
-            return # Success
+            $result = $Action.Invoke()
+            return $result
         }
         catch {
             if ($attempt -ge $MaxRetries) {
                 throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
             }
-            Start-Sleep -Milliseconds $RetryDelayMs
+            Write-Log "Retry $attempt of $MaxRetries failed: $($_.Exception.Message)" -Level "WARNING"
+            Start-Sleep -Milliseconds ($retryDelayMs * (2 * $attempt)) # Exponential backoff
         }
     }
 }
@@ -131,11 +135,11 @@ function Rotate-LogFile {
 
 function Handle-Error {
     param(
-        [string]$ErrorMessage,
+        [string]$Message,
         [string]$Source = ""
     )
-    if ($Source) { $ErrorMessage = "[$Source] $ErrorMessage" }
-    Write-Log $ErrorMessage -Level "ERROR"
+    if ($Source) { $Message = "[$Source] $Message" }
+    Write-Log $Message -Level "ERROR"
 }
 
 Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
@@ -148,7 +152,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -161,13 +165,13 @@ function Get-DefaultConfig {
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
-        ScriptUrl             = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/LLNOTIFY.ps1"
-        VersionUrl            = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/currentversion.txt"
+        ScriptUrl             = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/LLNOTIFY_test.ps1"
+        VersionUrl            = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/currentversion.txt"
     }
 }
 
 function Load-Configuration {
-    param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json"))
+    param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY_test.config.json"))
     $finalConfig = Get-DefaultConfig
     if (Test-Path $Path) {
         try {
@@ -197,7 +201,7 @@ function Load-Configuration {
 function Save-Configuration {
     param(
         [psobject]$Config,
-        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
+        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY_test.config.json")
     )
     try {
         $Config | ConvertTo-Json -Depth 100 | Out-File $Path -Force
@@ -474,6 +478,7 @@ function Validate-ContentData {
 function Fetch-ContentData {
     if (-not $config -or [string]::IsNullOrWhiteSpace($config.ContentDataUrl)) {
         Write-Log "ContentDataUrl is not set! Check your Get-DefaultConfig return value." -Level "ERROR"
+        $global:FailedFetchAttempts++
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
     }
     $url = $config.ContentDataUrl
@@ -481,22 +486,39 @@ function Fetch-ContentData {
     try {
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
-        $job = Start-Job -ScriptBlock {
-            param($url)
-            Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
-        } -ArgumentList $url
-        $response = Wait-Job $job | Receive-Job
-        Remove-Job $job
+        $response = Invoke-WithRetry -Action {
+            $job = Start-Job -ScriptBlock {
+                param($url)
+                Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+            } -ArgumentList $url
+            $jobResult = Wait-Job $job -Timeout 30
+            if (-not $jobResult) {
+                throw "Background job timed out after 30 seconds."
+            }
+            $result = Receive-Job $job
+            Remove-Job $job
+            return $result
+        } -MaxRetries 3 -RetryDelayMs 500
+
+        if (-not $response) {
+            throw "No response received from Invoke-WebRequest."
+        }
+
         Write-Log "Successfully fetched content from Git repository (Status: $($response.StatusCode))." -Level "INFO"
         
         $contentData = $response.Content | ConvertFrom-Json
         Validate-ContentData -Data $contentData
         Write-Log "Content data validated successfully." -Level "INFO"
+        $global:FailedFetchAttempts = 0
 
         return [PSCustomObject]@{ Data = $contentData; Source = "Remote" }
     }
     catch {
-        Write-Log "Failed to fetch or validate content from $($config.ContentDataUrl): $($_.Exception.Message)" -Level "ERROR"
+        $global:FailedFetchAttempts++
+        Write-Log "Failed to fetch or validate content from $url (Attempt $global:FailedFetchAttempts): $($_.Exception.Message)" -Level "ERROR"
+        if ($global:FailedFetchAttempts -ge 3) {
+            Write-Log "Multiple consecutive fetch failures ($global:FailedFetchAttempts). Check network or URL configuration." -Level "WARNING"
+        }
         return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
     }
 }
@@ -747,13 +769,24 @@ function Check-ScriptUpdate {
         $versionUrl = $config.VersionUrl
         Write-Log "Checking for script update from: $versionUrl" -Level "INFO"
         
-        $job = Start-Job -ScriptBlock {
-            param($url)
-            Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
-        } -ArgumentList $versionUrl
-        $response = Wait-Job $job | Receive-Job
-        Remove-Job $job
-        
+        $response = Invoke-WithRetry -Action {
+            $job = Start-Job -ScriptBlock {
+                param($url)
+                Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+            } -ArgumentList $versionUrl
+            $jobResult = Wait-Job $job -Timeout 30
+            if (-not $jobResult) {
+                throw "Background job timed out after 30 seconds."
+            }
+            $result = Receive-Job $job
+            Remove-Job $job
+            return $result
+        } -MaxRetries 3 -RetryDelayMs 500
+
+        if (-not $response) {
+            throw "No response received from Invoke-WebRequest."
+        }
+
         $remoteVersion = $response.Content.Trim()
         if ([version]$remoteVersion -gt [version]$ScriptVersion) {
             Write-Log "New script version available: $remoteVersion" -Level "INFO"
@@ -770,7 +803,11 @@ function Check-ScriptUpdate {
         })
         return $false
     } catch {
-        Write-Log "Failed to check for script update: $($_.Exception.Message)" -Level "WARNING"
+        $global:FailedFetchAttempts++
+        Write-Log "Failed to check for script update from $versionUrl (Attempt $global:FailedFetchAttempts): $($_.Exception.Message)" -Level "WARNING"
+        if ($global:FailedFetchAttempts -ge 3) {
+            Write-Log "Multiple consecutive fetch failures ($global:FailedFetchAttempts). Check network or URL configuration." -Level "WARNING"
+        }
         return $false
     }
 }
@@ -779,7 +816,7 @@ function Perform-AutoUpdate {
     param([string]$RemoteVersion)
     try {
         $scriptUrl = $config.ScriptUrl
-        $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
+        $newScriptPath = Join-Path $ScriptDir "LLNOTIFY_test.new.ps1"
         $batchPath = Join-Path $ScriptDir "update.bat"
         
         if (Test-Path $batchPath) {
@@ -811,7 +848,7 @@ set /a attempts=0
 :retry
 set /a attempts+=1
 echo Attempt %attempts% to move >> "%PSScriptRoot%\batch_log.txt"
-move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
+move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY_test.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 (
   if %attempts% GEQ 5 goto fail
   timeout /t 2 /nobreak >nul
@@ -819,7 +856,7 @@ if ERRORLEVEL 1 (
 )
 echo Move succeeded >> "%PSScriptRoot%\batch_log.txt"
 echo Starting powershell >> "%PSScriptRoot%\batch_log.txt"
-powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
+powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY_test.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
 echo Relaunch complete >> "%PSScriptRoot%\batch_log.txt"
 start /b "" cmd /c del "%~f0" & exit
