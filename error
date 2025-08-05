@@ -1,37 +1,7 @@
-[2025-08-01 13:17:34] [INFO] Executing QnA.exe for query: computer name
-[2025-08-01 13:17:34] [INFO] Running command: echo computer name | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
-[2025-08-01 13:17:36] [INFO] QnA query succeeded: 606141-MITLL
-T: 3971
-
-Q:
-
-[2025-08-01 13:17:36] [INFO] Executing QnA.exe for query: version of client as string
-[2025-08-01 13:17:36] [INFO] Running command: echo version of client as string | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
-[2025-08-01 13:17:38] [INFO] QnA query succeeded: 11.0.3.82
-T: 3340
-
-Q:
-
-[2025-08-01 13:17:38] [INFO] Executing QnA.exe for query: if exists relay service then (address of relay service as string) else "No Relay"
-[2025-08-01 13:17:38] [INFO] Running command: echo if exists relay service then (address of relay service as string) else "No Relay" | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
-[2025-08-01 13:17:40] [INFO] QnA query succeeded: No Relay
-T: 286310
-
-Q:
-
-[2025-08-01 13:17:40] [INFO] Executing QnA.exe for query: now - last report time of client > 0 * second as string
-[2025-08-01 13:17:40] [INFO] Running command: echo now - last report time of client > 0 * second as string | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
-[2025-08-01 13:17:42] [ERROR] QnA.exe query returned error: Q: E: The operator "times" is not defined.
-
-Q: 
-[2025-08-01 13:17:42] [INFO] Executing QnA.exe for query: addresses of adapters of network as string
-[2025-08-01 13:17:42] [INFO] Running command: echo addresses of adapters of network as string | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
-[2025-08-01 13:17:44] [INFO] QnA query succeeded: 172.30.133.238
-A: 192.168.50.59
-T: 21645
-
-Q:
-
-[2025-08-01 13:17:44] [INFO] Executing QnA.exe for query: names of relevant fixlets whose (not baseline flag of it and (it as lowercase contains "microsoft" or it as lowercase contains "security update")) of action site
-[2025-08-01 13:17:44] [INFO] Running command: echo names of relevant fixlets whose (not baseline flag of it and (it as lowercase contains "microsoft" or it as lowercase contains "security update")) of action site | C:\Program Files (x86)\BigFix Enterprise\BES Client\QnA.exe
-[2025-08-01 13:17:46] [ERROR] QnA.exe query returned error: Q: E: The operator "action site" is not defined.
+[ERROR] Failed to fetch or validate content from https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json: You cannot call a method on a null-valued expression.
+[2025-08-05 05:21:00] [INFO] Updating Announcements section...
+[2025-08-05 05:21:00] [INFO] Updating Support section...
+[2025-08-05 05:21:00] [INFO] Updating Patching and System section...
+[2025-08-05 05:21:01] [WARNING] X-Fixlet-Source_Count.txt not found at C:\temp\X-Fixlet-Source_Count.txt.
+[2025-08-05 05:21:01] [INFO] Checking for script update from: https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/currentversion.txt
+[2025-08-05 05:21:01] [WARNING] Failed to check for script update: You cannot call a method on a null-valued expression.
