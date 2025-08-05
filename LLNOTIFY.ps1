@@ -1,5 +1,5 @@
-# LLNOTIFY_test.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.41 (Fixed null-valued expression error, updated URLs, added retry logic)
+# LLNOTIFY.ps1 - Lincoln Laboratory Notification System
+# Version 4.3.42 (Renamed to LLNOTIFY.ps1, improved auto-update reliability)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.41"
+$ScriptVersion = "4.3.42"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -67,7 +67,7 @@ function Invoke-WithRetry {
     param(
         [ScriptBlock]$Action,
         [int]$MaxRetries = 3,
-        [int]$RetryDelayMs = 100
+        [int]$RetryDelayMs = 500
     )
     $attempt = 0
     while ($attempt -lt $MaxRetries) {
@@ -81,7 +81,7 @@ function Invoke-WithRetry {
                 throw "Action failed after $MaxRetries attempts: $($_.Exception.Message)"
             }
             Write-Log "Retry $attempt of $MaxRetries failed: $($_.Exception.Message)" -Level "WARNING"
-            Start-Sleep -Milliseconds ($retryDelayMs * (2 * $attempt)) # Exponential backoff
+            Start-Sleep -Milliseconds ($RetryDelayMs * (2 * $attempt)) # Exponential backoff
         }
     }
 }
@@ -165,13 +165,13 @@ function Get-DefaultConfig {
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
         BlinkingEnabled       = $true
-        ScriptUrl             = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/LLNOTIFY_test.ps1"
+        ScriptUrl             = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/LLNOTIFY.ps1"
         VersionUrl            = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/currentversion.txt"
     }
 }
 
 function Load-Configuration {
-    param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY_test.config.json"))
+    param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json"))
     $finalConfig = Get-DefaultConfig
     if (Test-Path $Path) {
         try {
@@ -201,7 +201,7 @@ function Load-Configuration {
 function Save-Configuration {
     param(
         [psobject]$Config,
-        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY_test.config.json")
+        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
     )
     try {
         $Config | ConvertTo-Json -Depth 100 | Out-File $Path -Force
@@ -497,12 +497,11 @@ function Fetch-ContentData {
             }
             $result = Receive-Job $job
             Remove-Job $job
+            if (-not $result) {
+                throw "No response received from Invoke-WebRequest."
+            }
             return $result
         } -MaxRetries 3 -RetryDelayMs 500
-
-        if (-not $response) {
-            throw "No response received from Invoke-WebRequest."
-        }
 
         Write-Log "Successfully fetched content from Git repository (Status: $($response.StatusCode))." -Level "INFO"
         
@@ -555,7 +554,7 @@ function Get-YubiKeyCertExpiryDays {
     }
     catch {
         Write-Log "YubiKey check error: $($_.Exception.Message)" -Level "ERROR"
-        return "YubiKey Certificate: Unable to determine status."
+        return "YubiKey Certificate: No PIV certificate found."
     }
 }
 
@@ -780,12 +779,13 @@ function Check-ScriptUpdate {
             }
             $result = Receive-Job $job
             Remove-Job $job
+            if (-not $result) {
+                throw "No response received from Invoke-WebRequest."
+            }
             return $result
         } -MaxRetries 3 -RetryDelayMs 500
 
-        if (-not $response) {
-            throw "No response received from Invoke-WebRequest."
-        }
+        Write-Log "Successfully fetched version from $versionUrl (Status: $($response.StatusCode))." -Level "INFO"
 
         $remoteVersion = $response.Content.Trim()
         if ([version]$remoteVersion -gt [version]$ScriptVersion) {
@@ -801,6 +801,7 @@ function Check-ScriptUpdate {
         $window.Dispatcher.Invoke({
             $global:ScriptUpdateText.Visibility = "Hidden"
         })
+        $global:FailedFetchAttempts = 0
         return $false
     } catch {
         $global:FailedFetchAttempts++
@@ -816,9 +817,18 @@ function Perform-AutoUpdate {
     param([string]$RemoteVersion)
     try {
         $scriptUrl = $config.ScriptUrl
-        $newScriptPath = Join-Path $ScriptDir "LLNOTIFY_test.new.ps1"
+        $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
         $batchPath = Join-Path $ScriptDir "update.bat"
+        $scriptPath = Join-Path $ScriptDir "LLNOTIFY.ps1"
         
+        # Check if script file is writable
+        try {
+            [System.IO.File]::Open($scriptPath, 'Open', 'Write').Close()
+            Write-Log "Script file $scriptPath is writable." -Level "INFO"
+        } catch {
+            throw "Script file $scriptPath is locked or not writable: $($_.Exception.Message)"
+        }
+
         if (Test-Path $batchPath) {
             Remove-Item $batchPath -Force
             if (Test-Path $batchPath) {
@@ -830,57 +840,72 @@ function Perform-AutoUpdate {
 
         $job = Start-Job -ScriptBlock {
             param($url, $path)
-            Invoke-WebRequest -Uri $url -UseBasicParsing -OutFile $path
+            Invoke-WebRequest -Uri $url -UseBasicParsing -OutFile $path -ErrorAction Stop
         } -ArgumentList $scriptUrl, $newScriptPath
-        Wait-Job $job | Receive-Job
+        $jobResult = Wait-Job $job -Timeout 60
+        if (-not $jobResult) {
+            Remove-Job $job -Force
+            throw "Download job timed out after 60 seconds."
+        }
+        $result = Receive-Job $job
         Remove-Job $job
         
         if (-not (Test-Path $newScriptPath)) {
-            throw "Failed to download new script."
+            throw "Failed to download new script to $newScriptPath."
         }
 
         try {
             $batchContent = @"
 @echo off
 echo Batch started %date% %time% >> "%PSScriptRoot%\batch_log.txt"
-timeout /t 5 /nobreak >nul
+echo Waiting for script to release file lock >> "%PSScriptRoot%\batch_log.txt"
+timeout /t 10 /nobreak >nul
 set /a attempts=0
 :retry
 set /a attempts+=1
-echo Attempt %attempts% to move >> "%PSScriptRoot%\batch_log.txt"
-move /Y "$newScriptPath" "$PSScriptRoot\LLNOTIFY_test.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
+echo Attempt %attempts% to move %newScriptPath% to %PSScriptRoot%\LLNOTIFY.ps1 >> "%PSScriptRoot%\batch_log.txt"
+move /Y "%newScriptPath%" "%PSScriptRoot%\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
 if ERRORLEVEL 1 (
-  if %attempts% GEQ 5 goto fail
-  timeout /t 2 /nobreak >nul
+  if %attempts% GEQ 5 (
+    echo Failed to move script after 5 attempts >> "%PSScriptRoot%\batch_log.txt"
+    echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
+    goto :eof
+  )
+  echo Waiting 3 seconds before retry >> "%PSScriptRoot%\batch_log.txt"
+  timeout /t 3 /nobreak >nul
   goto retry
 )
 echo Move succeeded >> "%PSScriptRoot%\batch_log.txt"
 echo Starting powershell >> "%PSScriptRoot%\batch_log.txt"
-powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\LLNOTIFY_test.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
-if ERRORLEVEL 1 echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
+powershell -ExecutionPolicy Bypass -File "%PSScriptRoot%\LLNOTIFY.ps1" >> "%PSScriptRoot%\batch_log.txt" 2>&1
+if ERRORLEVEL 1 (
+  echo Relaunch failed with code %ERRORLEVEL% >> "%PSScriptRoot%\batch_log.txt"
+) else (
+  echo Relaunch succeeded >> "%PSScriptRoot%\batch_log.txt"
+)
 echo Relaunch complete >> "%PSScriptRoot%\batch_log.txt"
 start /b "" cmd /c del "%~f0" & exit
-:fail
-echo Failed to update after 5 attempts >> "%PSScriptRoot%\update_error.log"
 "@
             $batchContent | Out-File $batchPath -Encoding ascii -Force
             if (-not (Test-Path $batchPath)) {
-                throw "Batch file creation failed without error"
+                throw "Batch file creation failed without error."
             }
             Write-Log "Created new update.bat at $batchPath" -Level "INFO"
         } catch {
             throw "Failed to create batch file: $($_.Exception.Message)"
         }
 
+        Write-Log "Auto-update initiated. Waiting 2 seconds before shutdown." -Level "INFO"
+        Start-Sleep -Milliseconds 2000
         Start-Process -FilePath $batchPath -WindowStyle Hidden
-        Write-Log "Auto-update initiated. Exiting current instance." -Level "INFO"
-        Start-Sleep -Milliseconds 500
+        Write-Log "Auto-update batch launched. Exiting current instance." -Level "INFO"
         $global:IsUpdating = $true
         $window.Dispatcher.InvokeShutdown()
     } catch {
         Write-Log "Auto-update failed: $($_.Exception.Message)" -Level "ERROR"
         $window.Dispatcher.Invoke({
             $global:ScriptUpdateText.Text = "Update failed. Please update manually."
+            $global:ScriptUpdateText.Visibility = "Visible"
         })
     }
 }
