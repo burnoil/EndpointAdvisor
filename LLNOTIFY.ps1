@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.42 (Renamed to LLNOTIFY.ps1, improved auto-update reliability)
+# Version 4.3.41 (Renamed to LLNOTIFY.ps1, improved auto-update reliability)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.42"
+$ScriptVersion = "4.3.41"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -1111,3 +1111,4 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
+
