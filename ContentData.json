@@ -1,7 +1,7 @@
 {
   "Announcements":  {
     "Text":  "This is TEST data from the [green]BURNOIL[/green] Git repository for this app. Released for testing on [red]2025-06-18[/red]. Check out the new features and updates.",
-    "Details":  "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don't worry, this is TEST data.",
+    "Details":  "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don't worry, this is TEST data. Status is **[green]GREEN[/green]**.",
     "Links":  [
       {
         "Name":  "MIT Lincoln Lab Main Page",
