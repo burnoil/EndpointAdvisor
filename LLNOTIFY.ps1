@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.45 (Fixed colon-related parsing errors in Save-CachedContentData and Load-CachedContentData)
+# Version 4.3.54 (Fixed color tag replacement and text segmentation)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.45"
+$ScriptVersion = "4.3.54"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -152,7 +152,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -679,6 +679,274 @@ function Update-PatchingAndSystem {
     })
 }
 
+function Convert-MarkdownToTextBlock {
+    param(
+        [string]$Text,
+        [System.Windows.Controls.TextBlock]$TargetTextBlock
+    )
+    
+    try {
+        if (-not $Text -or -not $TargetTextBlock) {
+            Write-Log "Markdown text or TargetTextBlock is null or empty" -Level "WARNING"
+            $TargetTextBlock.Inlines.Clear()
+            if ($Text) {
+                $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($Text)))
+            }
+            return
+        }
+
+        $TargetTextBlock.Inlines.Clear()
+        
+        $regexColor = "\[(green|red|yellow)\](.*?)\[/\1\]"
+        $regexBold = "\*\*(.*?)\*\*"
+        $regexItalic = "\*(.*?)\*"
+        $regexUnderline = "__(.*?)__"
+        
+        # Step 1: Process color tags first, replacing with unique placeholders
+        $currentText = $Text
+        $colorPlaceholders = @{}
+        $placeholderCounter = 0
+        $colorMatches = [regex]::Matches($Text, $regexColor) | Sort-Object Index -Descending
+        
+        foreach ($match in $colorMatches) {
+            $placeholder = "{COLORPH$placeholderCounter}"
+            $isBold = $Text.Substring($match.Index - 2, 2) -eq "**" -and $Text.Substring($match.Index + $match.Length, 2) -eq "**"
+            $colorPlaceholders[$placeholder] = @{
+                Text = $match.Groups[2].Value
+                Color = $match.Groups[1].Value
+                IsBold = $isBold
+            }
+            $currentText = $currentText.Remove($match.Index, $match.Length).Insert($match.Index, $placeholder)
+            Write-Log "Replaced color tag with placeholder: $placeholder (Text: $($match.Groups[2].Value), Color: $($match.Groups[1].Value), IsBold: $isBold)" -Level "INFO"
+            $placeholderCounter++
+        }
+        
+        # Step 2: Process bold, italic, and underline on the modified text
+        $matches = @()
+        $boldMatches = [regex]::Matches($currentText, $regexBold)
+        $italicMatches = [regex]::Matches($currentText, $regexItalic)
+        $underlineMatches = [regex]::Matches($currentText, $regexUnderline)
+        
+        foreach ($match in $boldMatches) {
+            $matches += [PSCustomObject]@{
+                Index = $match.Index
+                Length = $match.Length
+                Text = $match.Groups[1].Value
+                Type = "Bold"
+                FullMatch = $match.Value
+            }
+        }
+        foreach ($match in $italicMatches) {
+            if ([string]::IsNullOrWhiteSpace($match.Groups[1].Value)) { continue } # Skip empty italic matches
+            $matches += [PSCustomObject]@{
+                Index = $match.Index
+                Length = $match.Length
+                Text = $match.Groups[1].Value
+                Type = "Italic"
+                FullMatch = $match.Value
+            }
+        }
+        foreach ($match in $underlineMatches) {
+            $matches += [PSCustomObject]@{
+                Index = $match.Index
+                Length = $match.Length
+                Text = $match.Groups[1].Value
+                Type = "Underline"
+                FullMatch = $match.Value
+            }
+        }
+        
+        $matches = $matches | Sort-Object Index
+        $lastIndex = 0
+        $runs = @()
+
+        foreach ($match in $matches) {
+            if ($match.Index -gt $lastIndex) {
+                $plainText = $currentText.Substring($lastIndex, $match.Index - $lastIndex)
+                $runs += Process-TextSegment -Text $plainText -ColorPlaceholders $colorPlaceholders
+                Write-Log "Added plain text segment: $plainText" -Level "INFO"
+            }
+            
+            $text = $match.Text
+            if ($colorPlaceholders.ContainsKey($text)) {
+                $colorInfo = $colorPlaceholders[$text]
+                $innerRuns = Process-InnerMarkdown -Text $colorInfo.Text -Color $colorInfo.Color -IsBold $colorInfo.IsBold
+                $runs += $innerRuns
+                Write-Log "Processed color placeholder: $text (Text: $($colorInfo.Text), Color: $($colorInfo.Color), IsBold: $($colorInfo.IsBold))" -Level "INFO"
+            } else {
+                $run = New-Object System.Windows.Documents.Run($text)
+                if ($match.Type -eq "Bold") {
+                    $run.FontWeight = [System.Windows.FontWeights]::Bold
+                } elseif ($match.Type -eq "Italic") {
+                    $run.FontStyle = [System.Windows.FontStyles]::Italic
+                } elseif ($match.Type -eq "Underline") {
+                    $run.TextDecorations = [System.Windows.TextDecorations]::Underline
+                }
+                $runs += $run
+                Write-Log "Added $($match.Type) run: $text" -Level "INFO"
+            }
+            
+            $lastIndex = $match.Index + $match.Length
+        }
+        
+        if ($lastIndex -lt $currentText.Length) {
+            $plainText = $currentText.Substring($lastIndex)
+            $runs += Process-TextSegment -Text $plainText -ColorPlaceholders $colorPlaceholders
+            Write-Log "Added final plain text segment: $plainText" -Level "INFO"
+        }
+        
+        foreach ($run in $runs) {
+            $TargetTextBlock.Inlines.Add($run)
+            Write-Log "Added run to TextBlock: $($run.Text) (FontWeight: $($run.FontWeight), FontStyle: $($run.FontStyle), Foreground: $($run.Foreground))" -Level "INFO"
+        }
+        
+        Write-Log "Successfully parsed Markdown for text: $Text" -Level "INFO"
+    } catch {
+        Write-Log "Failed to parse Markdown for text: $Text - $($_.Exception.Message)" -Level "ERROR"
+        $TargetTextBlock.Inlines.Clear()
+        $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($Text)))
+    }
+}
+
+function Process-TextSegment {
+    param(
+        [string]$Text,
+        [hashtable]$ColorPlaceholders
+    )
+    
+    $runs = @()
+    $currentPos = 0
+    $placeholderRegex = [regex] "\{COLORPH\d+\}"
+    $placeholderMatches = $placeholderRegex.Matches($Text) | Sort-Object Index
+    
+    foreach ($match in $placeholderMatches) {
+        if ($match.Index -gt $currentPos) {
+            $plainText = $Text.Substring($currentPos, $match.Index - $currentPos)
+            $runs += New-Object System.Windows.Documents.Run($plainText)
+            Write-Log "Added inner plain text run: $plainText" -Level "INFO"
+        }
+        
+        $placeholder = $match.Value
+        if ($colorPlaceholders.ContainsKey($placeholder)) {
+            $colorInfo = $colorPlaceholders[$placeholder]
+            $innerRuns = Process-InnerMarkdown -Text $colorInfo.Text -Color $colorInfo.Color -IsBold $colorInfo.IsBold
+            $runs += $innerRuns
+        }
+        
+        $currentPos = $match.Index + $match.Length
+    }
+    
+    if ($currentPos -lt $Text.Length) {
+        $plainText = $Text.Substring($currentPos)
+        $runs += New-Object System.Windows.Documents.Run($plainText)
+        Write-Log "Added inner final plain text run: $plainText" -Level "INFO"
+    }
+    
+    return $runs
+}
+
+function Process-InnerMarkdown {
+    param(
+        [string]$Text,
+        [string]$Color,
+        [bool]$IsBold
+    )
+    
+    try {
+        if (-not $Text) {
+            Write-Log "Inner Markdown text is empty" -Level "WARNING"
+            return @()
+        }
+
+        $runs = @()
+        $regexBold = "\*\*(.*?)\*\*"
+        $regexItalic = "\*(.*?)\*"
+        $regexUnderline = "__(.*?)__"
+        
+        $matches = @()
+        $boldMatches = [regex]::Matches($Text, $regexBold)
+        $italicMatches = [regex]::Matches($Text, $regexItalic)
+        $underlineMatches = [regex]::Matches($Text, $regexUnderline)
+        
+        foreach ($match in $boldMatches) {
+            $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Bold"; FullMatch = $match.Value }
+        }
+        foreach ($match in $italicMatches) {
+            if ([string]::IsNullOrWhiteSpace($match.Groups[1].Value)) { continue } # Skip empty italic matches
+            $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Italic"; FullMatch = $match.Value }
+        }
+        foreach ($match in $underlineMatches) {
+            $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Underline"; FullMatch = $match.Value }
+        }
+        
+        $matches = $matches | Sort-Object Index
+        $lastIndex = 0
+
+        foreach ($match in $matches) {
+            if ($match.Index -gt $lastIndex) {
+                $plainText = $Text.Substring($lastIndex, $match.Index - $lastIndex)
+                $run = New-Object System.Windows.Documents.Run($plainText)
+                if ($Color) {
+                    $colorBrush = [System.Windows.Media.Brushes]::($Color.Substring(0,1).ToUpper() + $Color.Substring(1))
+                    $run.Foreground = $colorBrush
+                }
+                if ($IsBold) {
+                    $run.FontWeight = [System.Windows.FontWeights]::Bold
+                }
+                $runs += $run
+                Write-Log "Added inner plain text run: $plainText (Color: $Color, IsBold: $IsBold)" -Level "INFO"
+            }
+            
+            $run = New-Object System.Windows.Documents.Run($match.Text)
+            if ($match.Type -eq "Bold") {
+                $run.FontWeight = [System.Windows.FontWeights]::Bold
+            } elseif ($match.Type -eq "Italic") {
+                $run.FontStyle = [System.Windows.FontStyles]::Italic
+            } elseif ($match.Type -eq "Underline") {
+                $run.TextDecorations = [System.Windows.TextDecorations]::Underline
+            }
+            if ($Color) {
+                $colorBrush = [System.Windows.Media.Brushes]::($Color.Substring(0,1).ToUpper() + $Color.Substring(1))
+                $run.Foreground = $colorBrush
+            }
+            if ($IsBold) {
+                $run.FontWeight = [System.Windows.FontWeights]::Bold
+            }
+            $runs += $run
+            Write-Log "Added inner $($match.Type) run: $($match.Text) (Color: $Color, IsBold: $IsBold)" -Level "INFO"
+            
+            $lastIndex = $match.Index + $match.Length
+        }
+        
+        if ($lastIndex -lt $Text.Length) {
+            $plainText = $Text.Substring($lastIndex)
+            $run = New-Object System.Windows.Documents.Run($plainText)
+            if ($Color) {
+                $colorBrush = [System.Windows.Media.Brushes]::($Color.Substring(0,1).ToUpper() + $Color.Substring(1))
+                $run.Foreground = $colorBrush
+            }
+            if ($IsBold) {
+                $run.FontWeight = [System.Windows.FontWeights]::Bold
+            }
+            $runs += $run
+            Write-Log "Added inner final plain text run: $plainText (Color: $Color, IsBold: $IsBold)" -Level "INFO"
+        }
+        
+        return $runs
+    } catch {
+        Write-Log "Failed to process inner Markdown for text: $Text - $($_.Exception.Message)" -Level "ERROR"
+        $run = New-Object System.Windows.Documents.Run($Text)
+        if ($Color) {
+            $colorBrush = [System.Windows.Media.Brushes]::($Color.Substring(0,1).ToUpper() + $Color.Substring(1))
+            $run.Foreground = $colorBrush
+        }
+        if ($IsBold) {
+            $run.FontWeight = [System.Windows.FontWeights]::Bold
+        }
+        return @($run)
+    }
+}
+
 function Update-Announcements {
     Write-Log "Updating Announcements section..." -Level "INFO"
     $newAnnouncementsObject = $global:contentData.Data.Announcements
@@ -738,70 +1006,6 @@ function Update-Support {
     })
     
     $config.SupportLastState = $newJsonState
-}
-
-function Convert-MarkdownToTextBlock {
-    param(
-        [string]$Text,
-        [System.Windows.Controls.TextBlock]$TargetTextBlock
-    )
-    
-    $TargetTextBlock.Inlines.Clear()
-    
-    $regexBold = "\*\*(.*?)\*\*"
-    $regexItalic = "\*(.*?)\*"
-    $regexUnderline = "__(.*?)__"
-    $regexColor = "\[(green|red|yellow)\](.*?)\[/\1\]"
-    
-    $currentText = $Text
-    $lastIndex = 0
-    $matches = @()
-
-    $boldMatches = [regex]::Matches($Text, $regexBold)
-    $italicMatches = [regex]::Matches($Text, $regexItalic)
-    $underlineMatches = [regex]::Matches($Text, $regexUnderline)
-    $colorMatches = [regex]::Matches($Text, $regexColor)
-    
-    foreach ($match in $boldMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Bold" }
-    }
-    foreach ($match in $italicMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Italic" }
-    }
-    foreach ($match in $underlineMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[1].Value; Type = "Underline" }
-    }
-    foreach ($match in $colorMatches) {
-        $matches += [PSCustomObject]@{ Index = $match.Index; Length = $match.Length; Text = $match.Groups[2].Value; Type = "Color"; Color = $match.Groups[1].Value }
-    }
-    $matches = $matches | Sort-Object Index
-
-    foreach ($match in $matches) {
-        if ($match.Index -gt $lastIndex) {
-            $plainText = $currentText.Substring($lastIndex, $match.Index - $lastIndex)
-            $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($plainText)))
-        }
-        
-        $run = New-Object System.Windows.Documents.Run($match.Text)
-        if ($match.Type -eq "Bold") {
-            $run.FontWeight = [System.Windows.FontWeights]::Bold
-        } elseif ($match.Type -eq "Italic") {
-            $run.FontStyle = [System.Windows.FontStyles]::Italic
-        } elseif ($match.Type -eq "Underline") {
-            $run.TextDecorations = [System.Windows.TextDecorations]::Underline
-        } elseif ($match.Type -eq "Color") {
-            $colorBrush = [System.Windows.Media.Brushes]::($match.Color.Substring(0,1).ToUpper() + $match.Color.Substring(1))
-            $run.Foreground = $colorBrush
-        }
-        $TargetTextBlock.Inlines.Add($run)
-        
-        $lastIndex = $match.Index + $match.Length
-    }
-    
-    if ($lastIndex -lt $currentText.Length) {
-        $plainText = $currentText.Substring($lastIndex)
-        $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run($plainText)))
-    }
 }
 
 # ============================================================
