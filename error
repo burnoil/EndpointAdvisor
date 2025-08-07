@@ -1,7 +1,287 @@
-[ERROR] Failed to fetch or validate content from https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/ContentData.json: You cannot call a method on a null-valued expression.
-[2025-08-05 05:21:00] [INFO] Updating Announcements section...
-[2025-08-05 05:21:00] [INFO] Updating Support section...
-[2025-08-05 05:21:00] [INFO] Updating Patching and System section...
-[2025-08-05 05:21:01] [WARNING] X-Fixlet-Source_Count.txt not found at C:\temp\X-Fixlet-Source_Count.txt.
-[2025-08-05 05:21:01] [INFO] Checking for script update from: https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/LLNOTIFY/main/currentversion.txt
-[2025-08-05 05:21:01] [WARNING] Failed to check for script update: You cannot call a method on a null-valued expression.
+# CODE ADDED TO TERMINATE NOTIFICATION IF RUN ON IDENTIFIED CONFERENCE ROOM PC - 2022-06-22 
+$registryPath = "HKLM:\SOFTWARE\MITLL" 
+$Name = "IsConferenceRoom" 
+$exists = '' 
+$exists = Get-ItemProperty -Path $registryPath -Name $Name -ErrorAction SilentlyContinue 
+if (!(($exists -eq $null) -or ($exists.Length -eq 0))){ Write-Output "Notification aborted due to detection of Conference Room PC" ; exit}  
+If (test-path "C:\Windows\IsConferenceRoom.stub"){ Write-Output "Notification aborted due to detection of Conference Room PC" ; exit} 
+
+
+
+$CMTable = @{'class'='CCM_SoftwareUpdate';
+    'namespace'='ROOT\ccm\ClientSDK'}
+$CMUpdate = {Get-WmiObject @CMTable}
+if (-not @(&$CMUpdate | where { $_.ComplianceState -eq 0 })) {
+    exit}
+
+$PendingUpdatesCount = @(&$CMUpdate | where { $_.ComplianceState -eq 0 }).Count
+$FirstPendingUpdate = (&$CMUpdate | where { $_.ComplianceState -eq 0 }).name | Select-Object -first 1
+$FirstPendingUpdate_Trimed = $FirstPendingUpdate.substring(0,36)
+Write-Host $FirstPendingUpdate_Trimed
+
+$myPath = (Split-Path -Parent ($MyInvocation.MyCommand.Path));
+#Write-Host $myPath
+$myWindowPid = $pid;
+while ($myWindowPid -gt 0 -and (Get-Process -id $myWindowPid).MainWindowHandle -eq 0) {
+    $myWindowPid = (gwmi Win32_Process -filter "processid = $($myWindowPid)" | select ParentProcessId).ParentProcessId;
+}
+
+
+$AppData_Dir = $env:APPDATA + "\MITLL"
+$MITLL_Win_Dir = $Env:WinDir + "\MITLL\RESOURCE"
+$MITLL_PNG_File = 'LL Logo alone white png.png'
+$DCM_File_Share = '\\sccmdp01\MITLL_DCM$'
+$MITLL_File_Source = $DCM_File_Share + "\" + $MITLL_PNG_File
+$MITLL_File_Dest = $AppData_Dir + "\" + $MITLL_PNG_File
+If (!(Test-Path $MITLL_File_Dest)) {Copy-Item -Path $MITLL_File_Source -Destination $MITLL_File_Dest -Force}
+$Img_Path = "file:///" + $MITLL_File_Dest
+
+$PoshWinRT_File = 'PoshWinRT.dll'
+$PoshWinRT_File_Source = $DCM_File_Share + "\" + $PoshWinRT_File
+$PoshWinRT_File_Dest = $AppData_Dir + "\" + $PoshWinRT_File
+#Write-Host $PoshWinRT_File_Dest
+If (!(Test-Path $PoshWinRT_File_Dest)) {Copy-Item -Path $PoshWinRT_File_Source -Destination $PoshWinRT_File_Dest -Force}
+
+function WrapToastEvent {
+    param($target, $eventName);
+    Add-Type -Path $PoshWinRT_File_Dest;
+    $wrapper = new-object "PoshWinRT.EventWrapper[Windows.UI.Notifications.ToastNotification,System.Object]";
+    $wrapper.Register($target, $eventName);
+}
+
+$Wait_Loop = 0
+$Wait_Secpnds = 2
+$Wait_End = $false
+$APP_ID = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+$MsgCap = 'MITLL: Software changes are required'
+$MsgCap2 = 'SOFTWARE CHANGES ARE REQUIRED'
+#$MsgData = 'There are ' + $PendingUpdatesCount + ' pending updates for this computer.'
+$MsgData = 'There are ' + $PendingUpdatesCount + ' pending updates including'
+$MsgData2 = 'Do you wish to install updates now?'
+#$MsgData3 = '(A system restart may be required)'
+$MsgData3 =  '{' + $FirstPendingUpdate_Trimed + '}'
+$MsgMenu = 'YesNo,SystemModal,Information'
+
+$MsgCap2_Installing ='UPDATES INSTALLING'
+$MsgData_Installing ='Updates are installing in the background.'
+
+$MsgCap2_Reboot = 'RESTART REQUIRED'
+$MsgData_Reboot = 'Please restart desktop when possible to finalize installed updates.'
+
+
+$template = @"
+<toast scenario="reminder" launch="FORM">
+    <visual>
+        <binding template="ToastImageAndText02">
+            <image id="1" src="$Img_Path" alt="image1"/>
+            <text id="1">$($MsgCap2)</text>
+            <text id="2">$($MsgData + ' ' + $MsgData3)</text>
+        </binding>  
+    </visual>
+     <actions>
+      
+        <action
+            content="Install Now"
+            arguments="INSTALL"
+            activationType="foreground"/>
+
+        <action
+            content="Defer"
+            arguments="DEFER"
+            activationType="background"/>
+
+    </actions>
+
+</toast>
+"@
+
+$template_Installing = @"
+<toast launch="FORM">
+    <visual>
+        <binding template="ToastImageAndText02">
+            <image id="1" src="$Img_Path" alt="image1"/>
+            <text id="1">$($MsgCap2_Installing)</text>
+            <text id="2">$($MsgData_Installing)</text>
+        </binding>  
+    </visual>
+</toast>
+"@
+
+$template_ReBoot = @"
+<toast launch="FORM" duration="long">
+    <visual>
+        <binding template="ToastImageAndText02">
+            <image id="1" src="$Img_Path" alt="image1"/>
+            <text id="1">$($MsgCap2_Reboot)</text>
+            <text id="2">$($MsgData_Reboot)</text>
+        </binding>  
+    </visual>
+    <actions>
+        <action
+            content="Restart Now"
+            arguments="RESTART"
+            activationType="foreground"/>
+        <action
+            content="Defer"
+            arguments="DEFER"
+            activationType="background"/>
+    </actions>
+</toast>
+"@
+
+$RegHome1 = 'HKLM:SOFTWARE'
+$RegKeys1 = '\MITLL'
+$RegKeys2 = $RegKeys1+'\SCCM_Install_Updates'
+$RegRead1 = 'Ready'
+
+$RegHome = @{'path'="HKLM:SOFTWARE\MITLL";
+    'erroraction'='SilentlyContinue'}
+$RegKeys = @{'path'=$RegHome.path + '\SCCM_Install_Updates';
+    'erroraction'='SilentlyContinue'}
+$RegRead = @{'path'=$RegKeys.path;
+    'erroraction'='SilentlyContinue';
+    'name' = 'Ready'}
+$RegVals = @{'path'=$RegKeys.path;
+    'erroraction'='SilentlyContinue';
+    'force' = $Null;
+    'name' = 'Ready';
+    'propertytype' = 'DWORD';
+    'value' = 0x1}
+New-Item @RegHome
+New-Item @RegKeys
+New-Item -Path $RegHome1 -name ($RegKeys2) -Force -ErrorAction SilentlyContinue 
+
+
+$SULive = '^([5-7]|[1][1])$'
+$SUBoot = '^([8]|[1][1])$'
+if (Get-ItemProperty -Path ($RegHome1+$RegKeys2) -Name $RegRead1 -ErrorAction SilentlyContinue) {
+    Write-Host 'Registry value name found';
+    Remove-ItemProperty -Path ($RegHome1+$RegKeys2) -Name $RegRead1 -ErrorAction SilentlyContinue;
+    exit}
+elseif (@(&$CMUpdate | where { $_.EvaluationState -match $SULive })) {
+    Write-Host 'Updates are already in progress';
+    $Installing_Msg = $true
+    #exit;
+} elseif (@(&$CMUpdate | where { $_.EvaluationState -match $SUBoot })) {
+    Write-Host 'Reboot Required' $true;
+    $ReBoot_Msg = $true
+    } else {
+    Write-Host 'Reboot Required' $false;
+}
+
+
+
+$SUNext = '^([0-1]|[1][3-5,7-8]|[2][1-3])$'
+$SUReady = (&$CMUpdate | where { $_.EvaluationState -match $SUNext })
+$SUStart = ($SUReady | %{ [wmi]$_.__PATH })
+$SUTable = @{'argumentlist'=(,$SUStart);
+    'class'='CCM_SoftwareUpdatesManager';
+    'name'='InstallUpdates';
+    'namespace'='ROOT\ccm\ClientSDK'}
+
+New-ItemProperty @RegVals
+Add-Type -assemblyname Microsoft.VisualBasic
+# if ([Microsoft.VisualBasic.Interaction]::MsgBox($MsgData + " `n`n" + $MsgData2 + " `n" + $MsgData3, $MsgMenu, $MsgCap) -eq 'Yes') {   
+#    Invoke-WmiMethod @SUTable}
+
+$wshell = New-Object -ComObject Wscript.Shell
+If ([environment]::OSVersion.Version.Major -eq '10') {
+    [void][Windows.Data.Xml.Dom.XmlDocument,Windows.Data.Xml,ContentType=WindowsRuntime];
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument;
+    #[void]($xml.LoadXml('<toast><visual><binding template="ToastText01"><text id="1">' + $Message + '</text></binding></visual></toast>'));
+    If ($ReBoot_Msg) {
+        [void]($xml.LoadXml($template_ReBoot));
+        $Wait_Secpnds = 30
+    } elseif ($Installing_Msg) {
+        [void]($xml.LoadXml($template_Installing));
+    } else {
+        [void]($xml.LoadXml($template));
+        $Wait_Secpnds = 1800
+    }
+
+
+    [void][Windows.UI.Notifications.ToastNotification,Windows.UI.Notifications,ContentType=WindowsRuntime];
+    $toast = New-Object Windows.UI.Notifications.ToastNotification -ArgumentList $xml;
+    $toast.ExpirationTime = [DateTimeOffset]::Now.AddMinutes(5);
+
+    [void][Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime];
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($APP_ID);
+
+Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class PInvoke {
+        [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hwnd);
+    }
+"@
+
+    [void](Register-ObjectEvent -InputObject (WrapToastEvent $toast "Activated") -EventName FireEvent -Action { 
+        [PInvoke]::SetForegroundWindow((Get-Process -id $myWindowPid).MainWindowHandle);
+        $Global:test = $Event 
+        Switch ($test.SourceEventArgs.Result.Arguments) {
+            "INSTALL" {
+                #$wshell.Popup('Installing',5,'MITLL: '+ 'Processing',0x1140);
+                Write-Host ('Yay ' + $test.SourceEventArgs.Result.Arguments) -ForegroundColor Yellow -BackgroundColor Black;
+                Invoke-WmiMethod @SUTable;
+            }
+            "DEFER" {
+                Write-Host ('defer ' + $test.SourceEventArgs.Result.Arguments) -ForegroundColor green -BackgroundColor Black;
+                exit;
+            }
+            "DISMISS" {
+                Write-Host ('dismiss ' + $test.SourceEventArgs.Result.Arguments) -ForegroundColor white -BackgroundColor Black;
+            }
+            "RESTART" {
+                $Wait_End = $true
+                $Wait_Loop = 2600
+                $Wait_Secpnds = 0
+                #$wshell.Popup($test.SourceEventArgs.Result.Arguments,5,'MITLL: '+ 'Processing',0x1140);
+                Write-Host ('Restart ' + $test.SourceEventArgs.Result.Arguments) -ForegroundColor white -BackgroundColor Black;
+                Restart-Computer;
+                exit;
+            }
+            "FORM" {
+               # $wshell.Popup('Wait',5,'MITLL: '+ 'Processing',0x1140);
+                Write-Host ('Form ' + $test.SourceEventArgs.Result.Arguments) -ForegroundColor cyan -BackgroundColor Black;
+                $SCCM_SC_Path = $Env:WinDir + '\CCM\SCClient.exe';
+                $a = Get-Process | Where-Object {$_.Name -like 'SCClient'};
+                IF ($a) {
+                    [Win32.NativeMethods]::ShowWindowAsync($a.MainWindowHandle, 4);
+                    [PInvoke]::SetForegroundWindow($a.MainWindowHandle);
+                } else {
+                    $SCCM_SC_Start = start-process -filepath $SCCM_SC_Path -WindowStyle Maximized;
+                }
+                exit;
+            }
+            Default {
+                Write-Host ('nope ' + $test.SourceEventArgs.Result.Arguments) -ForegroundColor Red -BackgroundColor Black;
+            }
+        }
+    });
+    [void]($notifier.show($toast));
+
+} else {
+    
+    If ($ReBoot_Msg) {
+        $wshell.Popup($MsgData_Reboot,5,'MITLL: '+$MsgCap2_Reboot,0x1140);
+    } else {
+       # If ($wshell.Popup($MsgData + " `n`n" + $MsgData2 + " `n" + $MsgData3,300,$MsgCap,0x1144) -eq '6') {Invoke-WmiMethod @SUTable}
+        If ($wshell.Popup($MsgData + "`n" + $MsgData3 + " `n`n" + $MsgData2,300,$MsgCap,0x1144) -eq '6') {Invoke-WmiMethod @SUTable};
+    }
+}
+
+#Remove-Item @RegKeys
+Remove-ItemProperty -Path ($RegHome1+$RegKeys2) -Name $RegRead1 -ErrorAction SilentlyContinue;
+
+ # Write-Host (Join-Path $AppData_Dir "PoshWinRT.dll");
+ Write-Host $PoshWinRT_File_Dest;
+ # $wshell.Popup('Finish',300,'MITLL: '+ 'Processing',0x1140);
+ #sleep -Seconds $Wait_Secpnds
+
+ Do {
+     sleep -Seconds 2
+     $Wait_Loop = $Wait_Loop + 1
+     Write-Host $Wait_Loop
+     #Write-Host $Wait_End
+ } While (($Wait_End -eq $false) -and ($Wait_Loop -lt $Wait_Secpnds))
