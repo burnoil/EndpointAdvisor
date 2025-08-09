@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.54 (Fixed color tag replacement and text segmentation)
+# Version 4.3.81 (Added red dot next to Clear Alerts button; retained tooltip; no flashing tray icon)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.54"
+$ScriptVersion = "4.3.81"
 
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
@@ -164,7 +164,7 @@ function Get-DefaultConfig {
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
-        BlinkingEnabled       = $true
+        BlinkingEnabled       = $false
         CachePath             = Join-Path $ScriptDir "ContentData.cache.json"
     }
 }
@@ -218,7 +218,6 @@ $config = Load-Configuration
 
 $mainIconPath = $config.IconPaths.Main
 $warningIconPath = $config.IconPaths.Warning
-$mainIconUri = "file:///$($mainIconPath -replace '\\','/')"
 
 Write-Log "Main icon path: $mainIconPath" -Level "INFO"
 Write-Log "Warning icon path: $warningIconPath" -Level "INFO"
@@ -272,7 +271,6 @@ $global:FormsAvailable = Import-RequiredAssemblies
 # E) XAML Layout Definition
 # ============================================================
 $xamlString = @"
-<?xml version="1.0" encoding="utf-8"?>
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -282,8 +280,58 @@ $xamlString = @"
     MinWidth="350" MinHeight="500"
     MaxWidth="400" MaxHeight="550"
     ResizeMode="CanResizeWithGrip" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
-    Background="#f0f0f0"
-    Icon="{Binding WindowIconUri}">
+    Background="#f0f0f0">
+  <Window.Resources>
+    <Style TargetType="Expander">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Expander">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition x:Name="ContentRow" Height="0"/>
+              </Grid.RowDefinitions>
+              <Border x:Name="HeaderBorder" Grid.Row="0" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                <ToggleButton x:Name="ToggleButton" IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" Margin="5,0,0,0">
+                  <ToggleButton.Template>
+                    <ControlTemplate TargetType="ToggleButton">
+                      <Border Background="Transparent">
+                        <ContentPresenter Content="{TemplateBinding Content}"/>
+                      </Border>
+                    </ControlTemplate>
+                  </ToggleButton.Template>
+                  <ToggleButton.Content>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                      </Grid.ColumnDefinitions>
+                      <Path x:Name="Arrow" Grid.Column="0" Data="M 0 0 L 8 8 L 0 16 Z" Fill="#0055A4" Stroke="#D3D3D3" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <Path.RenderTransform>
+                          <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                        </Path.RenderTransform>
+                      </Path>
+                      <ContentPresenter Grid.Column="1" Content="{TemplateBinding Header}"/>
+                    </Grid>
+                  </ToggleButton.Content>
+                </ToggleButton>
+              </Border>
+              <Border x:Name="ContentBorder" Grid.Row="1" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                <ContentPresenter x:Name="ExpandSite" Visibility="Collapsed"/>
+              </Border>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsExpanded" Value="True">
+                <Setter TargetName="ContentRow" Property="Height" Value="*"/>
+                <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/>
+                <Setter TargetName="Arrow" Property="Data" Value="M 0 0 L 8 8 L 16 0 Z"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
   <Grid Margin="5">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
@@ -292,7 +340,7 @@ $xamlString = @"
     </Grid.RowDefinitions>
     <Border Grid.Row="0" Background="#0078D7" Padding="5" CornerRadius="3" Margin="0,0,0,5">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
-        <Image Source="{Binding MainIconUri}" Width="20" Height="20" Margin="0,0,5,0"/>
+        <Image x:Name="HeaderIcon" Width="20" Height="20" Margin="0,0,5,0"/>
         <TextBlock Text="Lincoln Laboratory Notification System" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
       </StackPanel>
     </Border>
@@ -314,7 +362,7 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
+        <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
@@ -330,7 +378,7 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
+        <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
           <Expander.Header>
             <StackPanel Orientation="Horizontal">
               <TextBlock Text="Support" VerticalAlignment="Center"/>
@@ -345,7 +393,12 @@ $xamlString = @"
             </StackPanel>
           </Border>
         </Expander>
-        <Expander x:Name="ComplianceExpander" Header="Certificate Status" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
+        <Expander x:Name="ComplianceExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
+          <Expander.Header>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Certificate Status" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
             <TextBlock x:Name="YubiKeyComplianceText" FontSize="11" TextWrapping="Wrap"/>
           </Border>
@@ -358,8 +411,11 @@ $xamlString = @"
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <TextBlock x:Name="FooterText" Grid.Column="0" Text="© 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        <Button x:Name="ClearAlertsButton" Grid.Column="1" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Acknowledge all new announcements and support messages."/>
+        <TextBlock x:Name="FooterText" Grid.Column="0" Text="(C) 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <StackPanel x:Name="ClearAlertsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+            <Ellipse x:Name="ClearAlertsDot" Width="10" Height="10" Fill="Red" Margin="0,0,5,0"/>
+            <Button x:Name="ClearAlertsButton" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Click to clear all new announcement and support alerts (red dots) from the UI."/>
+        </StackPanel>
     </Grid>
   </Grid>
 </Window>
@@ -379,65 +435,105 @@ try {
     $window.Width = 350
     $window.Height = 500
 
-    $window.DataContext = [PSCustomObject]@{ 
-        MainIconUri   = [Uri]$mainIconUri
-        WindowIconUri = $mainIconPath
-    }
-
     $uiElements = @(
-        "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
+        "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
         "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "FooterText"
+        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "FooterText", "ClearAlertsPanel", "ClearAlertsDot"
     )
     foreach ($elementName in $uiElements) {
-        Set-Variable -Name "global:$elementName" -Value $window.FindName($elementName)
+        $value = $window.FindName($elementName)
+        Set-Variable -Name "global:$elementName" -Value $value
+        if (-not $value) {
+            Write-Log "UI element $elementName is null." -Level "WARNING"
+        } else {
+            Write-Log "UI element $elementName initialized." -Level "INFO"
+        }
     }
     Write-Log "UI elements mapped to variables." -Level "INFO"
 
-    $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion"
+    $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
 
-    $global:AnnouncementsExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:AnnouncementsAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
-    $global:SupportExpander.Add_Expanded({ $window.Dispatcher.Invoke({ $global:SupportAlertIcon.Visibility = "Hidden"; Update-TrayIcon }) })
+    # Set window icon in code
+    if (Test-Path $mainIconPath) {
+        $bitmap = New-Object System.Windows.Media.Imaging.BitmapImage
+        $bitmap.BeginInit()
+        $bitmap.UriSource = New-Object System.Uri $mainIconPath
+        $bitmap.EndInit()
+        $global:window.Icon = $bitmap
+        Write-Log "Window icon set successfully." -Level "INFO"
+    } else {
+        Write-Log "Main icon not found at $mainIconPath." -Level "WARNING"
+    }
 
-    $global:PatchingSSAButton.Add_Click({
-        try {
-            $ssaPath = $config.BigFixSSA_Path
-            if ([string]::IsNullOrWhiteSpace($ssaPath) -or -not (Test-Path $ssaPath)) {
-                throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
-            }
-            Write-Log "Launching BigFix SSA: $ssaPath" -Level "INFO"
-            Start-Process -FilePath $ssaPath
-        }
-        catch {
-            Handle-Error $_.Exception.Message -Source "PatchingSSAButton"
-        }
-    })
-    
-    $global:ClearAlertsButton.Add_Click({
-        Write-Log "Clear Alerts button clicked by user." -Level "INFO"
-
-        if ($global:contentData) {
-            $config.AnnouncementsLastState = $global:contentData.Data.Announcements | ConvertTo-Json -Compress
-            $config.SupportLastState = $global:contentData.Data.Support | ConvertTo-Json -Compress
-        }
-
-        $window.Dispatcher.Invoke({
-            $global:AnnouncementsAlertIcon.Visibility = "Hidden"
-            $global:SupportAlertIcon.Visibility = "Hidden"
-        })
-
-        $global:BlinkingTimer.Stop()
-        Update-TrayIcon
-        
-        Save-Configuration -Config $config
-    })
+    # Set header icon in code
+    if ($global:HeaderIcon -and (Test-Path $mainIconPath)) {
+        $global:HeaderIcon.Source = $bitmap
+        Write-Log "Header icon set successfully." -Level "INFO"
+    } else {
+        Write-Log "Header icon element null or file not found." -Level "WARNING"
+    }
 
     $window.Add_Closing({
         $_.Cancel = $true
         $window.Hide()
     })
+
+    # Initialize events after a delay
+    function InitializeUI {
+        if ($global:AnnouncementsExpander) {
+            $global:AnnouncementsExpander.IsExpanded = $true
+            $global:AnnouncementsExpander.Add_Expanded({ 
+                if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
+                Update-TrayIcon
+            })
+        }
+        if ($global:SupportExpander) {
+            $global:SupportExpander.IsExpanded = $true
+            $global:SupportExpander.Add_Expanded({ 
+                if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
+                Update-TrayIcon
+            })
+        }
+        if ($global:PatchingSSAButton) {
+            $global:PatchingSSAButton.Add_Click({
+                try {
+                    $ssaPath = $config.BigFixSSA_Path
+                    if ([string]::IsNullOrWhiteSpace($ssaPath) -or -not (Test-Path $ssaPath)) {
+                        throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
+                    }
+                    Write-Log "Launching BigFix SSA: $ssaPath" -Level "INFO"
+                    Start-Process -FilePath $ssaPath
+                }
+                catch {
+                    Handle-Error $_.Exception.Message -Source "PatchingSSAButton"
+                }
+            })
+        }
+        if ($global:ClearAlertsButton) {
+            $global:ClearAlertsButton.Add_Click({
+                Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
+                if ($global:contentData) {
+                    $config.AnnouncementsLastState = $global:contentData.Data.Announcements | ConvertTo-Json -Compress
+                    $config.SupportLastState = $global:contentData.Data.Support | ConvertTo-Json -Compress
+                }
+                $window.Dispatcher.Invoke({
+                    if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
+                    if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
+                    if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Hidden" }
+                })
+                $global:BlinkingTimer.Stop()
+                Update-TrayIcon
+                Save-Configuration -Config $config
+            })
+        }
+    }
+
+    $window.Dispatcher.InvokeAsync({
+        Start-Sleep -Milliseconds 200
+        InitializeUI
+    }).Wait()
 }
 catch {
     Handle-Error "Failed to load the XAML layout: $($_.Exception.Message)" -Source "XAML"
@@ -574,7 +670,7 @@ function Get-YubiKeyCertExpiryDays {
         }
         
         if (-not (& $ykmanPath info 2>$null)) {
-            return "YubiKey not present"
+            return "No YubiKey certificate found."
         }
         $slots = @("9a", "9c", "9d", "9e")
         $statuses = @()
@@ -591,20 +687,20 @@ function Get-YubiKeyCertExpiryDays {
         if ($statuses) {
             return $statuses -join "`n"
         }
-        return "YubiKey Certificate: No PIV certificate found."
+        return "No YubiKey certificate found."
     }
     catch {
         Write-Log "YubiKey check error - $($_.Exception.Message)" -Level "ERROR"
-        return "YubiKey Certificate: Unable to determine status."
+        return "Unable to determine YubiKey certificate status."
     }
 }
 
 function Get-VirtualSmartCardCertExpiry {
     try {
         $cert = Get-ChildItem "Cert:\CurrentUser\My" | Where-Object { $_.Subject -match "Virtual" } | Sort-Object NotAfter -Descending | Select-Object -First 1
-        if (-not $cert) { return "No certificate found." }
-        return "Microsoft Virtual Smart Card: Expires: $($cert.NotAfter.ToString("yyyy-MM-dd"))"
-    } catch { return "Microsoft Virtual Smart Card: Unable to check status." }
+        if (-not $cert) { return "No Windows Virtual Smart Card certificate found." }
+        return "Windows Virtual Smart Card: Expires: $($cert.NotAfter.ToString("yyyy-MM-dd"))"
+    } catch { return "Unable to check Windows Virtual Smart Card status." }
 }
 
 function Update-CertificateInfo {
@@ -675,7 +771,7 @@ function Update-PatchingAndSystem {
         $global:PendingRestartStatusText.Foreground = $statusColor
         $global:PatchingUpdatesText.Text = $fixletText
         $global:WindowsBuildText.Text = $windowsBuild
-        $global:FooterText.Text = "© 2025 Lincoln Laboratory v$ScriptVersion"
+        $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
     })
 }
 
@@ -816,7 +912,7 @@ function Process-TextSegment {
     
     $runs = @()
     $currentPos = 0
-    $placeholderRegex = [regex] "\{COLORPH\d+\}"
+    $placeholderRegex = [regex] "{COLORPH\d+}"
     $placeholderMatches = $placeholderRegex.Matches($Text) | Sort-Object Index
     
     foreach ($match in $placeholderMatches) {
@@ -961,18 +1057,26 @@ function Update-Announcements {
     }
 
     $window.Dispatcher.Invoke({
-        if ($isNew) {
+        if ($isNew -and $global:AnnouncementsAlertIcon) {
             $global:AnnouncementsAlertIcon.Visibility = "Visible"
         }
-        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
-        Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Details -TargetTextBlock $global:AnnouncementsDetailsText
-        $global:AnnouncementsLinksPanel.Children.Clear()
-        if ($newAnnouncementsObject.Links) {
-            foreach ($link in $newAnnouncementsObject.Links) {
-                $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+        if ($global:AnnouncementsText) {
+            Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
+        }
+        if ($global:AnnouncementsDetailsText) {
+            Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Details -TargetTextBlock $global:AnnouncementsDetailsText
+        }
+        if ($global:AnnouncementsLinksPanel) {
+            $global:AnnouncementsLinksPanel.Children.Clear()
+            if ($newAnnouncementsObject.Links) {
+                foreach ($link in $newAnnouncementsObject.Links) {
+                    $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+                }
             }
         }
-        $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
+        if ($global:AnnouncementsSourceText) {
+            $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
+        }
     })
     
     $config.AnnouncementsLastState = $newJsonState
@@ -992,17 +1096,23 @@ function Update-Support {
     }
 
     $window.Dispatcher.Invoke({
-        if ($isNew) {
+        if ($isNew -and $global:SupportAlertIcon) {
             $global:SupportAlertIcon.Visibility = "Visible"
         }
-        Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
-        $global:SupportLinksPanel.Children.Clear()
-        if ($newSupportObject.Links) {
-            foreach ($link in $newSupportObject.Links) {
-                $global:SupportLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+        if ($global:SupportText) {
+            Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
+        }
+        if ($global:SupportLinksPanel) {
+            $global:SupportLinksPanel.Children.Clear()
+            if ($newSupportObject.Links) {
+                foreach ($link in $newSupportObject.Links) {
+                    $global:SupportLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+                }
             }
         }
-        $global:SupportSourceText.Text = "Source: $($global:contentData.Source)"
+        if ($global:SupportSourceText) {
+            $global:SupportSourceText.Text = "Source: $($global:contentData.Source)"
+        }
     })
     
     $config.SupportLastState = $newJsonState
@@ -1031,29 +1141,13 @@ function Get-Icon {
 function Update-TrayIcon {
     if (-not $global:TrayIcon.Visible) { return }
     
-    $announcementAlert = $global:AnnouncementsAlertIcon.Visibility -eq "Visible"
-    $supportAlert = $global:SupportAlertIcon.Visibility -eq "Visible"
+    $announcementAlert = $global:AnnouncementsAlertIcon -and $global:AnnouncementsAlertIcon.Visibility -eq "Visible"
+    $supportAlert = $global:SupportAlertIcon -and $global:SupportAlertIcon.Visibility -eq "Visible"
     
-    $hasBlinkingAlert = $announcementAlert -or $supportAlert
-    $hasAnyAlert = $global:PendingRestart -or $hasBlinkingAlert
+    $hasAnyAlert = $announcementAlert -or $supportAlert -or $global:PendingRestart
 
-    if ($hasBlinkingAlert -and -not $window.IsVisible) {
-        if ($config.BlinkingEnabled) {
-            if (-not $global:BlinkingTimer.IsEnabled) {
-                $global:TrayIcon.Icon = $global:WarningIcon
-                $global:BlinkingTimer.Start()
-            }
-        } else {
-            $global:TrayIcon.Icon = $global:WarningIcon
-            $global:TrayIcon.Text = "LLNOTIFY v$ScriptVersion - Alerts Pending"
-        }
-    }
-    else {
-        if ($global:BlinkingTimer.IsEnabled) {
-            $global:BlinkingTimer.Stop()
-        }
-        $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
-    }
+    $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
+    $global:TrayIcon.Text = if ($hasAnyAlert) { "LLNOTIFY v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory LLNOTIFY v$ScriptVersion" }
 }
 
 function Initialize-TrayIcon {
