@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.82 (Integrated Microsoft ECM/SCCM update status)
+# Version 4.3.83 (Dual update sources with dedicated launch buttons)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.82"
+$ScriptVersion = "4.3.83"
 
 # CODE ADDED TO TERMINATE NOTIFICATION IF RUN ON IDENTIFIED CONFERENCE ROOM PC
 try {
@@ -382,17 +382,25 @@ $xamlString = @"
         </Expander>
         <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
-              <Button x:Name="PatchingSSAButton" Content="Launch Updates" Margin="10,0,0,0" ToolTip="Launch BigFix Self-Service Application"/>
-            </StackPanel>
+            <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
           </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
             <StackPanel>
               <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap"/>
               <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
               <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
-              <TextBlock x:Name="PatchingUpdatesText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              
+              <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,10,0,2"/>
+              
+              <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                  <TextBlock x:Name="BigFixStatusText" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+                  <Button x:Name="BigFixLaunchButton" Content="Launch BigFix" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch BigFix Self-Service Application"/>
+              </StackPanel>
+
+              <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                  <TextBlock x:Name="ECMStatusText" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+                  <Button x:Name="ECMLaunchButton" Content="Open Software Center" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch Microsoft Software Center"/>
+              </StackPanel>
             </StackPanel>
           </Border>
         </Expander>
@@ -453,12 +461,13 @@ try {
     $window.Width = 350
     $window.Height = 500
 
+    # Modified UI Elements list
     $uiElements = @(
         "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
-        "PendingRestartStatusText", "PatchingUpdatesText", "PatchingSSAButton", "SupportExpander",
-        "SupportAlertIcon", "SupportText", "SupportLinksPanel", "SupportSourceText", "ComplianceExpander",
-        "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton", "FooterText", "ClearAlertsPanel", "ClearAlertsDot"
+        "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
+        "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
+        "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton"
     )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -514,15 +523,26 @@ try {
                 Update-TrayIcon
             })
         }
-        if ($global:PatchingSSAButton) {
-            # --- START OF MODIFICATION for ECM ---
-            # Change the button's text and tooltip for clarity
-            $global:PatchingSSAButton.Content = "Open Software Center"
-            $global:PatchingSSAButton.ToolTip = "Launch Microsoft Software Center to view and install available updates."
-            
-            $global:PatchingSSAButton.Add_Click({
+        
+        # --- START OF MODIFICATION for new buttons ---
+        if ($global:BigFixLaunchButton) {
+            $global:BigFixLaunchButton.Add_Click({
                 try {
-                    # Path to the Microsoft ECM Software Center executable
+                    $ssaPath = $config.BigFixSSA_Path
+                    if ([string]::IsNullOrWhiteSpace($ssaPath) -or -not (Test-Path $ssaPath)) {
+                        throw "BigFix Self-Service Application path is invalid or not found: `"$ssaPath`""
+                    }
+                    Write-Log "Launching BigFix SSA: $ssaPath" -Level "INFO"
+                    Start-Process -FilePath $ssaPath
+                }
+                catch {
+                    Handle-Error $_.Exception.Message -Source "BigFixLaunchButton"
+                }
+            })
+        }
+        if ($global:ECMLaunchButton) {
+            $global:ECMLaunchButton.Add_Click({
+                try {
                     $softwareCenterPath = "$($Env:WinDir)\CCM\SCClient.exe"
                     if (-not (Test-Path $softwareCenterPath)) {
                         throw "Microsoft Software Center not found at: `"$softwareCenterPath`""
@@ -531,11 +551,12 @@ try {
                     Start-Process -FilePath $softwareCenterPath
                 }
                 catch {
-                    Handle-Error $_.Exception.Message -Source "SoftwareCenterButton"
+                    Handle-Error $_.Exception.Message -Source "ECMLaunchButton"
                 }
             })
-            # --- END OF MODIFICATION ---
         }
+        # --- END OF MODIFICATION ---
+
         if ($global:ClearAlertsButton) {
             $global:ClearAlertsButton.Add_Click({
                 Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
@@ -764,7 +785,7 @@ function Get-WindowsBuildNumber {
     } catch { return "Windows Build: Unknown" }
 }
 
-# --- START OF NEW ECM FUNCTION ---
+# --- MODIFIED ECM Function to return a structured object ---
 function Get-ECMUpdateStatus {
     try {
         # Define the WMI query parameters for ECM/SCCM updates
@@ -776,70 +797,80 @@ function Get-ECMUpdateStatus {
         $pendingUpdates = Get-WmiObject @CMTable | Where-Object { $_.ComplianceState -eq 0 }
 
         if ($null -eq $pendingUpdates) {
-            return "No pending Microsoft ECM updates found."
+            return [PSCustomObject]@{
+                StatusText        = "Microsoft ECM: No updates pending."
+                HasPendingUpdates = $false
+            }
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        # Get the name of one of the updates as an example
-        $firstUpdateName = ($pendingUpdates | Select-Object -First 1).Name
-
-        # Return a formatted string for the UI
-        return "Microsoft ECM: $pendingCount update(s) pending.`nExample: $firstUpdateName"
+        return [PSCustomObject]@{
+            StatusText        = "Microsoft ECM: $pendingCount update(s) pending."
+            HasPendingUpdates = $true
+        }
     }
     catch {
         # This will catch errors if the ECM client isn't installed or the WMI query fails
         Write-Log "Could not retrieve ECM update status. Client may not be installed. Error: $($_.Exception.Message)" -Level "INFO"
-        return "Microsoft ECM status could not be determined."
+        return [PSCustomObject]@{
+            StatusText        = "Microsoft ECM client not found or inaccessible."
+            HasPendingUpdates = $false
+        }
     }
 }
-# --- END OF NEW ECM FUNCTION ---
 
-# --- REPLACED `Update-PatchingAndSystem` FUNCTION ---
+# --- REWRITTEN `Update-PatchingAndSystem` FUNCTION ---
 function Update-PatchingAndSystem {
     Write-Log "Updating Patching and System section..." -Level "INFO"
     $restartStatusText = Get-PendingRestartStatus
     $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
     
     $windowsBuild = Get-WindowsBuildNumber
+    
+    # --- BigFix Update Logic ---
     $fixletPath = "C:\temp\X-Fixlet-Source_Count.txt"
-    $fixletText = "No BigFix fixlet data available." # Changed default message for clarity
-
+    $bigfixStatusText = "BigFix: No Updates Pending."
+    $showBigFixButton = $false
     try {
         if (Test-Path $fixletPath) {
             $fileContent = Get-Content -Path $fixletPath -Raw
-            if ([string]::IsNullOrWhiteSpace($fileContent)) {
-                $fixletText = "BigFix: No pending actions found." # More descriptive
-                Write-Log "X-Fixlet-Source_Count.txt is empty." -Level "WARNING"
-            } else {
-                # Prepend "BigFix:" to the text for clarity in the UI
-                $fixletText = "BigFix: " + ($fileContent | Out-String).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($fileContent)) {
+                $bigfixStatusText = "BigFix: " + ($fileContent | Out-String).Trim()
+                $showBigFixButton = $true
                 Write-Log "Successfully read fixlet data from $fixletPath" -Level "INFO"
+            } else {
+                Write-Log "$fixletPath is empty." -Level "INFO"
             }
         } else {
-            Write-Log "X-Fixlet-Source_Count.txt not found at $fixletPath." -Level "WARNING"
+            Write-Log "$fixletPath not found." -Level "WARNING"
         }
     } catch {
-        $fixletText = "Error reading BigFix data: $($_.Exception.Message)"
-        Write-Log $fixletText -Level "ERROR"
+        $bigfixStatusText = "BigFix: Error reading update data."
+        Write-Log "Error reading BigFix data: $($_.Exception.Message)" -Level "ERROR"
     }
 
-    # Get the status string from our new ECM function
-    $ecmStatusText = Get-ECMUpdateStatus
+    # --- ECM Update Logic ---
+    $ecmResult = Get-ECMUpdateStatus
+    $ecmStatusText = $ecmResult.StatusText
+    $showEcmButton = $ecmResult.HasPendingUpdates
 
-    # Combine the BigFix and ECM information into a single block of text
-    $combinedUpdatesText = "$fixletText`n`n$ecmStatusText" # `n creates a new line
-
+    # --- Update the UI ---
     $window.Dispatcher.Invoke({
-        $global:PatchingDescriptionText.Text = "Lists available software updates from BigFix and Microsoft ECM. Updates marked (R) require a restart."
+        $global:PatchingDescriptionText.Text = "Manage available software updates from BigFix and Microsoft ECM."
         $global:PendingRestartStatusText.Text = $restartStatusText
         $global:PendingRestartStatusText.Foreground = $statusColor
-        # Update the UI with the combined text
-        $global:PatchingUpdatesText.Text = $combinedUpdatesText
         $global:WindowsBuildText.Text = $windowsBuild
         $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
+        
+        # Update BigFix UI elements
+        $global:BigFixStatusText.Text = $bigfixStatusText
+        $global:BigFixLaunchButton.Visibility = if ($showBigFixButton) { "Visible" } else { "Collapsed" }
+        
+        # Update ECM UI elements
+        $global:ECMStatusText.Text = $ecmStatusText
+        $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
     })
 }
-# --- END OF REPLACEMENT ---
 
 function Convert-MarkdownToTextBlock {
     param(
