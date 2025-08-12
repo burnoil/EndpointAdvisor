@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.87 (Fixed UI layout for update text and buttons)
+# Version 4.3.88 (Corrected alert state management)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.87"
+$ScriptVersion = "4.3.88"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -461,7 +461,7 @@ $xamlString = @"
         </Grid.ColumnDefinitions>
         <TextBlock x:Name="FooterText" Grid.Column="0" Text="(C) 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <StackPanel x:Name="ClearAlertsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Ellipse x:Name="ClearAlertsDot" Width="10" Height="10" Fill="Red" Margin="0,0,5,0"/>
+            <Ellipse x:Name="ClearAlertsDot" Width="10" Height="10" Fill="Red" Margin="0,0,5,0" Visibility="Collapsed"/>
             <Button x:Name="ClearAlertsButton" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Click to clear all new announcement and support alerts (red dots) from the UI."/>
         </StackPanel>
     </Grid>
@@ -850,7 +850,7 @@ function Update-PatchingAndSystem {
     try {
         if (Test-Path $fixletPath) {
             $fileContent = Get-Content -Path $fixletPath
-            if ($fileContent) { # This is true if the file has any content
+            if ($fileContent) { 
                 $multiLineContent = $fileContent -join "`n"
                 $bigfixStatusText = "Application Updates:`n" + $multiLineContent
                 $showBigFixButton = $true
@@ -1169,7 +1169,7 @@ function Update-Announcements {
     if (-not $newAnnouncementsObject) { return }
 
     $newJsonState = $newAnnouncementsObject | ConvertTo-Json -Compress
-
+    
     $isNew = $false
     if ($config.AnnouncementsLastState -ne $newJsonState) {
         Write-Log "New announcement content detected." -Level "INFO"
@@ -1177,8 +1177,9 @@ function Update-Announcements {
     }
 
     $window.Dispatcher.Invoke({
-        if ($isNew -and $global:AnnouncementsAlertIcon) {
-            $global:AnnouncementsAlertIcon.Visibility = "Visible"
+        if ($isNew) {
+            if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
+            if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
         }
         if ($global:AnnouncementsText) {
             Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
@@ -1198,8 +1199,6 @@ function Update-Announcements {
             $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
         }
     })
-    
-    $config.AnnouncementsLastState = $newJsonState
 }
 
 function Update-Support {
@@ -1216,8 +1215,9 @@ function Update-Support {
     }
 
     $window.Dispatcher.Invoke({
-        if ($isNew -and $global:SupportAlertIcon) {
-            $global:SupportAlertIcon.Visibility = "Visible"
+        if ($isNew) {
+            if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Visible" }
+            if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
         }
         if ($global:SupportText) {
             Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
@@ -1234,8 +1234,6 @@ function Update-Support {
             $global:SupportSourceText.Text = "Source: $($global:contentData.Source)"
         }
     })
-    
-    $config.SupportLastState = $newJsonState
 }
 
 # ============================================================
