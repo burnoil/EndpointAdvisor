@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.84 (Added single-instance check)
+# Version 4.3.87 (Fixed UI layout for update text and buttons)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,20 +9,18 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.84"
+$ScriptVersion = "4.3.87"
 
-# --- START OF NEW CODE ---
+# --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
 $AppName = "LLNOTIFY"
 # Find any other PowerShell process with the same window title, excluding the current process.
 $existingProcesses = Get-Process -Name "powershell", "pwsh" -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $pid -and $_.MainWindowTitle -like "*$AppName*" }
 if ($existingProcesses) {
     Write-Host "An instance of $AppName is already running. Exiting."
-    # Here you could add code to bring the existing window to the foreground,
-    # but for now, we will simply exit as it's the safest option.
     exit
 }
-# --- END OF NEW CODE ---
+# --- END OF SINGLE-INSTANCE CHECK ---
 
 # CODE ADDED TO TERMINATE NOTIFICATION IF RUN ON IDENTIFIED CONFERENCE ROOM PC
 try {
@@ -399,21 +397,32 @@ $xamlString = @"
           </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
             <StackPanel>
-              <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap"/>
-              <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,5,0,0"/>
-              <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
+              <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"/>
+              
+              <StackPanel x:Name="PendingRestartPanel" Orientation="Vertical" Visibility="Collapsed">
+                <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,0,0,0"/>
+                <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
+              </StackPanel>
               
               <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,10,0,2"/>
               
-              <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                  <TextBlock x:Name="BigFixStatusText" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-                  <Button x:Name="BigFixLaunchButton" Content="Launch BigFix" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch BigFix Self-Service Application"/>
-              </StackPanel>
+              <Grid Margin="0,2,0,2">
+                  <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+                  <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="Launch BigFix" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch BigFix Self-Service Application"/>
+              </Grid>
 
-              <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                  <TextBlock x:Name="ECMStatusText" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-                  <Button x:Name="ECMLaunchButton" Content="Open Software Center" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch Microsoft Software Center"/>
-              </StackPanel>
+              <Grid Margin="0,2,0,2">
+                  <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+                  <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Open Software Center" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch Microsoft Software Center"/>
+              </Grid>
             </StackPanel>
           </Border>
         </Expander>
@@ -478,7 +487,7 @@ try {
     $uiElements = @(
         "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
-        "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
+        "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
         "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
         "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton"
     )
@@ -798,10 +807,8 @@ function Get-WindowsBuildNumber {
     } catch { return "Windows Build: Unknown" }
 }
 
-# --- MODIFIED ECM Function to return a structured object ---
 function Get-ECMUpdateStatus {
     try {
-        # Define the WMI query parameters for ECM/SCCM updates
         $CMTable = @{
             'class'     = 'CCM_SoftwareUpdate'
             'namespace' = 'ROOT\ccm\ClientSDK'
@@ -811,44 +818,41 @@ function Get-ECMUpdateStatus {
 
         if ($null -eq $pendingUpdates) {
             return [PSCustomObject]@{
-                StatusText        = "Microsoft ECM: No updates pending."
+                StatusText        = "Operating System Patches & Updates: No Updates Pending."
                 HasPendingUpdates = $false
             }
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
         return [PSCustomObject]@{
-            StatusText        = "Microsoft ECM: $pendingCount update(s) pending."
+            StatusText        = "Operating System Patches & Updates: $pendingCount update(s) pending."
             HasPendingUpdates = $true
         }
     }
     catch {
-        # This will catch errors if the ECM client isn't installed or the WMI query fails
         Write-Log "Could not retrieve ECM update status. Client may not be installed. Error: $($_.Exception.Message)" -Level "INFO"
         return [PSCustomObject]@{
-            StatusText        = "Microsoft ECM client not found or inaccessible."
+            StatusText        = "Operating System Patches & Updates: Client not found or inaccessible."
             HasPendingUpdates = $false
         }
     }
 }
 
-# --- REWRITTEN `Update-PatchingAndSystem` FUNCTION ---
 function Update-PatchingAndSystem {
     Write-Log "Updating Patching and System section..." -Level "INFO"
     $restartStatusText = Get-PendingRestartStatus
-    $statusColor = if ($global:PendingRestart) { [System.Windows.Media.Brushes]::Red } else { [System.Windows.Media.Brushes]::Green }
-    
     $windowsBuild = Get-WindowsBuildNumber
     
     # --- BigFix Update Logic ---
     $fixletPath = "C:\temp\X-Fixlet-Source_Count.txt"
-    $bigfixStatusText = "BigFix: No Updates Pending."
+    $bigfixStatusText = "Application Updates: No Updates Pending."
     $showBigFixButton = $false
     try {
         if (Test-Path $fixletPath) {
-            $fileContent = Get-Content -Path $fixletPath -Raw
-            if (-not [string]::IsNullOrWhiteSpace($fileContent)) {
-                $bigfixStatusText = "BigFix: " + ($fileContent | Out-String).Trim()
+            $fileContent = Get-Content -Path $fixletPath
+            if ($fileContent) { # This is true if the file has any content
+                $multiLineContent = $fileContent -join "`n"
+                $bigfixStatusText = "Application Updates:`n" + $multiLineContent
                 $showBigFixButton = $true
                 Write-Log "Successfully read fixlet data from $fixletPath" -Level "INFO"
             } else {
@@ -858,7 +862,7 @@ function Update-PatchingAndSystem {
             Write-Log "$fixletPath not found." -Level "WARNING"
         }
     } catch {
-        $bigfixStatusText = "BigFix: Error reading update data."
+        $bigfixStatusText = "Application Updates: Error reading update data."
         Write-Log "Error reading BigFix data: $($_.Exception.Message)" -Level "ERROR"
     }
 
@@ -869,9 +873,15 @@ function Update-PatchingAndSystem {
 
     # --- Update the UI ---
     $window.Dispatcher.Invoke({
-        $global:PatchingDescriptionText.Text = "Manage available software updates from BigFix and Microsoft ECM."
-        $global:PendingRestartStatusText.Text = $restartStatusText
-        $global:PendingRestartStatusText.Foreground = $statusColor
+        # Conditionally display the restart panel
+        if ($global:PendingRestart) {
+            $global:PendingRestartPanel.Visibility = "Visible"
+            $global:PendingRestartStatusText.Text = $restartStatusText
+            $global:PendingRestartStatusText.Foreground = [System.Windows.Media.Brushes]::Red
+        } else {
+            $global:PendingRestartPanel.Visibility = "Collapsed"
+        }
+        
         $global:WindowsBuildText.Text = $windowsBuild
         $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
         
@@ -1293,7 +1303,7 @@ function Initialize-TrayIcon {
         $twentyMin = New-Object System.Windows.Forms.ToolStripMenuItem("20 minutes", $null, { 
             $config.RefreshInterval = 1200
             Save-Configuration -Config $config
-            $global:DispatcherTimer.Interval = [TimeSpan]::FromSeconds(1200)
+            $global:DispatcherTimer.Interval = [TimeSpan]::fromSeconds(1200)
             $global:DispatcherTimer.Stop()
             $global:DispatcherTimer.Start()
             Write-Log "Update interval set to 20 minutes" -Level "INFO"
