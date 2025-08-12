@@ -1,39 +1,3 @@
-That is a fantastic idea and a very common challenge with tray-based applications. The perfect solution for this is the native "balloon tip" notification that can be generated directly from the tray icon itself.
-
-This approach meets all your criteria:
-
-It's not a persistent popup; it disappears on its own after a few seconds.
-
-It's not a toast notification, so it won't go into the Action Center.
-
-It directly points the user's attention to the system tray where the icon lives.
-
-We can easily configure it to run only once on the very first launch.
-
-How We'll Implement It
-
-Add a "First Run" Flag: We'll add a new setting to the LLNOTIFY.config.json file called "HasRunBefore". When the script runs, it will check for this flag.
-
-Trigger the Notification: If the flag is missing or set to false, the script knows it's the first time running. It will then display the balloon tip notification.
-
-Update the Flag: Immediately after showing the notification, the script will set the "HasRunBefore" flag to true and save the configuration file. This ensures the message will never be shown again on that workstation.
-
-Here is the complete script with this new "first run" notification feature integrated.
-
-Summary of Changes:
-
-Get-DefaultConfig function: A new key, HasRunBefore = $false, has been added.
-
-Main Startup Block (Section P): A new logic block has been added right after the tray icon is initialized. This block checks the HasRunBefore flag and, if it's the first run, calls the $global:TrayIcon.ShowBalloonTip() method before saving the configuration.
-
-Here is the final, polished script:
-
-code
-Powershell
-download
-content_copy
-expand_less
-
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
 # Version 4.3.89 (Added first-run balloon tip notification)
 
