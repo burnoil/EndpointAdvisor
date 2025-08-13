@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.89 (Added first-run balloon tip notification)
+# Version 4.3.93 (Fixed startup race condition with self-update)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.89"
+$ScriptVersion = "4.3.93"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -196,6 +196,8 @@ function Get-DefaultConfig {
         BlinkingEnabled       = $false
         CachePath             = Join-Path $ScriptDir "ContentData.cache.json"
         HasRunBefore          = $false
+        UpdateCheckIntervalHours = 4
+        EnforceCodeSigningOnUpdate = $true
     }
 }
 
@@ -413,7 +415,7 @@ $xamlString = @"
                       <ColumnDefinition Width="Auto"/>
                   </Grid.ColumnDefinitions>
                   <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-                  <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="Launch BigFix" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch BigFix Self-Service Application"/>
+                  <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
               </Grid>
 
               <Grid Margin="0,2,0,2">
@@ -422,7 +424,7 @@ $xamlString = @"
                       <ColumnDefinition Width="Auto"/>
                   </Grid.ColumnDefinitions>
                   <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-                  <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Open Software Center" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Launch Microsoft Software Center"/>
+                  <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
               </Grid>
             </StackPanel>
           </Border>
@@ -547,7 +549,6 @@ try {
             })
         }
         
-        # --- START OF MODIFICATION for new buttons ---
         if ($global:BigFixLaunchButton) {
             $global:BigFixLaunchButton.Add_Click({
                 try {
@@ -578,7 +579,6 @@ try {
                 }
             })
         }
-        # --- END OF MODIFICATION ---
 
         if ($global:ClearAlertsButton) {
             $global:ClearAlertsButton.Add_Click({
@@ -621,6 +621,68 @@ function New-HyperlinkBlock {
     $hp.Add_RequestNavigate({ try { Start-Process $_.Uri.AbsoluteUri } catch {} })
     $tb.Inlines.Add($hp)
     return $tb
+}
+
+function CheckFor-Updates {
+    Write-Log "Checking for application updates..." -Level "INFO"
+    $baseUri = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main" 
+    $versionUrl = "$baseUri/version.txt"
+    $scriptUrl = "$baseUri/LLNOTIFY.ps1"
+
+    try {
+        $latestVersion = (Invoke-WebRequest -Uri $versionUrl -UseBasicParsing).Content.Trim()
+        Write-Log "Latest version available is '$latestVersion'. Currently running '$ScriptVersion'." -Level "INFO"
+
+        if ([version]$latestVersion -gt [version]$ScriptVersion) {
+            Write-Log "New version detected. Preparing to update." -Level "INFO"
+            
+            $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
+            Invoke-WebRequest -Uri $scriptUrl -OutFile $newScriptPath -UseBasicParsing
+            Write-Log "New script downloaded to '$newScriptPath'." -Level "INFO"
+
+            # --- START OF FIX 1: Unblock the downloaded file ---
+            Unblock-File -Path $newScriptPath
+            Write-Log "Removed 'Mark of the Web' from the downloaded script." -Level "INFO"
+            # --- END OF FIX 1 ---
+
+            if ($config.EnforceCodeSigningOnUpdate) {
+                Write-Log "EnforceCodeSigningOnUpdate is true. Verifying signature..." -Level "INFO"
+                $signature = Get-AuthenticodeSignature -FilePath $newScriptPath -ErrorAction SilentlyContinue
+                if ($signature.Status -ne 'Valid') {
+                    Write-Log "Update failed: The downloaded script has an invalid or missing signature. Deleting temporary file." -Level "ERROR"
+                    Remove-Item $newScriptPath -Force
+                    return
+                }
+                Write-Log "Downloaded script signature is valid." -Level "INFO"
+            } else {
+                Write-Log "EnforceCodeSigningOnUpdate is false. Skipping signature check." -Level "WARNING"
+            }
+
+            # --- START OF FIX 2: Create a robust, self-logging scheduled task ---
+            $taskName = "LLNOTIFY_Updater"
+            $taskPrincipal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance Win32_ComputerSystem).Username -LogonType Interactive
+            
+            $updateLogPath = Join-Path $ScriptDir "LLNOTIFY_update.log"
+            # This complex command string now includes its own try/catch and logging.
+            $command = "powershell.exe"
+            $arguments = "-NoProfile -WindowStyle Hidden -Command `"try { Start-Sleep -Seconds 3; `"`$(Get-Date): Starting update...`" | Out-File -FilePath '$updateLogPath'; Move-Item -Path '$newScriptPath' -Destination '$($MyInvocation.MyCommand.Path)' -Force; `"`$(Get-Date): File replaced. Relaunching.`" | Out-File -FilePath '$updateLogPath' -Append; Start-Process powershell.exe -ArgumentList '-File `"$($MyInvocation.MyCommand.Path)`"'; } catch { `"`$(Get-Date): UPDATE FAILED - $`$_.Exception.Message`" | Out-File -FilePath '$updateLogPath' -Append; }`""
+
+            $taskAction = New-ScheduledTaskAction -Execute $command -Argument $arguments
+            $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+            
+            Register-ScheduledTask -TaskName $taskName -Principal $taskPrincipal -Action $taskAction -Settings $taskSettings -Force | Out-Null
+            Start-ScheduledTask -TaskName $taskName
+            Write-Log "Scheduled task '$taskName' created to complete the update." -Level "INFO"
+            # --- END OF FIX 2 ---
+
+            Write-Log "Shutting down current application to allow update." -Level "INFO"
+            $window.Dispatcher.InvokeShutdown()
+        } else {
+            Write-Log "Application is up to date." -Level "INFO"
+        }
+    } catch {
+        Write-Log "Failed to check for updates: $($_.Exception.Message)" -Level "ERROR"
+    }
 }
 
 function Validate-ContentData {
@@ -819,21 +881,21 @@ function Get-ECMUpdateStatus {
 
         if ($null -eq $pendingUpdates) {
             return [PSCustomObject]@{
-                StatusText        = "Operating System Patches & Updates: No Updates Pending."
+                StatusText        = "Windows OS Patches and Updates: No Updates Pending."
                 HasPendingUpdates = $false
             }
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
         return [PSCustomObject]@{
-            StatusText        = "Operating System Patches & Updates: $pendingCount update(s) pending."
+            StatusText        = "Windows OS Patches and Updates: $pendingCount update(s) pending."
             HasPendingUpdates = $true
         }
     }
     catch {
         Write-Log "Could not retrieve ECM update status. Client may not be installed. Error: $($_.Exception.Message)" -Level "INFO"
         return [PSCustomObject]@{
-            StatusText        = "Operating System Patches & Updates: Client not found or inaccessible."
+            StatusText        = "Windows OS Patches and Updates: Client not found or inaccessible."
             HasPendingUpdates = $false
         }
     }
@@ -1311,7 +1373,8 @@ function Initialize-TrayIcon {
 
         $ContextMenuStrip.Items.AddRange(@(
             (New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard", $null, { Toggle-WindowVisibility })),
-            (New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now", $null, { Main-UpdateCycle -ForceCertificateCheck $true })),
+            (New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now", $null, { Main-UpdateCycle -ForceCertificateCheck $true -SkipUpdateCheck $true })),
+            (New-Object System.Windows.Forms.ToolStripMenuItem("Check for Updates...", $null, { CheckFor-Updates })),
             $intervalSubMenu,
             (New-Object System.Windows.Forms.ToolStripMenuItem("Exit", $null, { $window.Dispatcher.InvokeShutdown() }))
         ))
@@ -1352,9 +1415,22 @@ function Toggle-WindowVisibility {
 # O) Main Update Cycle and DispatcherTimer
 # ============================================================
 function Main-UpdateCycle {
-    param([bool]$ForceCertificateCheck = $false)
+    param(
+        [bool]$ForceCertificateCheck = $false,
+        [bool]$SkipUpdateCheck = $false
+    )
     try {
-        Write-Log "Main update cycle running..." -Level "INFO"
+        # Check for application updates periodically, but not on the very first startup run
+        if (-not $SkipUpdateCheck) {
+            $updateIntervalSeconds = $config.UpdateCheckIntervalHours * 3600
+            if (-not $global:LastUpdateCheck -or ((Get-Date) - $global:LastUpdateCheck).TotalSeconds -ge $updateIntervalSeconds) {
+                CheckFor-Updates
+                $global:LastUpdateCheck = Get-Date
+            }
+        }
+
+        # If the script is still running, it means no update was found, so proceed with the normal cycle.
+        Write-Log "Main content update cycle running..." -Level "INFO"
         $global:contentData = Fetch-ContentData
         
         Update-Announcements
@@ -1377,6 +1453,9 @@ function Main-UpdateCycle {
 # P) Initial Setup & Application Start
 # ============================================================
 try {
+    # Initialize the last update check timestamp
+    $global:LastUpdateCheck = $null
+    
     $global:blinkingTickAction = {
         if ($global:TrayIcon.Icon.Handle -eq $global:WarningIcon.Handle) {
             $global:TrayIcon.Icon = $global:MainIcon
@@ -1398,7 +1477,8 @@ try {
 
     Initialize-TrayIcon
     Log-DotNetVersion
-    Main-UpdateCycle -ForceCertificateCheck $true
+    # The first run populates content but skips the self-update check.
+    Main-UpdateCycle -ForceCertificateCheck $true -SkipUpdateCheck $true
     
     # --- FIRST RUN NOTIFICATION LOGIC ---
     if (-not $config.HasRunBefore) {
