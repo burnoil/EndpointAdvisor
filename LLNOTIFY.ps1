@@ -636,14 +636,16 @@ function CheckFor-Updates {
         if ([version]$latestVersion -gt [version]$ScriptVersion) {
             Write-Log "New version detected. Preparing to update." -Level "INFO"
             
-            $newScriptPath = Join-Path $ScriptDir "LLNOTIFY.new.ps1"
+            # --- START OF FIX: Use the user's temp directory for downloaded files ---
+            $tempDir = $env:TEMP
+            $newScriptPath = Join-Path $tempDir "LLNOTIFY.new.ps1"
+            # --- END OF FIX ---
+
             Invoke-WebRequest -Uri $scriptUrl -OutFile $newScriptPath -UseBasicParsing
             Write-Log "New script downloaded to '$newScriptPath'." -Level "INFO"
-
-            # --- START OF FIX 1: Unblock the downloaded file ---
+            
             Unblock-File -Path $newScriptPath
             Write-Log "Removed 'Mark of the Web' from the downloaded script." -Level "INFO"
-            # --- END OF FIX 1 ---
 
             if ($config.EnforceCodeSigningOnUpdate) {
                 Write-Log "EnforceCodeSigningOnUpdate is true. Verifying signature..." -Level "INFO"
@@ -658,12 +660,13 @@ function CheckFor-Updates {
                 Write-Log "EnforceCodeSigningOnUpdate is false. Skipping signature check." -Level "WARNING"
             }
 
-            # --- START OF FIX 2: Create a robust, self-logging scheduled task ---
             $taskName = "LLNOTIFY_Updater"
             $taskPrincipal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance Win32_ComputerSystem).Username -LogonType Interactive
             
-            $updateLogPath = Join-Path $ScriptDir "LLNOTIFY_update.log"
-            # This complex command string now includes its own try/catch and logging.
+            # --- START OF FIX: Write the update log to the user's temp directory ---
+            $updateLogPath = Join-Path $tempDir "LLNOTIFY_update.log"
+            # --- END OF FIX ---
+
             $command = "powershell.exe"
             $arguments = "-NoProfile -WindowStyle Hidden -Command `"try { Start-Sleep -Seconds 3; `"`$(Get-Date): Starting update...`" | Out-File -FilePath '$updateLogPath'; Move-Item -Path '$newScriptPath' -Destination '$($MyInvocation.MyCommand.Path)' -Force; `"`$(Get-Date): File replaced. Relaunching.`" | Out-File -FilePath '$updateLogPath' -Append; Start-Process powershell.exe -ArgumentList '-File `"$($MyInvocation.MyCommand.Path)`"'; } catch { `"`$(Get-Date): UPDATE FAILED - $`$_.Exception.Message`" | Out-File -FilePath '$updateLogPath' -Append; }`""
 
@@ -673,7 +676,6 @@ function CheckFor-Updates {
             Register-ScheduledTask -TaskName $taskName -Principal $taskPrincipal -Action $taskAction -Settings $taskSettings -Force | Out-Null
             Start-ScheduledTask -TaskName $taskName
             Write-Log "Scheduled task '$taskName' created to complete the update." -Level "INFO"
-            # --- END OF FIX 2 ---
 
             Write-Log "Shutting down current application to allow update." -Level "INFO"
             $window.Dispatcher.InvokeShutdown()
