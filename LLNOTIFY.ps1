@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.96 (Added comprehensive update alerting)
+# Version 4.3.97 (Fixed tray icon state after clearing update alert)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.96"
+$ScriptVersion = "4.3.97"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -558,6 +558,7 @@ try {
         if ($global:PatchingExpander) {
             $global:PatchingExpander.Add_Expanded({
                 if ($global:PatchingAlertIcon) { $global:PatchingAlertIcon.Visibility = "Hidden" }
+                $global:UpdatesPending = $false 
                 Update-TrayIcon
             })
         }
@@ -912,8 +913,8 @@ function Update-PatchingAndSystem {
         Convert-MarkdownToTextBlock -Text $ecmStatusText -TargetTextBlock $global:ECMStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
 
-        # Conditionally show the alert dot for the whole section
-        if ($global:PatchingAlertIcon) {
+        # Conditionally show the alert dot for the whole section if the expander is not expanded
+        if ($global:PatchingAlertIcon -and (-not $global:PatchingExpander.IsExpanded)) {
             $global:PatchingAlertIcon.Visibility = if ($global:UpdatesPending) { "Visible" } else { "Collapsed" }
         }
     })
