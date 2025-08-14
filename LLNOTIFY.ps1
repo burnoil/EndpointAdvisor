@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.95 (Added separator and bold titles for update sections)
+# Version 4.3.96 (Added comprehensive update alerting)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.95"
+$ScriptVersion = "4.3.96"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -45,6 +45,9 @@ $global:IsRotatingLog = $false
 
 # Global flag to track pending restart state
 $global:PendingRestart = $false
+
+# Global flag to track pending update state
+$global:UpdatesPending = $false
 
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
@@ -394,7 +397,10 @@ $xamlString = @"
         </Expander>
         <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
           <Expander.Header>
-            <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
+              <Ellipse x:Name="PatchingAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+            </StackPanel>
           </Expander.Header>
           <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
             <StackPanel>
@@ -492,7 +498,8 @@ try {
         "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
         "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
         "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
-        "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton"
+        "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
+        "PatchingAlertIcon"
     )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -545,6 +552,12 @@ try {
             $global:SupportExpander.IsExpanded = $true
             $global:SupportExpander.Add_Expanded({ 
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
+                Update-TrayIcon
+            })
+        }
+        if ($global:PatchingExpander) {
+            $global:PatchingExpander.Add_Expanded({
+                if ($global:PatchingAlertIcon) { $global:PatchingAlertIcon.Visibility = "Hidden" }
                 Update-TrayIcon
             })
         }
@@ -825,7 +838,7 @@ function Get-ECMUpdateStatus {
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        $statusMessage = "**Windows OS Patches and Updates:** $pendingCount update(s) pending (restart may be required)."
+        $statusMessage = "**Windows OS Patches and Updates:** $pendingCount update(s) pending (restart required)."
 
         return [PSCustomObject]@{
             StatusText        = $statusMessage
@@ -874,6 +887,9 @@ function Update-PatchingAndSystem {
     $ecmStatusText = $ecmResult.StatusText
     $showEcmButton = $ecmResult.HasPendingUpdates
 
+    # --- Update the global alert flags ---
+    $global:UpdatesPending = $showBigFixButton -or $showEcmButton
+    
     # --- Update the UI ---
     $window.Dispatcher.Invoke({
         # Conditionally display the restart panel
@@ -895,6 +911,11 @@ function Update-PatchingAndSystem {
         # Update ECM UI elements
         Convert-MarkdownToTextBlock -Text $ecmStatusText -TargetTextBlock $global:ECMStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
+
+        # Conditionally show the alert dot for the whole section
+        if ($global:PatchingAlertIcon) {
+            $global:PatchingAlertIcon.Visibility = if ($global:UpdatesPending) { "Visible" } else { "Collapsed" }
+        }
     })
 }
 
@@ -1265,7 +1286,7 @@ function Update-TrayIcon {
     $announcementAlert = $global:AnnouncementsAlertIcon -and $global:AnnouncementsAlertIcon.Visibility -eq "Visible"
     $supportAlert = $global:SupportAlertIcon -and $global:SupportAlertIcon.Visibility -eq "Visible"
     
-    $hasAnyAlert = $announcementAlert -or $supportAlert -or $global:PendingRestart
+    $hasAnyAlert = $announcementAlert -or $supportAlert -or $global:PendingRestart -or $global:UpdatesPending
 
     $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
     $global:TrayIcon.Text = if ($hasAnyAlert) { "LLNOTIFY v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory LLNOTIFY v$ScriptVersion" }
