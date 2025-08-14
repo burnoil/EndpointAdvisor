@@ -808,12 +808,8 @@ function Get-WindowsBuildNumber {
 
 function Get-ECMUpdateStatus {
     try {
-        $CMTable = @{
-            'class'     = 'CCM_SoftwareUpdate'
-            'namespace' = 'ROOT\ccm\ClientSDK'
-            'ErrorAction' = 'Stop'
-        }
-        $pendingUpdates = Get-WmiObject @CMTable | Where-Object { $_.ComplianceState -eq 0 }
+        # Get all pending updates
+        $pendingUpdates = Get-WmiObject -Namespace 'ROOT\ccm\ClientSDK' -Class CCM_SoftwareUpdate | Where-Object { $_.ComplianceState -eq 0 }
 
         if ($null -eq $pendingUpdates) {
             return [PSCustomObject]@{
@@ -822,35 +818,43 @@ function Get-ECMUpdateStatus {
             }
         }
 
-        # If we have updates, let's inspect them
+        # --- START OF NEW, MORE ROBUST LOGIC ---
+        
+        # Get all update *assignments*. These contain the deployment settings like reboot behavior.
+        $assignments = Get-WmiObject -Namespace 'ROOT\ccm\ClientSDK' -Class CCM_UpdateCIAssignment
+        
+        # For faster lookups, convert the assignments into a hashtable with the UpdateID as the key.
+        $assignmentLookup = @{}
+        foreach ($assignment in $assignments) {
+            # Some updates can have multiple assignments; we only need one.
+            if (-not $assignmentLookup.ContainsKey($assignment.UpdateID)) {
+                $assignmentLookup.Add($assignment.UpdateID, $assignment)
+            }
+        }
+
         $pendingCount = ($pendingUpdates | Measure-Object).Count
         $rebootMayBeNeeded = $false
 
-        # --- START OF MODIFICATION ---
-        # Check each pending update's Reboot Behavior property.
-        # Uda_Reboot_Behavior = 1 means "Might require a reboot"
+        # Now, check the assignment for each pending update.
         foreach ($update in $pendingUpdates) {
-            try {
-                if ($update.Uda_Reboot_Behavior -eq 1) {
-                    $rebootMayBeNeeded = $true
-                    break # Optimization: If one might need a reboot, we can stop checking.
-                }
-            }
-            catch {
-                # This catch block handles rare cases where an update might not have this property.
-                # We can safely ignore it and continue checking other updates.
-                Write-Log "Could not read Uda_Reboot_Behavior for update $($update.ArticleId)." -Level "WARNING"
+            $assignment = $assignmentLookup[$update.UpdateID]
+            
+            # An update is considered to potentially require a reboot if the deployment settings indicate it.
+            # NotifyUserOfReboot and RebootOutsideOfMaintWin are the key flags from the deployment.
+            if ($null -ne $assignment -and ($assignment.NotifyUserOfReboot -eq $true -or $assignment.RebootOutsideOfMaintWin -eq $true)) {
+                $rebootMayBeNeeded = $true
+                break # We found one that might require a reboot, so we can stop looking.
             }
         }
         
-        # Build the final status text based on our findings
+        # Build the final status text based on our findings.
         $statusMessage = "Windows OS Patches and Updates: $pendingCount update(s) pending"
         if ($rebootMayBeNeeded) {
             $statusMessage += " (restart may be required)."
         } else {
             $statusMessage += "."
         }
-        # --- END OF MODIFICATION ---
+        # --- END OF NEW LOGIC ---
 
         return [PSCustomObject]@{
             StatusText        = $statusMessage
