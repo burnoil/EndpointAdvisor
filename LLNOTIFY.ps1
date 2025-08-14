@@ -924,6 +924,12 @@ function Update-PatchingAndSystem {
         # Update ECM UI elements
         $global:ECMStatusText.Text = $ecmStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
+
+        # --- START OF MODIFICATION: Dynamically set the tooltip for the ECM button ---
+        if ($showEcmButton) {
+            $global:ECMLaunchButton.ToolTip = "Install pending Windows OS patches (a restart may be required)."
+        }
+        # --- END OF MODIFICATION ---
     })
 }
 
