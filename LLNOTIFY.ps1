@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.89 (Stable Release with first-run notification)
+# Version 4.3.94 (Stable Release with first-run notification and corrected update logic)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.89"
+$ScriptVersion = "4.3.94" # Reverted to the last stable version number before updater attempts
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -806,10 +806,15 @@ function Get-WindowsBuildNumber {
     } catch { return "Windows Build: Unknown" }
 }
 
+# --- CORRECTED ECM FUNCTION ---
 function Get-ECMUpdateStatus {
     try {
-        # Get all pending updates
-        $pendingUpdates = Get-WmiObject -Namespace 'ROOT\ccm\ClientSDK' -Class CCM_SoftwareUpdate | Where-Object { $_.ComplianceState -eq 0 }
+        $CMTable = @{
+            'class'     = 'CCM_SoftwareUpdate'
+            'namespace' = 'ROOT\ccm\ClientSDK'
+            'ErrorAction' = 'Stop'
+        }
+        $pendingUpdates = Get-WmiObject @CMTable | Where-Object { $_.ComplianceState -eq 0 }
 
         if ($null -eq $pendingUpdates) {
             return [PSCustomObject]@{
@@ -818,46 +823,9 @@ function Get-ECMUpdateStatus {
             }
         }
 
-        # --- START OF NEW, MORE ROBUST LOGIC ---
-        
-        # Get all update *assignments*. These contain the deployment settings like reboot behavior.
-        $assignments = Get-WmiObject -Namespace 'ROOT\ccm\ClientSDK' -Class CCM_UpdateCIAssignment
-        
-        # For faster lookups, convert the assignments into a hashtable with the UpdateID as the key.
-        $assignmentLookup = @{}
-        foreach ($assignment in $assignments) {
-            # Some updates can have multiple assignments; we only need one.
-            if (-not $assignmentLookup.ContainsKey($assignment.UpdateID)) {
-                $assignmentLookup.Add($assignment.UpdateID, $assignment)
-            }
-        }
-
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        $rebootMayBeNeeded = $false
-
-        # Now, check the assignment for each pending update.
-        foreach ($update in $pendingUpdates) {
-            $assignment = $assignmentLookup[$update.UpdateID]
-            
-            # An update is considered to potentially require a reboot if the deployment settings indicate it.
-            # NotifyUserOfReboot and RebootOutsideOfMaintWin are the key flags from the deployment.
-            if ($null -ne $assignment -and ($assignment.NotifyUserOfReboot -eq $true -or $assignment.RebootOutsideOfMaintWin -eq $true)) {
-                $rebootMayBeNeeded = $true
-                break # We found one that might require a reboot, so we can stop looking.
-            }
-        }
-        
-        # Build the final status text based on our findings.
-        $statusMessage = "Windows OS Patches and Updates: $pendingCount update(s) pending"
-        if ($rebootMayBeNeeded) {
-            $statusMessage += " (restart may be required)."
-        } else {
-            $statusMessage += "."
-        }
-        # --- END OF NEW LOGIC ---
-
         return [PSCustomObject]@{
-            StatusText        = $statusMessage
+            StatusText        = "Windows OS Patches and Updates: $pendingCount update(s) pending."
             HasPendingUpdates = $true
         }
     }
@@ -870,6 +838,7 @@ function Get-ECMUpdateStatus {
     }
 }
 
+# --- CORRECTED PATCHING FUNCTION ---
 function Update-PatchingAndSystem {
     Write-Log "Updating Patching and System section..." -Level "INFO"
     $restartStatusText = Get-PendingRestartStatus
@@ -925,11 +894,10 @@ function Update-PatchingAndSystem {
         $global:ECMStatusText.Text = $ecmStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
 
-        # --- START OF MODIFICATION: Dynamically set the tooltip for the ECM button ---
+        # Set the tooltip for the ECM button if it's visible
         if ($showEcmButton) {
             $global:ECMLaunchButton.ToolTip = "Install pending Windows OS patches (a restart may be required)."
         }
-        # --- END OF MODIFICATION ---
     })
 }
 
