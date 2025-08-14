@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.97 (Fixed tray icon state after clearing update alert)
+# Version 4.3.99 (Added color and bolding to restart required text)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.97"
+$ScriptVersion = "4.3.99"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -45,6 +45,7 @@ $global:IsRotatingLog = $false
 
 # Global flag to track pending restart state
 $global:PendingRestart = $false
+$global:RestartAlertAcknowledged = $false
 
 # Global flag to track pending update state
 $global:UpdatesPending = $false
@@ -805,7 +806,15 @@ function Get-PendingRestartStatus {
         'HKLM:\SOFTWARE\Wow6432Node\BigFix\EnterpriseClient\BESPendingRestart',
         'HKLM:\SOFTWARE\BigFix\EnterpriseClient\BESPendingRestart'
     )
-    $global:PendingRestart = $rebootKeys | ForEach-Object { Test-Path $_ } | Where-Object { $_ } | Select-Object -First 1
+    $wasPending = $global:PendingRestart
+    $isNowPending = $rebootKeys | ForEach-Object { Test-Path $_ } | Where-Object { $_ } | Select-Object -First 1
+    
+    $global:PendingRestart = [bool]$isNowPending
+    
+    # If the state has changed from not-pending to pending, reset the acknowledgment flag
+    if ($global:PendingRestart -and -not $wasPending) {
+        $global:RestartAlertAcknowledged = $false
+    }
     
     if ($global:PendingRestart) { 
         "System restart required." 
@@ -839,7 +848,7 @@ function Get-ECMUpdateStatus {
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        $statusMessage = "**Windows OS Patches and Updates:** $pendingCount update(s) pending (restart required)."
+        $statusMessage = "**Windows OS Patches and Updates:** $pendingCount update(s) pending [red]**(restart required)**[/red]."
 
         return [PSCustomObject]@{
             StatusText        = $statusMessage
@@ -889,7 +898,11 @@ function Update-PatchingAndSystem {
     $showEcmButton = $ecmResult.HasPendingUpdates
 
     # --- Update the global alert flags ---
-    $global:UpdatesPending = $showBigFixButton -or $showEcmButton
+    if ($global:PatchingExpander.IsExpanded) {
+        $global:UpdatesPending = $false
+    } else {
+        $global:UpdatesPending = $showBigFixButton -or $showEcmButton
+    }
     
     # --- Update the UI ---
     $window.Dispatcher.Invoke({
@@ -913,7 +926,7 @@ function Update-PatchingAndSystem {
         Convert-MarkdownToTextBlock -Text $ecmStatusText -TargetTextBlock $global:ECMStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
 
-        # Conditionally show the alert dot for the whole section if the expander is not expanded
+        # Conditionally show the alert dot for the whole section
         if ($global:PatchingAlertIcon -and (-not $global:PatchingExpander.IsExpanded)) {
             $global:PatchingAlertIcon.Visibility = if ($global:UpdatesPending) { "Visible" } else { "Collapsed" }
         }
@@ -1286,8 +1299,9 @@ function Update-TrayIcon {
     
     $announcementAlert = $global:AnnouncementsAlertIcon -and $global:AnnouncementsAlertIcon.Visibility -eq "Visible"
     $supportAlert = $global:SupportAlertIcon -and $global:SupportAlertIcon.Visibility -eq "Visible"
-    
-    $hasAnyAlert = $announcementAlert -or $supportAlert -or $global:PendingRestart -or $global:UpdatesPending
+    $patchingAlert = $global:PatchingAlertIcon -and $global:PatchingAlertIcon.Visibility -eq "Visible"
+
+    $hasAnyAlert = $announcementAlert -or $supportAlert -or ($global:PendingRestart -and -not $global:RestartAlertAcknowledged) -or $patchingAlert
 
     $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
     $global:TrayIcon.Text = if ($hasAnyAlert) { "LLNOTIFY v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory LLNOTIFY v$ScriptVersion" }
@@ -1362,6 +1376,10 @@ function Toggle-WindowVisibility {
             $window.Hide()
             Update-TrayIcon
         } else {
+            # If a restart is pending, opening the window acknowledges the alert for the tray icon
+            if ($global:PendingRestart) {
+                $global:RestartAlertAcknowledged = $true
+            }
             $window.Show()
             $global:BlinkingTimer.Stop()
             Update-TrayIcon
