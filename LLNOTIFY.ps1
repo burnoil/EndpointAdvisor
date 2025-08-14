@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.93 (Fixed startup race condition with self-update) TEST
+# Version 4.3.89 (Stable Release with first-run notification)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.93"
+$ScriptVersion = "4.3.89"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -196,8 +196,6 @@ function Get-DefaultConfig {
         BlinkingEnabled       = $false
         CachePath             = Join-Path $ScriptDir "ContentData.cache.json"
         HasRunBefore          = $false
-        UpdateCheckIntervalHours = 4
-        EnforceCodeSigningOnUpdate = $true
     }
 }
 
@@ -623,70 +621,6 @@ function New-HyperlinkBlock {
     return $tb
 }
 
-function CheckFor-Updates {
-    Write-Log "Checking for application updates..." -Level "INFO"
-    $baseUri = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main" 
-    $versionUrl = "$baseUri/version.txt"
-    $scriptUrl = "$baseUri/LLNOTIFY.ps1"
-
-    try {
-        $latestVersion = (Invoke-WebRequest -Uri $versionUrl -UseBasicParsing).Content.Trim()
-        Write-Log "Latest version available is '$latestVersion'. Currently running '$ScriptVersion'." -Level "INFO"
-
-        if ([version]$latestVersion -gt [version]$ScriptVersion) {
-            Write-Log "New version detected. Preparing to update." -Level "INFO"
-            
-            # --- START OF FIX: Use the user's temp directory for downloaded files ---
-            $tempDir = $env:TEMP
-            $newScriptPath = Join-Path $tempDir "LLNOTIFY.new.ps1"
-            # --- END OF FIX ---
-
-            Invoke-WebRequest -Uri $scriptUrl -OutFile $newScriptPath -UseBasicParsing
-            Write-Log "New script downloaded to '$newScriptPath'." -Level "INFO"
-            
-            Unblock-File -Path $newScriptPath
-            Write-Log "Removed 'Mark of the Web' from the downloaded script." -Level "INFO"
-
-            if ($config.EnforceCodeSigningOnUpdate) {
-                Write-Log "EnforceCodeSigningOnUpdate is true. Verifying signature..." -Level "INFO"
-                $signature = Get-AuthenticodeSignature -FilePath $newScriptPath -ErrorAction SilentlyContinue
-                if ($signature.Status -ne 'Valid') {
-                    Write-Log "Update failed: The downloaded script has an invalid or missing signature. Deleting temporary file." -Level "ERROR"
-                    Remove-Item $newScriptPath -Force
-                    return
-                }
-                Write-Log "Downloaded script signature is valid." -Level "INFO"
-            } else {
-                Write-Log "EnforceCodeSigningOnUpdate is false. Skipping signature check." -Level "WARNING"
-            }
-
-            $taskName = "LLNOTIFY_Updater"
-            $taskPrincipal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance Win32_ComputerSystem).Username -LogonType Interactive
-            
-            # --- START OF FIX: Write the update log to the user's temp directory ---
-            $updateLogPath = Join-Path $tempDir "LLNOTIFY_update.log"
-            # --- END OF FIX ---
-
-            $command = "powershell.exe"
-            $arguments = "-NoProfile -WindowStyle Hidden -Command `"try { Start-Sleep -Seconds 3; `"`$(Get-Date): Starting update...`" | Out-File -FilePath '$updateLogPath'; Move-Item -Path '$newScriptPath' -Destination '$($MyInvocation.MyCommand.Path)' -Force; `"`$(Get-Date): File replaced. Relaunching.`" | Out-File -FilePath '$updateLogPath' -Append; Start-Process powershell.exe -ArgumentList '-File `"$($MyInvocation.MyCommand.Path)`"'; } catch { `"`$(Get-Date): UPDATE FAILED - $`$_.Exception.Message`" | Out-File -FilePath '$updateLogPath' -Append; }`""
-
-            $taskAction = New-ScheduledTaskAction -Execute $command -Argument $arguments
-            $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-            
-            Register-ScheduledTask -TaskName $taskName -Principal $taskPrincipal -Action $taskAction -Settings $taskSettings -Force | Out-Null
-            Start-ScheduledTask -TaskName $taskName
-            Write-Log "Scheduled task '$taskName' created to complete the update." -Level "INFO"
-
-            Write-Log "Shutting down current application to allow update." -Level "INFO"
-            $window.Dispatcher.InvokeShutdown()
-        } else {
-            Write-Log "Application is up to date." -Level "INFO"
-        }
-    } catch {
-        Write-Log "Failed to check for updates: $($_.Exception.Message)" -Level "ERROR"
-    }
-}
-
 function Validate-ContentData {
     param($Data)
     if (-not ($Data.PSObject.Properties.Match('Announcements') -and $Data.PSObject.Properties.Match('Support'))) {
@@ -888,9 +822,28 @@ function Get-ECMUpdateStatus {
             }
         }
 
+        # If we have updates, let's inspect them
         $pendingCount = ($pendingUpdates | Measure-Object).Count
+        $rebootIsNeeded = $false
+
+        # Check each pending update to see if any require a reboot
+        foreach ($update in $pendingUpdates) {
+            if ($update.RebootRequired -eq $true) {
+                $rebootIsNeeded = $true
+                break # Optimization: If one needs a reboot, we can stop checking.
+            }
+        }
+        
+        # Build the final status text based on our findings
+        $statusMessage = "Windows OS Patches and Updates: $pendingCount update(s) pending"
+        if ($rebootIsNeeded) {
+            $statusMessage += " (reboot required)."
+        } else {
+            $statusMessage += "."
+        }
+
         return [PSCustomObject]@{
-            StatusText        = "Windows OS Patches and Updates: $pendingCount update(s) pending."
+            StatusText        = $statusMessage
             HasPendingUpdates = $true
         }
     }
@@ -1375,8 +1328,7 @@ function Initialize-TrayIcon {
 
         $ContextMenuStrip.Items.AddRange(@(
             (New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard", $null, { Toggle-WindowVisibility })),
-            (New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now", $null, { Main-UpdateCycle -ForceCertificateCheck $true -SkipUpdateCheck $true })),
-            (New-Object System.Windows.Forms.ToolStripMenuItem("Check for Updates...", $null, { CheckFor-Updates })),
+            (New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now", $null, { Main-UpdateCycle -ForceCertificateCheck $true })),
             $intervalSubMenu,
             (New-Object System.Windows.Forms.ToolStripMenuItem("Exit", $null, { $window.Dispatcher.InvokeShutdown() }))
         ))
@@ -1417,21 +1369,8 @@ function Toggle-WindowVisibility {
 # O) Main Update Cycle and DispatcherTimer
 # ============================================================
 function Main-UpdateCycle {
-    param(
-        [bool]$ForceCertificateCheck = $false,
-        [bool]$SkipUpdateCheck = $false
-    )
+    param([bool]$ForceCertificateCheck = $false)
     try {
-        # Check for application updates periodically, but not on the very first startup run
-        if (-not $SkipUpdateCheck) {
-            $updateIntervalSeconds = $config.UpdateCheckIntervalHours * 3600
-            if (-not $global:LastUpdateCheck -or ((Get-Date) - $global:LastUpdateCheck).TotalSeconds -ge $updateIntervalSeconds) {
-                CheckFor-Updates
-                $global:LastUpdateCheck = Get-Date
-            }
-        }
-
-        # If the script is still running, it means no update was found, so proceed with the normal cycle.
         Write-Log "Main content update cycle running..." -Level "INFO"
         $global:contentData = Fetch-ContentData
         
@@ -1455,9 +1394,6 @@ function Main-UpdateCycle {
 # P) Initial Setup & Application Start
 # ============================================================
 try {
-    # Initialize the last update check timestamp
-    $global:LastUpdateCheck = $null
-    
     $global:blinkingTickAction = {
         if ($global:TrayIcon.Icon.Handle -eq $global:WarningIcon.Handle) {
             $global:TrayIcon.Icon = $global:MainIcon
@@ -1479,8 +1415,7 @@ try {
 
     Initialize-TrayIcon
     Log-DotNetVersion
-    # The first run populates content but skips the self-update check.
-    Main-UpdateCycle -ForceCertificateCheck $true -SkipUpdateCheck $true
+    Main-UpdateCycle -ForceCertificateCheck $true
     
     # --- FIRST RUN NOTIFICATION LOGIC ---
     if (-not $config.HasRunBefore) {
@@ -1516,4 +1451,3 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-
