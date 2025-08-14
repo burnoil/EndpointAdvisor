@@ -1,5 +1,5 @@
 # LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.94 (Stable with corrected ECM reboot tooltip)
+# Version 4.3.95 (Added separator and bold titles for update sections)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.94"
+$ScriptVersion = "4.3.95"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -416,6 +416,8 @@ $xamlString = @"
                   <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
               </Grid>
 
+              <Separator Margin="0,8,0,8"/>
+
               <Grid Margin="0,2,0,2">
                   <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*"/>
@@ -817,17 +819,13 @@ function Get-ECMUpdateStatus {
 
         if ($null -eq $pendingUpdates) {
             return [PSCustomObject]@{
-                StatusText        = "Windows OS Patches and Updates: No Updates Pending."
+                StatusText        = "**Windows OS Patches and Updates:** No Updates Pending."
                 HasPendingUpdates = $false
             }
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        
-        # --- START OF MODIFICATION ---
-        # Always add the warning text if there are pending updates. This is the most reliable approach.
-        $statusMessage = "Windows OS Patches and Updates: $pendingCount update(s) pending (restart may be required)."
-        # --- END OF MODIFICATION ---
+        $statusMessage = "**Windows OS Patches and Updates:** $pendingCount update(s) pending (restart may be required)."
 
         return [PSCustomObject]@{
             StatusText        = $statusMessage
@@ -837,7 +835,7 @@ function Get-ECMUpdateStatus {
     catch {
         Write-Log "Could not retrieve ECM update status. Client may not be installed. Error: $($_.Exception.Message)" -Level "INFO"
         return [PSCustomObject]@{
-            StatusText        = "Windows OS Patches and Updates: Client not found or inaccessible."
+            StatusText        = "**Windows OS Patches and Updates:** Client not found or inaccessible."
             HasPendingUpdates = $false
         }
     }
@@ -850,14 +848,14 @@ function Update-PatchingAndSystem {
     
     # --- BigFix Update Logic ---
     $fixletPath = "C:\temp\X-Fixlet-Source_Count.txt"
-    $bigfixStatusText = "Application Updates: No Updates Pending."
+    $bigfixStatusText = "**Application Updates:** No Updates Pending."
     $showBigFixButton = $false
     try {
         if (Test-Path $fixletPath) {
             $fileContent = Get-Content -Path $fixletPath
             if ($fileContent) { 
                 $multiLineContent = $fileContent -join "`n"
-                $bigfixStatusText = "Application Updates:`n" + $multiLineContent
+                $bigfixStatusText = "**Application Updates:**`n" + $multiLineContent
                 $showBigFixButton = $true
                 Write-Log "Successfully read fixlet data from $fixletPath" -Level "INFO"
             } else {
@@ -867,7 +865,7 @@ function Update-PatchingAndSystem {
             Write-Log "$fixletPath not found." -Level "WARNING"
         }
     } catch {
-        $bigfixStatusText = "Application Updates: Error reading update data."
+        $bigfixStatusText = "**Application Updates:** Error reading update data."
         Write-Log "Error reading BigFix data: $($_.Exception.Message)" -Level "ERROR"
     }
 
@@ -891,14 +889,12 @@ function Update-PatchingAndSystem {
         $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
         
         # Update BigFix UI elements
-        $global:BigFixStatusText.Text = $bigfixStatusText
+        Convert-MarkdownToTextBlock -Text $bigfixStatusText -TargetTextBlock $global:BigFixStatusText
         $global:BigFixLaunchButton.Visibility = if ($showBigFixButton) { "Visible" } else { "Collapsed" }
         
         # Update ECM UI elements
-        $global:ECMStatusText.Text = $ecmStatusText
+        Convert-MarkdownToTextBlock -Text $ecmStatusText -TargetTextBlock $global:ECMStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
-        
-        # The default tooltip from the XAML is now sufficient.
     })
 }
 
