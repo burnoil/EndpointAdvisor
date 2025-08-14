@@ -824,23 +824,33 @@ function Get-ECMUpdateStatus {
 
         # If we have updates, let's inspect them
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        $rebootIsNeeded = $false
+        $rebootMayBeNeeded = $false
 
-        # Check each pending update to see if any require a reboot
+        # --- START OF MODIFICATION ---
+        # Check each pending update's Reboot Behavior property.
+        # Uda_Reboot_Behavior = 1 means "Might require a reboot"
         foreach ($update in $pendingUpdates) {
-            if ($update.RebootRequired -eq $true) {
-                $rebootIsNeeded = $true
-                break # Optimization: If one needs a reboot, we can stop checking.
+            try {
+                if ($update.Uda_Reboot_Behavior -eq 1) {
+                    $rebootMayBeNeeded = $true
+                    break # Optimization: If one might need a reboot, we can stop checking.
+                }
+            }
+            catch {
+                # This catch block handles rare cases where an update might not have this property.
+                # We can safely ignore it and continue checking other updates.
+                Write-Log "Could not read Uda_Reboot_Behavior for update $($update.ArticleId)." -Level "WARNING"
             }
         }
         
         # Build the final status text based on our findings
         $statusMessage = "Windows OS Patches and Updates: $pendingCount update(s) pending"
-        if ($rebootIsNeeded) {
-            $statusMessage += " (reboot required)."
+        if ($rebootMayBeNeeded) {
+            $statusMessage += " (restart may be required)."
         } else {
             $statusMessage += "."
         }
+        # --- END OF MODIFICATION ---
 
         return [PSCustomObject]@{
             StatusText        = $statusMessage
