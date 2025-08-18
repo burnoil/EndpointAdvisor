@@ -1,10 +1,10 @@
-# LLNOTIFY - Application Overview
+# Endpoint Advisor - Application Overview
 <img width="331" height="502" alt="image" src="https://github.com/user-attachments/assets/58f7d58d-ad06-4472-9290-abfbe7b8c516" />
 
 
 ## Purpose
 
-LLNOTIFY is a PowerShell-based messaging application designed to provide real-time organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, LLNOTIFY enhances endpoint visibility and user support by delivering important ISD communications directly to the desktop with minimal interruption.
+EndPoint Advisor is a PowerShell-based messaging application designed to provide real-time organizational announcements to Windows endpoint users. Running as a system tray application with a user-friendly WPF (Windows Presentation Foundation) interface, EndPoint Advisor enhances endpoint visibility and user support by delivering important ISD communications directly to the desktop with minimal interruption.
 
 ## Key Features
 
@@ -34,7 +34,7 @@ LLNOTIFY is a PowerShell-based messaging application designed to provide real-ti
    - Displays combined expiry status in the Compliance section, with caching for performance (interval: 86400 seconds).
 
 5. **Logging and Diagnostics**:
-   - Logs all operations to `LLNOTIFY.log` with rotation at 2MB (configurable).
+   - Logs all operations to `EndPoint Advisor.log` with rotation at 2MB (configurable).
    - Supports detailed error handling, retry logic, and .NET version logging.
    - No GUI log viewer; logs are file-based for troubleshooting.
 
@@ -54,13 +54,13 @@ LLNOTIFY is a PowerShell-based messaging application designed to provide real-ti
 - **System Monitoring**: Collects and displays real-time system metrics using PowerShell cmdlets (e.g., registry checks for pending restarts, OS build detection).
 - **Content Fetching**: Fetches external JSON content periodically using asynchronous jobs, with source indicators to show whether data is from remote or default.
 - **User Interaction**: Runs in the user context to display a system tray icon and GUI, with silent execution (`-WindowStyle Hidden`) for minimal disruption.
-- **Configuration**: Uses `LLNOTIFY.config.json` for customizable settings (e.g., `ContentDataUrl`, `RefreshInterval`), with defaults in the script for reliability.
-- **Deployment**: Designed for mass deployment via BigFix or similar, with files in a directory like `C:\ProgramData\LLNOTIFY` and run via a scheduled task at user logon.
+- **Configuration**: Uses `EndPoint Advisor.config.json` for customizable settings (e.g., `ContentDataUrl`, `RefreshInterval`), with defaults in the script for reliability.
+- **Deployment**: Designed for mass deployment via BigFix or similar, with files in a directory like `C:\ProgramData\EndPoint Advisor` and run via a scheduled task at user logon.
 - **Updates**: Supports auto-updates from GitHub, with version checks and seamless replacement (introduced in version 4.3.5).
 
 ## Use Case
 
-LLNOTIFY is ideal for enterprise environments with thousands of Windows endpoints, providing IT teams with a lightweight tool to:
+EndPoint Advisor is ideal for enterprise environments with thousands of Windows endpoints, providing IT teams with a lightweight tool to:
 - Monitor system health and certificate compliance.
 - Communicate announcements and support details to users.
 - Integrate with BigFix for deployment and patch reporting.
@@ -71,7 +71,7 @@ LLNOTIFY is ideal for enterprise environments with thousands of Windows endpoint
 
 - **OS**: Windows 10/11.
 - **PowerShell**: Version 5.1 (Windows PowerShell) for `System.Windows.Forms` and WPF.
-- **Dependencies**: Icon files (`LL_LOGO.ico`, `LL_LOGO_MSG.ico`), optional `LLNOTIFY.config.json`, and `ykman.exe` for YubiKey checks.
+- **Dependencies**: Icon files (`LL_LOGO.ico`, `LL_LOGO_MSG.ico`), optional `EndPoint Advisor.config.json`, and `ykman.exe` for YubiKey checks.
 - **Deployment**: BigFix or similar for mass deployment to a program data directory.
 
 ---
