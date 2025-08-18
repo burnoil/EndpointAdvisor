@@ -1,5 +1,5 @@
-# LLNOTIFY.ps1 - Lincoln Laboratory Notification System
-# Version 4.3.99 (Added color and bolding to restart required text)
+# Lincoln Laboratory Endpoint Advisor
+# Version 5.0.0 (Rebranded from LLNOTIFY)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,11 +9,11 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "4.3.99"
+$ScriptVersion = "5.0.0"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
-$AppName = "LLNOTIFY"
+$AppName = "Lincoln Laboratory Endpoint Advisor"
 # Find any other PowerShell process with the same window title, excluding the current process.
 $existingProcesses = Get-Process -Name "powershell", "pwsh" -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $pid -and $_.MainWindowTitle -like "*$AppName*" }
 if ($existingProcesses) {
@@ -71,7 +71,7 @@ function Write-Log {
         return
     }
 
-    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "LLNOTIFY.log" }
+    $logPath = if ($LogFilePath) { $LogFilePath } else { Join-Path $ScriptDir "LLEndpointAdvisor.log" }
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logEntry = "[$timestamp] [$Level] $Message"
     
@@ -135,7 +135,7 @@ function Rotate-LogFile {
                     }
                     Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
 
-                    $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "LLNOTIFY.log.*.archive" | Sort-Object CreationTime
+                    $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "LLEndpointAdvisor.log.*.archive" | Sort-Object CreationTime
                     $maxArchives = 3
                     if ($archiveFiles.Count -gt $maxArchives) {
                         $filesToDelete = $archiveFiles | Select-Object -First ($archiveFiles.Count - $maxArchives)
@@ -175,7 +175,7 @@ function Handle-Error {
     Write-Log $Message -Level "ERROR"
 }
 
-Write-Log "--- LLNOTIFY Script Started (Version $ScriptVersion) ---"
+Write-Log "--- Lincoln Laboratory Endpoint Advisor Script Started (Version $ScriptVersion) ---"
 
 # ============================================================
 # MODULE: Configuration Management
@@ -204,7 +204,7 @@ function Get-DefaultConfig {
 }
 
 function Load-Configuration {
-    param([string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json"))
+    param([string]$Path = (Join-Path $ScriptDir "LLEndpointAdvisor.config.json"))
     $finalConfig = Get-DefaultConfig
     if (Test-Path $Path) {
         try {
@@ -234,7 +234,7 @@ function Load-Configuration {
 function Save-Configuration {
     param(
         [psobject]$Config,
-        [string]$Path = (Join-Path $ScriptDir "LLNOTIFY.config.json")
+        [string]$Path = (Join-Path $ScriptDir "LLEndpointAdvisor.config.json")
     )
     try {
         $Config | ConvertTo-Json -Depth 100 | Out-File $Path -Force
@@ -247,7 +247,7 @@ function Save-Configuration {
 # ============================================================
 # B) External Configuration Setup
 # ============================================================
-$LogFilePath = Join-Path $ScriptDir "LLNOTIFY.log"
+$LogFilePath = Join-Path $ScriptDir "LLEndpointAdvisor.log"
 $config = Load-Configuration
 
 $mainIconPath = $config.IconPaths.Main
@@ -308,7 +308,7 @@ $xamlString = @"
 <Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="LLNOTIFY - Lincoln Laboratory Notification System"
+    Title="Lincoln Laboratory Endpoint Advisor"
     WindowStartupLocation="Manual" 
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
@@ -375,7 +375,7 @@ $xamlString = @"
     <Border Grid.Row="0" Background="#0078D7" Padding="5" CornerRadius="3" Margin="0,0,0,5">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
         <Image x:Name="HeaderIcon" Width="20" Height="20" Margin="0,0,5,0"/>
-        <TextBlock Text="Lincoln Laboratory Notification System" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+        <TextBlock Text="Lincoln Laboratory Endpoint Advisor" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
       </StackPanel>
     </Border>
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -817,9 +817,9 @@ function Get-PendingRestartStatus {
     }
     
     if ($global:PendingRestart) { 
-        "System restart required." 
+        return "System restart required." 
     } else { 
-        "No system restart required." 
+        return "No system restart required." 
     }
 }
 
@@ -1304,7 +1304,7 @@ function Update-TrayIcon {
     $hasAnyAlert = $announcementAlert -or $supportAlert -or ($global:PendingRestart -and -not $global:RestartAlertAcknowledged) -or $patchingAlert
 
     $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
-    $global:TrayIcon.Text = if ($hasAnyAlert) { "LLNOTIFY v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory LLNOTIFY v$ScriptVersion" }
+    $global:TrayIcon.Text = if ($hasAnyAlert) { "Endpoint Advisor v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory Endpoint Advisor v$ScriptVersion" }
 }
 
 function Initialize-TrayIcon {
@@ -1315,7 +1315,7 @@ function Initialize-TrayIcon {
 
         $global:TrayIcon = New-Object System.Windows.Forms.NotifyIcon
         $global:TrayIcon.Icon = $global:MainIcon
-        $global:TrayIcon.Text = "Lincoln Laboratory LLNOTIFY v$ScriptVersion"
+        $global:TrayIcon.Text = "Lincoln Laboratory Endpoint Advisor v$ScriptVersion"
         $global:TrayIcon.Visible = $true
 
         $ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
@@ -1447,7 +1447,7 @@ try {
         Write-Log "First run detected. Showing balloon tip notification." -Level "INFO"
         
         $timeout = 10000 # 10 seconds in milliseconds
-        $title = "LLNOTIFY is Running"
+        $title = "Endpoint Advisor is Running"
         $text = "The notification icon is active in your system tray. You may need to drag it from the overflow area (^) to the main taskbar."
         $icon = [System.Windows.Forms.ToolTipIcon]::Info
 
@@ -1470,7 +1470,7 @@ catch {
     Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
 }
 finally {
-    Write-Log "--- LLNOTIFY Script Exiting ---"
+    Write-Log "--- Lincoln Laboratory Endpoint Advisor Script Exiting ---"
     if ($global:DispatcherTimer) { $global:DispatcherTimer.Stop() }
     if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
