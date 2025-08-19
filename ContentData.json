@@ -29,6 +29,11 @@
             {
               "Name": "VPN Feedback Form",
               "Url": "https://your.feedback.url/form"
+            }
+          ]
+        }
+      }
+    ]
   },
   "Support": {
     "Text": "**Call the ISD Support Center at 800-444-4444 (HELP).**",
