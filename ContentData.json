@@ -14,7 +14,21 @@
         }
       ]
     },
-    "Targeted": []
+    "Targeted": [
+      {
+        "Condition": {
+          "Type": "Registry",
+          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+          "Name": "Group",
+          "Value": "VPN-Pilot"
+        },
+        "Message": {
+          "Text": "**Action Required: New VPN Client for Pilot Testers**",
+          "Details": "Thank you for being part of the VPN pilot program. Please use the 'App Updates' button below to install the new client and provide your feedback.",
+          "Links": [
+            {
+              "Name": "VPN Feedback Form",
+              "Url": "https://your.feedback.url/form"
   },
   "Support": {
     "Text": "**Call the ISD Support Center at 800-444-4444 (HELP).**",
