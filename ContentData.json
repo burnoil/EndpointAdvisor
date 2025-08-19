@@ -1,28 +1,31 @@
 {
-  "Announcements":  {
-    "Text":  "This is TEST __data__ from the **[green]BURNOIL[/green]** Git repository for this app. Released for testing on **[red]2025-06-18[/red]**.",
-    "Details":  "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don\u0027t worry, this is TEST data. Status is **[green]GREEN[/green]**.",
-    "Links":  [
-      {
-        "Name":  "MIT Lincoln Lab Main Page",
-        "Url":  "https://www.msn.com/"
-      },
-      {
-        "Name":  "LL Announcements List",
-        "Url":  "https://www.google.com/"
-      }
-    ]
+  "Announcements": {
+    "Default": {
+      "Text": "This is TEST __data__ from the **[green]BURNOIL[/green]** Git repository for this app. Released for testing on **[red]2025-06-18[/red]**.",
+      "Details": "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don't worry, this is TEST data. Status is **[green]GREEN[/green]**.",
+      "Links": [
+        {
+          "Name": "MIT Lincoln Lab Main Page",
+          "Url": "https://www.msn.com/"
+        },
+        {
+          "Name": "LL Announcements List",
+          "Url": "https://www.google.com/"
+        }
+      ]
+    },
+    "Targeted": []
   },
-  "Support":  {
-    "Text":  "**Call the ISD Support Center at 800-444-4444 (HELP).**",
-    "Links":  [
+  "Support": {
+    "Text": "**Call the ISD Support Center at 800-444-4444 (HELP).**",
+    "Links": [
       {
-        "Name":  "Knowledge Base",
-        "Url":  "https://www.google.com"
+        "Name": "Knowledge Base",
+        "Url": "https://www.google.com"
       },
       {
-        "Name":  "Submit Ticket",
-        "Url":  "https://www.google.com"
+        "Name": "Submit Ticket",
+        "Url": "https://www.google.com"
       }
     ]
   }
