@@ -1,5 +1,6 @@
 {
   "Announcements": {
+    "DisableAppended": true,
     "Default": {
       "Text": "This is TEST __data__ from the **[green]BURNOIL[/green]** Git repository for this app. Released for testing on **[red]2025-06-18[/red]**.",
       "Details": "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don't worry, this is TEST data. Status is **[green]GREEN[/green]**.",
@@ -22,8 +23,7 @@
           "Name": "Group",
           "Value": "VPN-Pilot"
         },
-        "AppendToDefault": false,
-        "Message": {
+          "Message": {
           "Text": "**Action Required: New VPN Client for Pilot Testers**",
           "Details": "Thank you for being part of the VPN pilot program. Please use the 'App Updates' button below to install the new client and provide your feedback.",
           "Links": [
