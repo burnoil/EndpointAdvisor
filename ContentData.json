@@ -22,7 +22,7 @@
           "Name": "Group",
           "Value": "VPN-Pilot"
         },
-        "AppendToDefault": true,
+        "AppendToDefault": false,
         "Message": {
           "Text": "**Action Required: New VPN Client for Pilot Testers**",
           "Details": "Thank you for being part of the VPN pilot program. Please use the 'App Updates' button below to install the new client and provide your feedback.",
