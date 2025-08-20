@@ -1,52 +1,52 @@
 {
-  "Announcements": {
-    "Title": "Announcements",
-    "Links": [
-      { "Text": "Endpoint Advisor Documentation", "Url": "https://github.com/burnoil/EndpointAdvisor" },
-      { "Text": "Release Notes", "Url": "https://github.com/burnoil/EndpointAdvisor/releases" }
-    ],
-    "Message": "Welcome to Lincoln Laboratory Endpoint Advisor (LLEA). Please review the latest updates below."
-  },
-
-  "Targeted": [
-    {
-      "Id": "patching",
-      "Title": "Patching and Updates",
-      "AvailableUpdates": [
-        "Windows 11 Cumulative Update (KB5039302)",
-        "Microsoft Edge Security Rollup",
-        "Endpoint Agent 2.3.1"
-      ]
+    "Announcements": {
+        "Default": {
+            "Text": "This is TEST __data__ from the **[green]BURNOIL[/green]** Git repository for this app. Released for testing on **[red]2025-06-18[/red]**.",
+            "Details": "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don't worry, this is TEST data. Status is **[green]GREEN[/green]**.",
+            "Links": [
+                {
+                    "Name": "MIT Lincoln Lab Main Page",
+                    "Url": "https://www.msn.com/"
+                },
+                {
+                    "Name": "LL Announcements List",
+                    "Url": "https://www.google.com/"
+                }
+            ]
+        },
+        "Targeted": [
+            {
+                "Condition": {
+                    "Type": "Registry",
+                    "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+                    "Name": "Group",
+                    "Value": "VPN-Pilot"
+                },
+                "AppendToDefault": true,
+                "Message": {
+                    "Text": "**Action Required: New VPN Client for Pilot Testers**",
+                    "Details": "Thank you for being part of the VPN pilot program. Please use the 'App Updates' button below to install the new client and provide your feedback.",
+                    "Links": [
+                        {
+                            "Name": "VPN Feedback Form",
+                            "Url": "https://your.feedback.url/form"
+                        }
+                    ]
+                }
+            }
+        ]
     },
-    {
-      "Id": "security",
-      "Title": "Security Advisories",
-      "Items": [
-        "CVE-2025-12345 – Update required for OpenSSL",
-        "CVE-2025-23456 – Microsoft Office patch available"
-      ]
+    "Support": {
+        "Text": "**Call the ISD Support Center at 800-444-4444 (HELP).**",
+        "Links": [
+            {
+                "Name": "Knowledge Base",
+                "Url": "https://www.google.com"
+            },
+            {
+                "Name": "Submit Ticket",
+                "Url": "https://www.google.com"
+            }
+        ]
     }
-  ],
-
-  "Support": {
-    "Title": "Support",
-    "Message": "Need help with Endpoint Advisor or patching issues?",
-    "Contacts": [
-      {
-        "Name": "Help Desk",
-        "Email": "helpdesk@example.com",
-        "Phone": "1-800-555-1234"
-      },
-      {
-        "Name": "Security Operations",
-        "Email": "secops@example.com"
-      }
-    ],
-    "Links": [
-      { "Text": "Submit a Ticket", "Url": "https://support.example.com/tickets" },
-      { "Text": "Knowledge Base", "Url": "https://support.example.com/kb" }
-    ]
-  },
-
-  "DisableAppended": false
 }
