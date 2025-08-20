@@ -1,1 +1,42 @@
-ew0KICAiQW5ub3VuY2VtZW50cyI6IHsNCiAgICAiRGlzYWJsZUFwcGVuZGVkIjogZmFsc2UsDQogICAgIkRlZmF1bHQiOiB7DQogICAgICAiVGV4dCI6ICJUaGlzIGlzIFRFU1QgX19kYXRhX18gZnJvbSB0aGUgKipbZ3JlZW5dQlVSTk9JTFsvZ3JlZW5dKiogR2l0IHJlcG9zaXRvcnkgZm9yIHRoaXMgYXBwLiBSZWxlYXNlZCBmb3IgdGVzdGluZyBvbiAqKltyZWRdMjAyNS0wNi0xOFsvcmVkXSoqLiIsDQogICAgICAiRGV0YWlscyI6ICJQcm9qZWN0ICoqQVpPUklBTioqIGlzIGluIHByb2dyZXNzLiBZb3UgbWF5IHNlZSBhIHBvcHVwIGJldHdlZW4gNlBNIGFuZCA5UE0uIERvblx1MDAyN3Qgd29ycnksIHRoaXMgaXMgVEVTVCBkYXRhLiBTdGF0dXMgaXMgKipbZ3JlZW5dR1JFRU5bL2dyZWVuXSoqLiIsDQogICAgICAiTGlua3MiOiBbDQogICAgICAgIHsNCiAgICAgICAgICAiTmFtZSI6ICJNSVQgTGluY29sbiBMYWIgTWFpbiBQYWdlIiwNCiAgICAgICAgICAiVXJsIjogImh0dHBzOi8vd3d3Lm1zbi5jb20vIg0KICAgICAgICB9LA0KICAgICAgICB7DQogICAgICAgICAgIk5hbWUiOiAiTEwgQW5ub3VuY2VtZW50cyBMaXN0IiwNCiAgICAgICAgICAiVXJsIjogImh0dHBzOi8vd3d3Lmdvb2dsZS5jb20vIg0KICAgICAgICB9DQogICAgICBdDQogICAgfSwNCiAgICAiVGFyZ2V0ZWQiOiBbDQogICAgICB7DQogICAgICAgICJDb25kaXRpb24iOiB7DQogICAgICAgICAgIlR5cGUiOiAiUmVnaXN0cnkiLA0KICAgICAgICAgICJQYXRoIjogIkhLTE06XFxTT0ZUV0FSRVxcTUlUTExcXFRhcmdldGluZyIsDQogICAgICAgICAgIk5hbWUiOiAiR3JvdXAiLA0KICAgICAgICAgICJWYWx1ZSI6ICJWUE4tUGlsb3QiLA0KICAgICAgICAgICJRdWVyeSI6ICIiLA0KICAgICAgICAgICJTY3JpcHQiOiAiIg0KICAgICAgICB9LA0KICAgICAgICAiQXBwZW5kVG9EZWZhdWx0IjogdHJ1ZSwNCiAgICAgICAgIk1lc3NhZ2UiOiB7DQogICAgICAgICAgIlRleHQiOiAiKipBY3Rpb24gUmVxdWlyZWQ6IE5ldyBWUE4gQ2xpZW50IGZvciBQaWxvdCBUZXN0ZXJzKioiLA0KICAgICAgICAgICJEZXRhaWxzIjogIlRoYW5rIHlvdSBmb3IgYmVpbmcgcGFydCBvZiB0aGUgVlBOIHBpbG90IHByb2dyYW0uIFBsZWFzZSB1c2UgdGhlIFx1MDAyN0FwcCBVcGRhdGVzXHUwMDI3IGJ1dHRvbiBiZWxvdyB0byBpbnN0YWxsIHRoZSBuZXcgY2xpZW50IGFuZCBwcm92aWRlIHlvdXIgZmVlZGJhY2suIiwNCiAgICAgICAgICAiTGlua3MiOiBbDQogICAgICAgICAgICB7DQogICAgICAgICAgICAgICJOYW1lIjogIlZQTiBGZWVkYmFjayBGb3JtIiwNCiAgICAgICAgICAgICAgIlVybCI6ICJodHRwczovL3lvdXIuZmVlZGJhY2sudXJsL2Zvcm0iDQogICAgICAgICAgICB9DQogICAgICAgICAgXQ0KICAgICAgICB9DQogICAgICB9DQogICAgXQ0KICB9DQp9
+{
+  "Announcements": {
+    "DisableAppended": false,
+    "Default": {
+      "Text": "This is TEST __data__ from the **[green]BURNOIL[/green]** Git repository for this app. Released for testing on **[red]2025-06-18[/red]**.",
+      "Details": "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don\u0027t worry, this is TEST data. Status is **[green]GREEN[/green]**.",
+      "Links": [
+        {
+          "Name": "MIT Lincoln Lab Main Page",
+          "Url": "https://www.msn.com/"
+        },
+        {
+          "Name": "LL Announcements List",
+          "Url": "https://www.google.com/"
+        }
+      ]
+    },
+    "Targeted": [
+      {
+        "Condition": {
+          "Type": "Registry",
+          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+          "Name": "Group",
+          "Value": "VPN-Pilot",
+          "Query": "",
+          "Script": ""
+        },
+        "AppendToDefault": true,
+        "Message": {
+          "Text": "**Action Required: New VPN Client for Pilot Testers**",
+          "Details": "Thank you for being part of the VPN pilot program. Please use the \u0027App Updates\u0027 button below to install the new client and provide your feedback.",
+          "Links": [
+            {
+              "Name": "VPN Feedback Form",
+              "Url": "https://your.feedback.url/form"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
