@@ -1,42 +1,52 @@
 {
   "Announcements": {
-    "DisableAppended": true,
-    "Default": {
-      "Text": "This is TEST __data__ from the **[green]BURNOIL[/green]** Git repository for this app. Released for testing on **[red]2025-06-18[/red]**.",
-      "Details": "Project **AZORIAN** is in progress. You may see a popup between 6PM and 9PM. Don\u0027t worry, this is TEST data. Status is **[green]GREEN[/green]**.",
-      "Links": [
-        {
-          "Name": "MIT Lincoln Lab Main Page",
-          "Url": "https://www.msn.com/"
-        },
-        {
-          "Name": "LL Announcements List",
-          "Url": "https://www.google.com/"
-        }
+    "Title": "Announcements",
+    "Links": [
+      { "Text": "Endpoint Advisor Documentation", "Url": "https://github.com/burnoil/EndpointAdvisor" },
+      { "Text": "Release Notes", "Url": "https://github.com/burnoil/EndpointAdvisor/releases" }
+    ],
+    "Message": "Welcome to Lincoln Laboratory Endpoint Advisor (LLEA). Please review the latest updates below."
+  },
+
+  "Targeted": [
+    {
+      "Id": "patching",
+      "Title": "Patching and Updates",
+      "AvailableUpdates": [
+        "Windows 11 Cumulative Update (KB5039302)",
+        "Microsoft Edge Security Rollup",
+        "Endpoint Agent 2.3.1"
       ]
     },
-    "Targeted": [
+    {
+      "Id": "security",
+      "Title": "Security Advisories",
+      "Items": [
+        "CVE-2025-12345 – Update required for OpenSSL",
+        "CVE-2025-23456 – Microsoft Office patch available"
+      ]
+    }
+  ],
+
+  "Support": {
+    "Title": "Support",
+    "Message": "Need help with Endpoint Advisor or patching issues?",
+    "Contacts": [
       {
-        "Condition": {
-          "Type": "Registry",
-          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-          "Name": "Group",
-          "Value": "VPN-Pilot",
-          "Query": "",
-          "Script": ""
-        },
-        "AppendToDefault": true,
-        "Message": {
-          "Text": "**Action Required: New VPN Client for Pilot Testers**",
-          "Details": "Thank you for being part of the VPN pilot program. Please use the \u0027App Updates\u0027 button below to install the new client and provide your feedback.",
-          "Links": [
-            {
-              "Name": "VPN Feedback Form",
-              "Url": "https://your.feedback.url/form"
-            }
-          ]
-        }
+        "Name": "Help Desk",
+        "Email": "helpdesk@example.com",
+        "Phone": "1-800-555-1234"
+      },
+      {
+        "Name": "Security Operations",
+        "Email": "secops@example.com"
       }
+    ],
+    "Links": [
+      { "Text": "Submit a Ticket", "Url": "https://support.example.com/tickets" },
+      { "Text": "Knowledge Base", "Url": "https://support.example.com/kb" }
     ]
-  }
+  },
+
+  "DisableAppended": false
 }
