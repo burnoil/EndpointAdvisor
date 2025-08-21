@@ -33,7 +33,8 @@
               "Url": "https://example.org/pilot"
             }
           ]
-        }
+        },
+        "Enabled": true
       },
       {
         "Condition": {
@@ -50,7 +51,8 @@
               "Url": "https://support.microsoft.com/"
             }
           ]
-        }
+        },
+        "Enabled": true
       }
     ],
     "DisableTargeted": false
