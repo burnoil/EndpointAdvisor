@@ -2,7 +2,7 @@
   "Announcements": {
     "DisableAppended": false,
     "Default": {
-      "Text": "Welcome to [red]Endpoint[/red] Advisor! **Please review the latest updates below.**",
+      "Text": "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**",
       "Details": "If you see __errors__ or have questions, use the links below. You can format with *italic*, **bold**, and [green]color[/green].",
       "Links": [
         { "Name": "Endpoint Advisor Repo", "Url": "https://github.com/burnoil/EndpointAdvisor" },
