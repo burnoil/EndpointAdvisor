@@ -3,7 +3,7 @@
     "DisableAppended": false,
     "Default": {
       "Text": "Welcome to Endpoint Advisor! **Please review the latest updates below.**",
-      "Details": "If you see __errors__ or have questions, use the [color:red]links[/color] below. You can format with *italic*, **bold**, and [color:green]color[/color].",
+      "Details": "If you see __errors__ or have questions, use the [red]links[/red] below. You can format with *italic*, **bold**, and [color:green]color[/color].",
       "Links": [
         { "Name": "Endpoint Advisor Repo", "Url": "https://github.com/burnoil/EndpointAdvisor" },
         { "Name": "Releases", "Url": "https://github.com/burnoil/EndpointAdvisor/releases" }
