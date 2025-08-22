@@ -55,7 +55,7 @@
         "Enabled": false
       }
     ],
-    "DisableTargeted": false
+    "DisableTargeted": true
   },
   "Support": {
     "Text": "Need help with Endpoint Advisor or patching issues?",
