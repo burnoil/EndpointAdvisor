@@ -1,1 +1,77 @@
-{"Announcements":{"Default":{"Text":"Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**","Details":"If you see __errors__ or have questions, use the links below. You can format with *italic*, **bold**, and [green]color[/green].","Links":[{"Name":"Endpoint Advisor Repo","Url":"https://github.com/burnoil/EndpointAdvisor"},{"Name":"Releases","Url":"https://github.com/burnoil/EndpointAdvisor/releases"}]},"Targeted":[{"Text":"[green]BURNOIL[/green]: **Pilot** build is available.","Details":"- Install by end of week\n- Open the ticket if you hit issues","AppendToDefault":true,"DisableAppended":false,"Enabled":false,"Condition":{"Type":"Registry","Path":"HKLM:\\SOFTWARE\\MITLL\\Targeting","Name":"Group","Value":"VPN-Pilot"},"Links":[{"Name":"Pilot Instructions","Url":"https://example.org/pilot"}],"Message":{"Text":"[green]BURNOIL[/green]: **Pilot** build is available.","Details":"- Install by end of week\n- Open the ticket if you hit issues","Links":[{"Name":"Pilot Instructions","Url":"https://example.org/pilot"}]}},{"Text":"**Windows 11** devices require the June CU.","Details":"- Check Windows Update\n- Reboot when prompted","AppendToDefault":false,"DisableAppended":true,"Enabled":false,"Condition":{"Type":"Registry","Path":"","Name":"","Value":""},"Links":[{"Name":"KB Details","Url":"https://support.microsoft.com/"}],"Message":{"Text":"**Windows 11** devices require the June CU.","Details":"- Check Windows Update\n- Reboot when prompted","Links":[{"Name":"KB Details","Url":"https://support.microsoft.com/"}]}}]},"Support":{"Text":"Need help with Endpoint Advisor or patching issues?","Links":[{"Name":"Open a Ticket","Url":"https://support.example.com/tickets/new"},{"Name":"Knowledge Base","Url":"https://support.example.com/kb"},{"Name":"Chat with IT","Url":"https://support.example.com/chat"}]}}
+{
+    "Announcements":  {
+                          "DisableAppended":  false,
+                          "Default":  {
+                                          "Text":  "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**",
+                                          "Details":  "If you see __errors__ or have questions, use the links below. You can format with *italic*, **bold**, and [green]color[/green].",
+                                          "Links":  [
+                                                        {
+                                                            "Name":  "Endpoint Advisor Repo",
+                                                            "Url":  "https://github.com/burnoil/EndpointAdvisor"
+                                                        },
+                                                        {
+                                                            "Name":  "Releases",
+                                                            "Url":  "https://github.com/burnoil/EndpointAdvisor/releases"
+                                                        }
+                                                    ]
+                                      },
+                          "Targeted":  [
+                                           {
+                                               "Condition":  {
+                                                                 "Type":  "Registry",
+                                                                 "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+                                                                 "Name":  "Group",
+                                                                 "Value":  "VPN-Pilot"
+                                                             },
+                                               "AppendToDefault":  true,
+                                               "Message":  {
+                                                               "Text":  "[green]BURNOIL[/green]: **Pilot** build is available.",
+                                                               "Details":  "- Install by end of week\n- Open the ticket if you hit issues",
+                                                               "Links":  [
+                                                                             {
+                                                                                 "Name":  "Pilot Instructions",
+                                                                                 "Url":  "https://example.org/pilot"
+                                                                             }
+                                                                         ]
+                                                           },
+                                               "Enabled":  false
+                                           },
+                                           {
+                                               "Condition":  {
+                                                                 "Type":  "Wmi",
+                                                                 "Query":  "SELECT * FROM Win32_OperatingSystem WHERE Version LIKE \u002711.%\u0027"
+                                                             },
+                                               "AppendToDefault":  false,
+                                               "Message":  {
+                                                               "Text":  "**Windows 11** devices require the June CU.",
+                                                               "Details":  "- Check Windows Update\n- Reboot when prompted",
+                                                               "Links":  [
+                                                                             {
+                                                                                 "Name":  "KB Details",
+                                                                                 "Url":  "https://support.microsoft.com/"
+                                                                             }
+                                                                         ]
+                                                           },
+                                               "Enabled":  false
+                                           }
+                                       ],
+                          "DisableTargeted":  true
+                      },
+    "Support":  {
+                    "Text":  "Need help with Endpoint Advisor or patching issues?",
+                    "Links":  [
+                                  {
+                                      "Name":  "Open a Ticket",
+                                      "Url":  "https://support.example.com/tickets/new"
+                                  },
+                                  {
+                                      "Name":  "Knowledge Base",
+                                      "Url":  "https://support.example.com/kb"
+                                  },
+                                  {
+                                      "Name":  "Chat with IT",
+                                      "Url":  "https://support.example.com/chat"
+                                  }
+                              ]
+                }
+}
