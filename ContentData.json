@@ -19,9 +19,9 @@
       {
         "Condition": {
           "Type": "Registry",
-          "Path": "HKLM:\\SOFTWARE\\LLEA",
-          "Name": "PilotGroup",
-          "Value": "Green"
+          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+          "Name": "Group",
+          "Value": "VPN-Pilot"
         },
         "AppendToDefault": true,
         "Message": {
