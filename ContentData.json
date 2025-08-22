@@ -52,7 +52,7 @@
             }
           ]
         },
-        "Enabled": false
+        "Enabled": true
       }
     ],
     "DisableTargeted": false
