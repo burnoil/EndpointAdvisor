@@ -53,7 +53,7 @@
                                                "Condition":  {
                                                                  "Type":  "Registry",
                                                                  "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-                                                                 "Name":  "Group11",
+                                                                 "Name":  "Group_11",
                                                                  "Value":  "Win11"
                                                              },
                                                "Links":  [
