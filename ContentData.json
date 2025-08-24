@@ -20,7 +20,7 @@
                                                "Details":  "- Install by end of week\n- Open the ticket if you hit issues",
                                                "AppendToDefault":  true,
                                                "DisableAppended":  false,
-                                               "Enabled":  false,
+                                               "Enabled":  true,
                                                "Condition":  {
                                                                  "Type":  "Registry",
                                                                  "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
