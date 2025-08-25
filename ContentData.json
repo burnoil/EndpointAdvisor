@@ -1,4 +1,6 @@
 {
+    "LatestVersion": "6.1.0",
+    "UpdateUrl": "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/main/LLEA.ps1",
     "Announcements":  {
                           "Default":  {
                                           "Text":  "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**",
@@ -92,4 +94,5 @@
                                   }
                               ]
                 }
+
 }
