@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 5.0.0 (Rebranded from LLNOTIFY)
+# Version 6.0.0 (Definitive stability and compatibility release)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "5.0.0"
+$ScriptVersion = "6.0.0"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -49,6 +49,8 @@ $global:RestartAlertAcknowledged = $false
 
 # Global flag to track pending update state
 $global:UpdatesPending = $false
+$global:CurrentUpdateState = ""
+$global:LastAnnouncementState = ""
 
 # Global variables for certificate check caching
 $global:LastCertificateCheck = $null
@@ -185,7 +187,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/LLNOTIFY/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -194,6 +196,7 @@ function Get-DefaultConfig {
         }
         AnnouncementsLastState = "{}"
         SupportLastState       = "{}"
+        LastSeenUpdateState   = ""
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
@@ -257,7 +260,10 @@ Write-Log "Main icon path: $mainIconPath" -Level "INFO"
 Write-Log "Warning icon path: $warningIconPath" -Level "INFO"
 
 $defaultContentData = @{
-    Announcements = @{ Text = "No announcements at this time."; Details = ""; Links = @() }
+    Announcements = @{ 
+        Default = @{ Text = "No announcements at this time."; Details = ""; Links = @() }
+        Targeted = @()
+    }
     Support = @{ Text = "Contact IT Support."; Links = @() }
 }
 
@@ -391,6 +397,7 @@ $xamlString = @"
             <StackPanel>
               <TextBlock x:Name="AnnouncementsText" FontSize="11" TextWrapping="Wrap"/>
               <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+              <StackPanel x:Name="AppendedAnnouncementsPanel" Orientation="Vertical" Margin="0,5,0,0" Visibility="Collapsed"/>
               <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
               <TextBlock x:Name="AnnouncementsSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
             </StackPanel>
@@ -500,7 +507,7 @@ try {
         "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
         "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
         "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
-        "PatchingAlertIcon"
+        "PatchingAlertIcon", "AppendedAnnouncementsPanel"
     )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -560,6 +567,8 @@ try {
             $global:PatchingExpander.Add_Expanded({
                 if ($global:PatchingAlertIcon) { $global:PatchingAlertIcon.Visibility = "Hidden" }
                 $global:UpdatesPending = $false 
+                $config.LastSeenUpdateState = $global:CurrentUpdateState
+                Save-Configuration -Config $config
                 Update-TrayIcon
             })
         }
@@ -598,10 +607,10 @@ try {
         if ($global:ClearAlertsButton) {
             $global:ClearAlertsButton.Add_Click({
                 Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
-                if ($global:contentData) {
-                    $config.AnnouncementsLastState = $global:contentData.Data.Announcements | ConvertTo-Json -Compress
-                    $config.SupportLastState = $global:contentData.Data.Support | ConvertTo-Json -Compress
-                }
+                
+                $config.AnnouncementsLastState = $global:LastAnnouncementState
+                $config.SupportLastState = ($global:contentData.Data.Support | ConvertTo-Json -Compress)
+                
                 $window.Dispatcher.Invoke({
                     if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
                     if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
@@ -627,6 +636,42 @@ catch {
 # ============================================================
 # H) Modularized System Information Functions
 # ============================================================
+function Get-ActiveAnnouncement {
+    param($AnnouncementsObject)
+    $base = $AnnouncementsObject.Default
+    $appended = @()
+    foreach ($targeted in $AnnouncementsObject.Targeted) {
+        if ($targeted.Enabled -ne $true) { continue } # Skip if not enabled
+        if ($targeted.Condition.Type -eq "Registry") {
+            $path = $targeted.Condition.Path
+            $name = $targeted.Condition.Name
+            $value = $targeted.Condition.Value
+            try {
+                $reg = Get-ItemProperty -Path $path -Name $name -ErrorAction Stop
+                if ($reg.$name -eq $value) {
+                    if ($targeted.AppendToDefault) {
+                        $appended += $targeted
+                    } else {
+                        return @{
+                            Base = $targeted
+                            Appended = @()
+                        }
+                    }
+                }
+            } catch {
+                # Fail silently if registry check fails
+            }
+        }
+    }
+    return @{
+        Base = $base
+        Appended = $appended
+    }
+  
+    Write-Log "Finished processing targeted announcements. Found $($appendedMessages.Count) messages to append." -Level "INFO"
+    return @{ Base = $finalBaseMessage; Appended = $appendedMessages }
+}
+
 function New-HyperlinkBlock {
     param([string]$Name, [string]$Url)
     $tb = New-Object System.Windows.Controls.TextBlock
@@ -640,14 +685,9 @@ function New-HyperlinkBlock {
 
 function Validate-ContentData {
     param($Data)
-    if (-not ($Data.PSObject.Properties.Match('Announcements') -and $Data.PSObject.Properties.Match('Support'))) {
+    # This check needs to be flexible for both the old and new JSON structure.
+    if (-not $Data.PSObject.Properties.Match('Announcements') -or -not $Data.PSObject.Properties.Match('Support')) {
         throw "JSON data is missing 'Announcements' or 'Support' top-level property."
-    }
-    if (-not $Data.Announcements.PSObject.Properties.Match('Text')) {
-        throw "Announcements data is missing 'Text' property."
-    }
-    if (-not $Data.Support.PSObject.Properties.Match('Text')) {
-        throw "Support data is missing 'Text' property."
     }
     return $true
 }
@@ -806,20 +846,34 @@ function Get-PendingRestartStatus {
         'HKLM:\SOFTWARE\Wow6432Node\BigFix\EnterpriseClient\BESPendingRestart',
         'HKLM:\SOFTWARE\BigFix\EnterpriseClient\BESPendingRestart'
     )
+    
+    # -- DIAGNOSTIC LOGGING: Find which key is triggering the alert --
+    $foundKey = $null
+    foreach ($key in $rebootKeys) {
+        if (Test-Path $key) {
+            $foundKey = $key
+            break # Stop after finding the first one
+        }
+    }
+
+    if ($foundKey) {
+        Write-Log "Pending restart DETECTED. Triggering key: $foundKey" -Level "WARNING"
+    }
+    # -- END DIAGNOSTIC LOGGING --
+
     $wasPending = $global:PendingRestart
-    $isNowPending = $rebootKeys | ForEach-Object { Test-Path $_ } | Where-Object { $_ } | Select-Object -First 1
+    $isNowPending = [bool]$foundKey
     
-    $global:PendingRestart = [bool]$isNowPending
+    $global:PendingRestart = $isNowPending
     
-    # If the state has changed from not-pending to pending, reset the acknowledgment flag
     if ($global:PendingRestart -and -not $wasPending) {
         $global:RestartAlertAcknowledged = $false
     }
     
     if ($global:PendingRestart) { 
-        return "System restart required." 
+        "System restart required." 
     } else { 
-        return "No system restart required." 
+        "No system restart required." 
     }
 }
 
@@ -842,13 +896,13 @@ function Get-ECMUpdateStatus {
 
         if ($null -eq $pendingUpdates) {
             return [PSCustomObject]@{
-                StatusText        = "**Windows OS Patches and Updates:** No Updates Pending."
+                StatusText        = "Windows OS Patches and Updates: No Updates Pending."
                 HasPendingUpdates = $false
             }
         }
 
         $pendingCount = ($pendingUpdates | Measure-Object).Count
-        $statusMessage = "**Windows OS Patches and Updates:** $pendingCount update(s) pending [red]**(restart required)**[/red]."
+        $statusMessage = "Windows OS Patches and Updates: $pendingCount update(s) pending (restart required)."
 
         return [PSCustomObject]@{
             StatusText        = $statusMessage
@@ -858,7 +912,7 @@ function Get-ECMUpdateStatus {
     catch {
         Write-Log "Could not retrieve ECM update status. Client may not be installed. Error: $($_.Exception.Message)" -Level "INFO"
         return [PSCustomObject]@{
-            StatusText        = "**Windows OS Patches and Updates:** Client not found or inaccessible."
+            StatusText        = "Windows OS Patches and Updates: Client not found or inaccessible."
             HasPendingUpdates = $false
         }
     }
@@ -871,14 +925,14 @@ function Update-PatchingAndSystem {
     
     # --- BigFix Update Logic ---
     $fixletPath = "C:\temp\X-Fixlet-Source_Count.txt"
-    $bigfixStatusText = "**Application Updates:** No Updates Pending."
+    $bigfixStatusText = "Application Updates: No Updates Pending."
     $showBigFixButton = $false
     try {
         if (Test-Path $fixletPath) {
             $fileContent = Get-Content -Path $fixletPath
             if ($fileContent) { 
                 $multiLineContent = $fileContent -join "`n"
-                $bigfixStatusText = "**Application Updates:**`n" + $multiLineContent
+                $bigfixStatusText = "Application Updates:`n" + $multiLineContent
                 $showBigFixButton = $true
                 Write-Log "Successfully read fixlet data from $fixletPath" -Level "INFO"
             } else {
@@ -888,7 +942,7 @@ function Update-PatchingAndSystem {
             Write-Log "$fixletPath not found." -Level "WARNING"
         }
     } catch {
-        $bigfixStatusText = "**Application Updates:** Error reading update data."
+        $bigfixStatusText = "Application Updates: Error reading update data."
         Write-Log "Error reading BigFix data: $($_.Exception.Message)" -Level "ERROR"
     }
 
@@ -896,12 +950,13 @@ function Update-PatchingAndSystem {
     $ecmResult = Get-ECMUpdateStatus
     $ecmStatusText = $ecmResult.StatusText
     $showEcmButton = $ecmResult.HasPendingUpdates
-
+    
     # --- Update the global alert flags ---
-    if ($global:PatchingExpander.IsExpanded) {
-        $global:UpdatesPending = $false
-    } else {
+    $global:CurrentUpdateState = "$bigfixStatusText`n$ecmStatusText"
+    if ($global:CurrentUpdateState -ne $config.LastSeenUpdateState) {
         $global:UpdatesPending = $showBigFixButton -or $showEcmButton
+    } else {
+        $global:UpdatesPending = $false
     }
     
     # --- Update the UI ---
@@ -919,11 +974,13 @@ function Update-PatchingAndSystem {
         $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
         
         # Update BigFix UI elements
-        Convert-MarkdownToTextBlock -Text $bigfixStatusText -TargetTextBlock $global:BigFixStatusText
+        $global:BigFixStatusText.FontWeight = "Bold"
+        $global:BigFixStatusText.Text = $bigfixStatusText
         $global:BigFixLaunchButton.Visibility = if ($showBigFixButton) { "Visible" } else { "Collapsed" }
         
         # Update ECM UI elements
-        Convert-MarkdownToTextBlock -Text $ecmStatusText -TargetTextBlock $global:ECMStatusText
+        $global:ECMStatusText.FontWeight = "Bold"
+        $global:ECMStatusText.Text = $ecmStatusText
         $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
 
         # Conditionally show the alert dot for the whole section
@@ -951,7 +1008,7 @@ function Convert-MarkdownToTextBlock {
 
         $TargetTextBlock.Inlines.Clear()
         
-        $regexColor = "\[(green|red|yellow)\](.*?)\[/\1\]"
+        $regexColor = "\[(green|red|yellow|blue)\](.*?)\[/\1\]"
         $regexBold = "\*\*(.*?)\*\*"
         $regexItalic = "\*(.*?)\*"
         $regexUnderline = "__(.*?)__"
@@ -964,7 +1021,9 @@ function Convert-MarkdownToTextBlock {
         
         foreach ($match in $colorMatches) {
             $placeholder = "{COLORPH$placeholderCounter}"
-            $isBold = $Text.Substring($match.Index - 2, 2) -eq "**" -and $Text.Substring($match.Index + $match.Length, 2) -eq "**"
+            $leftOk  = ($match.Index -ge 2) -and ($Text.Substring($match.Index - 2, 2) -eq "**")
+			$rightOk = (($match.Index + $match.Length + 2) -le $Text.Length) -and ($Text.Substring($match.Index + $match.Length, 2) -eq "**")
+			$isBold  = $leftOk -and $rightOk
             $colorPlaceholders[$placeholder] = @{
                 Text = $match.Groups[2].Value
                 Color = $match.Groups[1].Value
@@ -1203,36 +1262,89 @@ function Process-InnerMarkdown {
 
 function Update-Announcements {
     Write-Log "Updating Announcements section..." -Level "INFO"
-    $newAnnouncementsObject = $global:contentData.Data.Announcements
-    if (-not $newAnnouncementsObject) { return }
-
-    $newJsonState = $newAnnouncementsObject | ConvertTo-Json -Compress
     
+    $announcementData = Get-ActiveAnnouncement -AnnouncementsObject $global:contentData.Data.Announcements
+    if (-not $announcementData) {
+        Write-Log "Could not determine an active announcement. Section will not be updated." -Level "WARNING"
+        return
+    }
+    
+    $baseMessage = $announcementData.Base
+    $appendedMessages = $announcementData.Appended
+
+    # We build a temporary composite object to check if the *final displayed content* is new.
+    $compositeObjectForStateCheck = @{
+        Base = $baseMessage
+        Appended = $appendedMessages
+    }
+    
+    $global:LastAnnouncementState = $compositeObjectForStateCheck | ConvertTo-Json -Compress
     $isNew = $false
-    if ($config.AnnouncementsLastState -ne $newJsonState) {
+    if ($config.AnnouncementsLastState -ne $global:LastAnnouncementState) {
         Write-Log "New announcement content detected." -Level "INFO"
         $isNew = $true
     }
 
     $window.Dispatcher.Invoke({
+        # --- Handle Alerts ---
         if ($isNew) {
             if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
             if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
         }
-        if ($global:AnnouncementsText) {
-            Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Text -TargetTextBlock $global:AnnouncementsText
-        }
-        if ($global:AnnouncementsDetailsText) {
-            Convert-MarkdownToTextBlock -Text $newAnnouncementsObject.Details -TargetTextBlock $global:AnnouncementsDetailsText
-        }
-        if ($global:AnnouncementsLinksPanel) {
-            $global:AnnouncementsLinksPanel.Children.Clear()
-            if ($newAnnouncementsObject.Links) {
-                foreach ($link in $newAnnouncementsObject.Links) {
-                    $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+
+        # --- Render Base Message ---
+        Convert-MarkdownToTextBlock -Text $baseMessage.Text -TargetTextBlock $global:AnnouncementsText
+        Convert-MarkdownToTextBlock -Text $baseMessage.Details -TargetTextBlock $global:AnnouncementsDetailsText
+
+        # --- Render Appended Messages ---
+        $global:AppendedAnnouncementsPanel.Children.Clear()
+        if ($appendedMessages.Count -gt 0) {
+            $global:AppendedAnnouncementsPanel.Visibility = "Visible"
+            foreach ($message in $appendedMessages) {
+                # Add a separator before each appended block
+                $separator = New-Object System.Windows.Controls.Separator
+                $separator.Margin = [System.Windows.Thickness]::new(0,10,0,10)
+                $global:AppendedAnnouncementsPanel.Children.Add($separator)
+
+                # Add Text block if it exists
+                if (-not [string]::IsNullOrEmpty($message.Text)) {
+                    $appendedText = New-Object System.Windows.Controls.TextBlock
+                    $appendedText.FontSize = 11
+                    $appendedText.TextWrapping = "Wrap"
+                    Convert-MarkdownToTextBlock -Text $message.Text -TargetTextBlock $appendedText
+                    $global:AppendedAnnouncementsPanel.Children.Add($appendedText)
+                }
+
+                # Add Details block if it exists
+                if (-not [string]::IsNullOrEmpty($message.Details)) {
+                    $appendedDetails = New-Object System.Windows.Controls.TextBlock
+                    $appendedDetails.FontSize = 11
+                    $appendedDetails.TextWrapping = "Wrap"
+                    $appendedDetails.Margin = [System.Windows.Thickness]::new(0,5,0,0)
+                    Convert-MarkdownToTextBlock -Text $message.Details -TargetTextBlock $appendedDetails
+                    $global:AppendedAnnouncementsPanel.Children.Add($appendedDetails)
                 }
             }
+        } else {
+            $global:AppendedAnnouncementsPanel.Visibility = "Collapsed"
         }
+
+        # --- Combine and Render All Links ---
+        $allLinks = [System.Collections.Generic.List[object]]::new()
+        if ($baseMessage.Links) { $allLinks.AddRange($baseMessage.Links) }
+        if ($appendedMessages) {
+            foreach ($message in $appendedMessages) {
+                if ($message.Links) { $allLinks.AddRange($message.Links) }
+            }
+        }
+
+        $global:AnnouncementsLinksPanel.Children.Clear()
+        if ($allLinks.Count -gt 0) {
+            foreach ($link in $allLinks) {
+                $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+            }
+        }
+
         if ($global:AnnouncementsSourceText) {
             $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
         }
@@ -1354,22 +1466,17 @@ function Initialize-TrayIcon {
             (New-Object System.Windows.Forms.ToolStripMenuItem("Exit", $null, { $window.Dispatcher.InvokeShutdown() }))
         ))
         $global:TrayIcon.ContextMenuStrip = $ContextMenuStrip
-        $global:TrayIcon.add_MouseClick({ if ($_.Button -eq 'Left') { Toggle-WindowVisibility } })
+        $global:TrayIcon.add_MouseClick({
+            if ($_.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
+                Toggle-WindowVisibility
+            }
+        })
     } catch { Handle-Error $_.Exception.Message -Source "Initialize-TrayIcon" }
 }
 
 # ============================================================
 # K) Window Visibility Management
 # ============================================================
-function Set-WindowPosition {
-    Add-Type -AssemblyName System.Windows.Forms
-    $mousePos = [System.Windows.Forms.Cursor]::Position
-    $screen = [System.Windows.Forms.Screen]::AllScreens | Where-Object { $_.Bounds.Contains($mousePos) } | Select-Object -First 1
-    if (-not $screen) { $screen = [System.Windows.Forms.Screen]::PrimaryScreen }
-    $window.Left = $screen.WorkingArea.X + ($screen.WorkingArea.Width - $window.ActualWidth) / 2
-    $window.Top = $screen.WorkingArea.Y + ($screen.WorkingArea.Height - $window.ActualHeight) / 2
-}
-
 function Toggle-WindowVisibility {
     $window.Dispatcher.Invoke({
         if ($window.IsVisible) {
@@ -1383,9 +1490,9 @@ function Toggle-WindowVisibility {
             $window.Show()
             $global:BlinkingTimer.Stop()
             Update-TrayIcon
-            Set-WindowPosition
+            
+            # Use the .Activate() method for robust foregrounding
             $window.Activate()
-            $window.Topmost = $true; $window.Topmost = $false
         }
     })
 }
