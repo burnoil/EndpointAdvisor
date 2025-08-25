@@ -1,23 +1,44 @@
-folder create "C:\temp"
+## ============================================================================
+## PRE-INSTALLATION  — BigFix Client version gate
+## ============================================================================
+# Set the version you’re deploying and the installer filename in .\Files
+[Version]$RequiredVersion = '11.0.1.123'   # <- change to your target version
+$ClientExe               = 'BESClient-11.0.1.123-x64.exe'  # <- change to your actual EXE name
 
-// Check for open offers whose source fixlet is from the "LL ISD Managed (Workstations)" site and is an "Update"
-if {number of open bes actions whose (offer of it and exists source fixlet of it whose (value of header "X-Fixlet-Source" of it contains "Update" and name of site of it is "LL ISD Managed (Workstations)")) > 0}
-   appendfile {concatenation "%0d%0a" of unique values of names of open bes actions whose (offer of it and exists source fixlet of it whose (value of header "X-Fixlet-Source" of it contains "Update" and name of site of it is "LL ISD Managed (Workstations)"))}
-endif
+# Resolve BESClient.exe path (handles x86/x64)
+$CandidatePaths = @(
+    "$env:ProgramFiles(x86)\BigFix Enterprise\BES Client\BESClient.exe",
+    "$env:ProgramFiles\BigFix Enterprise\BES Client\BESClient.exe"
+) | Where-Object { $_ -and $_.Trim() -ne '' }  # filter nulls on 32-bit systems
 
-// Check for open offers whose source fixlet is from the "LL Application Deployments" site and is an "Update"
-if {number of open bes actions whose (offer of it and exists source fixlet of it whose (value of header "X-Fixlet-Source" of it contains "Update" and name of site of it is "LL Application Deployments)")) > 0}
-   appendfile {concatenation "%0d%0a" of unique values of names of open bes actions whose (offer of it and exists source fixlet of it whose (value of header "X-Fixlet-Source" of it contains "Update" and name of site of it is "LL Application Deployments)"))}
-endif
+$BESClientExe = $CandidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-// Only move if __appendfile was created (i.e. it exists)
-if {exists file "__appendfile"}
-    // Updated filename to be more descriptive
-    delete "C:\Temp\Pending_SSA_Offers_Count.txt" // safely remove if already exists
-    move __appendfile "C:\Temp\Pending_SSA_Offers_Count.txt"
-endif
+if ($BESClientExe) {
+    try {
+        $current = [Version]((Get-Item $BESClientExe).VersionInfo.FileVersion)
+        Write-Log "BigFix Client detected at '$BESClientExe' | Current version: $current | Required: $RequiredVersion"
+        if ($current -ge $RequiredVersion) {
+            Write-Log "BigFix Client is already $current (>= $RequiredVersion). Skipping installation."
+            Exit-Script -ExitCode 0
+        }
+        else {
+            Write-Log "BigFix Client is older ($current). Proceeding with upgrade to $RequiredVersion."
+        }
+    }
+    catch {
+        Write-Log -Message "Failed reading file version from '$BESClientExe'. Will proceed with install. Error: $($_.Exception.Message)" -Severity 2
+    }
+}
+else {
+    Write-Log "BigFix Client not detected. Proceeding with fresh install to $RequiredVersion."
+}
 
-// Cleanup if no pending "Update" offers from the specified sites were found
-if {number of open bes actions whose (offer of it and exists source fixlet of it whose (value of header "X-Fixlet-Source" of it contains "Update" and name of site of it is "LL ISD Managed (Workstations)")) = 0 and number of open bes actions whose (offer of it and exists source fixlet of it whose (value of header "X-Fixlet-Source" of it contains "Update" and name of site of it is "LL Application Deployments)")) = 0}
-delete "C:\Temp\Pending_SSA_Offers_Count.txt"
-endif
+## ============================================================================
+## INSTALLATION — normal silent install
+## ============================================================================
+# Example silent parameters for the BigFix Client EXE that wraps the MSI.
+# Add MSI logging if you like.
+$msiParams = '/qn RESTART=ReallySuppress'
+$exeParams = "/s /v`"$msiParams`""
+
+Execute-Process -Path "$dirFiles\$ClientExe" -Parameters $exeParams -WindowStyle Hidden -PassThru | Out-Null
