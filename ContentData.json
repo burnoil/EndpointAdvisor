@@ -1,7 +1,7 @@
 {
     "Announcements":  {
                           "Default":  {
-                                          "Text":  "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.** TEST",
+                                          "Text":  "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**",
                                           "Details":  "If you see __errors__ or have questions, use the links below. You can format with *italic*, **bold**, and [green]color[/green].",
                                           "Links":  [
                                                         {
@@ -92,4 +92,5 @@
                                   }
                               ]
                 }
+
 }
