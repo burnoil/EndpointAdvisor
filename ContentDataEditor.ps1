@@ -1,5 +1,5 @@
 # ContentData JSON Editor for Lincoln Laboratory Endpoint Advisor
-# Version 3.5 - Fixed save logic.
+# Version 3.6 - Fixed Help tab text display issue by simplifying content assignment and adding logging
 # Built for editing JSON from a user-specified repository (default: https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json)
 
 # Ensure script directory
@@ -254,12 +254,13 @@ function Save-ToGitHub {
             return $false
         }
 
-        # Parse the configured JSON RAW URL you load from
-        $u       = [Uri]$global:JsonUrl
-        $rawHost = $u.Host
-        $segs    = $u.AbsolutePath.Trim('/').Split('/')
+        # Be explicit about TLS (older PS defaults can fail against GHES)
+        try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-        $provider = $null
+        $u        = [Uri]$global:JsonUrl
+        $rawHost  = $u.Host
+        $segs     = $u.AbsolutePath.Trim('/').Split('/')
+
         $owner = $null; $repo = $null; $branch = $null; $filePath = $null
         $apiBases = @()
         $headers = @{
@@ -268,118 +269,75 @@ function Save-ToGitHub {
             'User-Agent'  = "ContentDataEditor"
         }
 
-        function Join-Segments([int]$start) {
-            if ($start -ge $segs.Length) { return "" }
-            ($segs[$start..($segs.Length-1)] -join '/')
+        function Join-Segments([int]$start, [string[]]$parts) {
+            if ($start -ge $parts.Length) { return "" }
+            ($parts[$start..($parts.Length-1)] -join '/')
         }
 
-        # -------- GitHub / GHES RAW patterns --------
+        # --- RAW URL patterns we support (GitHub / GHES) ---
 
-        # Public GitHub: raw.githubusercontent.com/<owner>/<repo>/<branch>/<path...>
-        if ($rawHost.ToLower() -eq 'raw.githubusercontent.com' -and $segs.Length -ge 4) {
-            $provider = 'github'
-            $owner    = $segs[0]
-            $repo     = $segs[1]
-            $branch   = $segs[2]
-            $filePath = Join-Segments 3
+        if ($rawHost -eq 'raw.githubusercontent.com' -and $segs.Length -ge 4) {
+            # Public GitHub: raw.githubusercontent.com/<owner>/<repo>/<branch>/<path...>
+            $owner    = $segs[0]; $repo = $segs[1]; $branch = $segs[2]
+            $filePath = Join-Segments 3 $segs
             $apiBases = @('https://api.github.com')
         }
-        # GHES A: <ghe-host>/raw/<owner>/<repo>/<branch>/<path...>
         elseif ($segs.Length -ge 5 -and $segs[0].ToLower() -eq 'raw') {
-            $provider = 'github'
-            $owner    = $segs[1]
-            $repo     = $segs[2]
-            $branch   = $segs[3]
-            $filePath = Join-Segments 4
-            $apiBases = @("https://$rawHost/api/v3", "https://api.$rawHost")
+            # GHES style A: servername/raw/<owner>/<repo>/<branch>/<path...>
+            $owner    = $segs[1]; $repo = $segs[2]; $branch = $segs[3]
+            $filePath = Join-Segments 4 $segs
+            $apiBases = @("https://$rawHost/api/v3", "https://api.$rawHost", "https://github.$rawHost/api/v3")
         }
-        # GHES B: <ghe-host>/<owner>/<repo>/raw/<branch>/<path...>
         elseif ($segs.Length -ge 5 -and $segs[2].ToLower() -eq 'raw') {
-            $provider = 'github'
-            $owner    = $segs[0]
-            $repo     = $segs[1]
-            $branch   = $segs[3]
-            $filePath = Join-Segments 4
-            $apiBases = @("https://$rawHost/api/v3", "https://api.$rawHost")
+            # GHES style B: servername/<owner>/<repo>/raw/<branch>/<path...>
+            $owner    = $segs[0]; $repo = $segs[1]; $branch = $segs[3]
+            $filePath = Join-Segments 4 $segs
+            $apiBases = @("https://$rawHost/api/v3", "https://api.$rawHost", "https://github.$rawHost/api/v3")
         }
-        # GHES C: raw.<ghe-host>/<owner>/<repo>/<branch>/<path...>
         elseif ($segs.Length -ge 4 -and ($rawHost -match '^raw\.(.+)$')) {
-            $provider = 'github'
-            $owner    = $segs[0]
-            $repo     = $segs[1]
-            $branch   = $segs[2]
-            $filePath = Join-Segments 3
-
-            $gheHost  = $Matches[1]               # strip "raw."
-            $apiBases = @("https://$gheHost/api/v3", "https://api.$gheHost")
+            # GHES style C (yours): raw.servername/<owner>/<repo>/<branch>/<path...>
+            $owner    = $segs[0]; $repo = $segs[1]; $branch = $segs[2]
+            $filePath = Join-Segments 3 $segs
+            $baseHost = $Matches[1]  # strip "raw."
+            $apiBases = @("https://$baseHost/api/v3", "https://api.$baseHost", "https://github.$baseHost/api/v3")
         }
         else {
-            throw "Unsupported repository RAW URL pattern: $($global:JsonUrl)"
+            throw "Unsupported RAW URL pattern: $($global:JsonUrl)"
         }
 
-        # Normalize refs/heads/<branch>
         if ($branch -match '^refs/heads/(.+)$') { $branch = $Matches[1] }
         if ([string]::IsNullOrWhiteSpace($filePath)) { throw "Cannot determine file path from URL: $($global:JsonUrl)" }
 
-        Write-Log "Parsed URL → provider=github; owner=$owner; repo=$repo; branch=$branch; filePath=$filePath"
+        # Escape each segment of the file path safely
+        $filePathEncoded = ($filePath -split '/') | ForEach-Object { [Uri]::EscapeDataString($_) } | ForEach-Object { $_ } -join '/'
+
+        Write-Log "Parsed → owner=$owner; repo=$repo; branch=$branch; filePath=$filePath"
         Write-Log "API candidates: $($apiBases -join ', ')"
 
-        # -------- Save via GitHub/GHES Contents API --------
         $lastErr = $null
+
         foreach ($base in $apiBases) {
             try {
-                $apiUrl = "$base/repos/$owner/$repo/contents/$filePath"
+                # Normalize base (trim trailing slash)
+                if ($base.EndsWith('/')) { $base = $base.TrimEnd('/') }
 
-                # Get current SHA (if file exists)
+                # Build URLs in a safer way; also check they're well-formed
+                $apiUrl    = "$base/repos/$owner/$repo/contents/$filePathEncoded"
+                $metaUrl   = "$apiUrl?ref=$([Uri]::EscapeDataString($branch))"
+
+                if (-not [Uri]::IsWellFormedUriString($apiUrl,   [UriKind]::Absolute)) { throw "Bad API URL: $apiUrl" }
+                if (-not [Uri]::IsWellFormedUriString($metaUrl,  [UriKind]::Absolute)) { throw "Bad META URL: $metaUrl" }
+
+                Write-Log "Checking existing file via: $metaUrl"
+
+                # Does the file already exist? (to fetch SHA)
                 $sha = $null
                 try {
-                    $meta = Invoke-RestMethod -Uri "$apiUrl?ref=$branch" -Headers $headers -Method Get
+                    $meta = Invoke-RestMethod -Uri $metaUrl -Headers $headers -Method Get
                     if ($meta -and $meta.sha) { $sha = $meta.sha }
                 } catch {
-                    # 404 means new file—proceed without SHA
-                    if (-not ($_.Exception.Response -and $_.Exception.Response.StatusCode.Value__ -eq 404)) { throw }
-                }
+                    # If it's not a 404, rethrow; otherwise treat
 
-                # Base64-encode JSON content (GitHub requires base64)
-                $jsonText   = $JsonObject | ConvertTo-Json -Depth 10
-                $contentB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($jsonText))
-
-                $body = @{
-                    message = "Update $filePath via ContentDataEditor"
-                    content = $contentB64
-                    branch  = $branch
-                }
-                if ($sha) { $body.sha = $sha }
-
-                $resp = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Put -Body ($body | ConvertTo-Json -Compress)
-                Write-Log "Saved via $apiUrl"
-                [System.Windows.MessageBox]::Show("Saved successfully to $owner/$repo ($branch): $filePath","Success") | Out-Null
-                return $true
-            } catch {
-                $lastErr = $_
-                Write-Log "Save via $base failed: $($_.Exception.Message)"
-                continue
-            }
-        }
-
-        if ($lastErr) {
-            $msg = $lastErr.Exception.Message
-            if ($lastErr.Exception.Response) {
-                try {
-                    $rs = $lastErr.Exception.Response.GetResponseStream()
-                    $r  = New-Object IO.StreamReader($rs)
-                    $msg += "`nAPI Response: " + $r.ReadToEnd()
-                } catch {}
-            }
-            throw $msg
-        }
-
-    } catch {
-        Write-Log "GitHub save failed: $($_.Exception.Message)"
-        [System.Windows.MessageBox]::Show("Failed to save: $($_.Exception.Message)", "Error", "OK", "Error") | Out-Null
-        return $false
-    }
-}
 
 # Function to convert Markdown to TextBlock (based on LLEA.ps1's Convert-MarkdownToTextBlock)
 function Convert-MarkdownToTextBlock {
