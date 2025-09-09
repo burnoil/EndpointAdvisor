@@ -1,4 +1,72 @@
 {
+  "Tabs": [
+    {
+      "Header": "Dashboard",
+      "Type": "Dashboard",
+      "Content": {
+        "Announcements": {
+          "Default": {
+            "Text": "Welcome! Please review system status updates below.",
+            "Details": "Regular maintenance is scheduled for this weekend. [green]No action is required at this time.[/green]",
+            "Links": [
+              {
+                "Name": "View Maintenance Schedule",
+                "Url": "http://example.com/schedule"
+              }
+            ]
+          },
+          "Targeted": [
+            {
+              "Enabled": true,
+              "AppendToDefault": true,
+              "Text": "**ACTION REQUIRED:** Your VPN client is outdated.",
+              "Details": "Please update your software from the app store to ensure continued access.",
+              "Links": [
+                {
+                  "Name": "Go to App Store",
+                  "Url": "http://example.com/appstore"
+                }
+              ],
+              "Condition": {
+                "Type": "Registry",
+                "Path": "HKLM:\\SOFTWARE\\YourApp",
+                "Name": "Version",
+                "Value": "1.0"
+              }
+            }
+          ]
+        },
+        "Support": {
+          "Text": "For technical assistance, please contact the IT Help Desk or visit our portal.",
+          "Links": [
+            {
+              "Name": "Open a Support Ticket",
+              "Url": "http://example.com/support"
+            },
+            {
+              "Name": "Knowledge Base",
+              "Url": "http://example.com/kb"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "Header": "About This App",
+      "Type": "Markdown",
+      "Content": {
+        "MarkdownText": "### Lincoln Laboratory Endpoint Advisor\n\n**Version:** {version}\n\nThis application is designed to provide timely announcements, system status, and support information directly to your endpoint. It is managed by the IT department.\n\nFor any questions, please refer to the links on the Support section of the Dashboard."
+      }
+    },
+    {
+      "Header": "Logs",
+      "Type": "LogViewer",
+      "Content": {}
+    }
+  ]
+}
+
+{
     "Announcements":  {
                           "Default":  {
                                           "Text":  "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**",
@@ -94,3 +162,4 @@
                 }
 
 }
+
