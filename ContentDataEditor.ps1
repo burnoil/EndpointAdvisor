@@ -1,6 +1,6 @@
 # ContentData JSON Editor for Lincoln Laboratory Endpoint Advisor
-# Version 3.5 - Modified for GitHub Enterprise Server support with configurable API base URL
-# Built for editing JSON from a user-specified repository (default: https://raw.servername/EndpointEngineering/EndpointAdvisor/main/ContentData.json)
+# Version 3.4 - Fixed Help tab text display issue by simplifying content assignment and adding logging
+# Built for editing JSON from a user-specified repository (default: https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json)
 
 # Ensure script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -23,7 +23,7 @@ $DefaultJson = @'
 }
 '@
 
-# Configuration file for persisting repository URL, API base URL, and PAT
+# Configuration file for persisting repository URL and PAT
 $ConfigPath = Join-Path $ScriptDir "ContentDataEditor.config.json"
 $PatPath = Join-Path $ScriptDir "ContentDataEditor.cred.xml"
 $LogPath = Join-Path $ScriptDir "ContentDataEditor.log"
@@ -32,26 +32,21 @@ $LogPath = Join-Path $ScriptDir "ContentDataEditor.log"
 $helpContent = @'
 **Welcome to the ContentData JSON Editor**
 
-This tool allows you to edit the JSON content for the Lincoln Laboratory Endpoint Advisor app, which displays announcements and support information on user systems. The content is stored in a JSON file, typically hosted on a Git repository (e.g., GitHub Enterprise Server), and this editor simplifies updating that content.
+This tool allows you to edit the JSON content for the Lincoln Laboratory Endpoint Advisor app, which displays announcements and support information on user systems. The content is stored in a JSON file, typically hosted on a GitHub repository, and this editor simplifies updating that content.
 
 **1. Setting Up the Editor**
 
 - **GitHub Personal Access Token (PAT)**:
-  - To save changes directly to the Git repository, you need a Personal Access Token with `repo` scope or `Contents: Read & Write` permissions.
+  - To save changes directly to the GitHub repository, you need a GitHub Personal Access Token with `repo` scope or `Contents: Read &amp; Write` permissions.
   - Enter the PAT in the **GitHub PAT** field at the top of the editor (it displays as asterisks for security).
-  - Press **Enter** or click the **Save PAT** button to save it securely to `ContentDataEditor.cred.xml`.
+  - Press **Enter** or click the **Save PAT** button to save it securely to `C:\Scripts\JEdit\ContentDataEditor.cred.xml`.
   - A "GitHub PAT saved securely!" message confirms success. If you see an error, ensure the PAT is valid and not empty.
 
 - **Repository URL**:
-  - The default URL is `https://raw.servername/EndpointEngineering/EndpointAdvisor/main/ContentData.json`.
+  - The default URL is `https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json`.
   - To use a different repository, update the **Repository URL** field with the URL to your `ContentData.json` file and press **Enter**.
   - The editor will fetch and load the JSON content, displaying a "Updated repository URL and reloaded JSON!" message on success.
   - If the URL is invalid, you'll see an error message prompting for a valid URL starting with `http://` or `https://`.
-
-- **API Base URL**:
-  - Specify the API base URL for your Git server (e.g., `https://servername/api/v3` for GitHub Enterprise Server).
-  - Update the **API Base URL** field and press **Enter** to save it.
-  - This is required for saving changes to the repository.
 
 **2. Editing Content**
 
@@ -94,10 +89,10 @@ The buttons at the bottom of the editor help you manage the JSON content:
 
 - **Reload from Repo**: Fetches the latest JSON from the repository URL specified in the **Repository URL** field. A "Reloaded from [URL]!" message confirms success.
 - **Validate JSON**: Checks if the current content is valid for the Endpoint Advisor app. A "JSON is valid!" message confirms success, or an error message indicates issues (e.g., missing required fields).
-- **Save to File**: Saves the JSON to a local file (e.g., `ContentData_edited.json`) for manual upload to the repository. A file dialog lets you choose the location.
-- **Save to GitHub**: Pushes changes directly to the Git repository using the saved PAT and API base URL. A "Successfully saved to Git repository!" message confirms success. If it fails, an error message and log entry provide details.
+- **Save to File**: Saves the JSON to a local file (e.g., `ContentData_edited.json`) for manual upload to GitHub. A file dialog lets you choose the location.
+- **Save to GitHub**: Pushes changes directly to the GitHub repository using the saved PAT. A "Successfully saved to GitHub repository!" message confirms success. If it fails, an error message and log entry provide details.
 - **Copy to Clipboard**: Copies the JSON to the clipboard for external use.
-- **Close**: Exits the editor, saving any configuration changes (e.g., repository URL, API base URL).
+- **Close**: Exits the editor, saving any configuration changes (e.g., repository URL).
 
 **4. Preview Panel**
 
@@ -112,22 +107,21 @@ The buttons at the bottom of the editor help you manage the JSON content:
 **5. Troubleshooting**
 
 - **Log Files**:
-  - Check `ContentDataEditor.log` in the script directory for detailed logs of actions (e.g., PAT saving, JSON fetching, Git saves).
+  - Check `C:\Scripts\JEdit\ContentDataEditor.log` for detailed logs of actions (e.g., PAT saving, JSON fetching, GitHub saves).
   - For issues with the Endpoint Advisor app, check `C:\Scripts\JEdit\LLEndpointAdvisor.log`.
 - **Common Issues**:
-  - **PAT Errors**: Ensure the PAT has `repo` scope or `Contents: Read & Write` permissions. Regenerate the PAT in your Git server if needed (Settings > Developer settings > Personal access tokens).
-  - **Invalid Repository URL**: Verify the URL points to a valid `ContentData.json` file (e.g., `https://raw.servername/owner/repo/branch/ContentData.json`).
-  - **Invalid API Base URL**: Ensure the API base URL matches your Git server (e.g., `https://servername/api/v3` for GitHub Enterprise Server).
-  - **JSON Save Failures**: Check the log for Git API errors (e.g., `401 Unauthorized` for invalid PAT, `403 Forbidden` for access issues, `422 Unprocessable Entity` for SHA mismatch).
+  - **PAT Errors**: Ensure the PAT has `repo` scope or `Contents: Read &amp; Write` permissions. Regenerate the PAT in GitHub if needed (Settings > Developer settings > Personal access tokens).
+  - **Invalid Repository URL**: Verify the URL points to a valid `ContentData.json` file (e.g., `https://raw.githubusercontent.com/owner/repo/branch/ContentData.json`).
+  - **JSON Save Failures**: Check the log for GitHub API errors (e.g., `401 Unauthorized` for invalid PAT, `403 Forbidden` for organization restrictions, `422 Unprocessable Entity` for SHA mismatch).
   - **UI Issues**: If tabs or text appear oversized, check your system's DPI scaling (Display Settings > Scale and layout) and set to 100% if needed.
 - **Contact**: For further assistance, contact your IT administrator or the system administrator responsible for the Endpoint Advisor deployment.
 
 **6. Additional Notes**
 
-- The editor saves configuration (e.g., repository URL, API base URL) to `ContentDataEditor.config.json`.
-- The PAT is stored securely in `ContentDataEditor.cred.xml` and only needs to be re-entered if it expires or is invalid.
-- Changes saved to the Git repository are reflected in the Endpoint Advisor app after its next update cycle (configured in `LLEA.ps1`, typically every 15 minutes).
-- Ensure you have write permissions to the script directory for logs and configuration files.
+- The editor saves configuration (e.g., repository URL) to `C:\Scripts\JEdit\ContentDataEditor.config.json`.
+- The PAT is stored securely in `C:\Scripts\JEdit\ContentDataEditor.cred.xml` and only needs to be re-entered if it expires or is invalid.
+- Changes saved to GitHub are reflected in the Endpoint Advisor app after its next update cycle (configured in `LLEA.ps1`, typically every 15 minutes).
+- Ensure you have write permissions to `C:\Scripts\JEdit` for logs and configuration files.
 
 For further assistance, consult the **Help** tab or contact your IT administrator.
 '@
@@ -142,8 +136,7 @@ function Write-Log {
 # Load or initialize configuration
 function Load-Configuration {
     $defaultConfig = @{
-        RepositoryUrl = "https://raw.servername/EndpointEngineering/EndpointAdvisor/main/ContentData.json"
-        ApiBaseUrl = "https://servername/api/v3"
+        RepositoryUrl = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json"
     }
     if (Test-Path $ConfigPath) {
         try {
@@ -208,7 +201,6 @@ function Save-PAT {
 # Load initial config
 $global:Config = Load-Configuration
 $global:JsonUrl = $global:Config.RepositoryUrl
-$global:ApiBaseUrl = $global:Config.ApiBaseUrl
 $global:GitHubPAT = Load-PAT
 
 # Load required assemblies
@@ -219,8 +211,7 @@ Add-Type -AssemblyName System.Drawing
 # Function to fetch JSON
 function Fetch-Json {
     try {
-        $headers = if ($global:GitHubPAT) { @{ Authorization = "Bearer $global:GitHubPAT" } } else { @{} }
-        $response = Invoke-WebRequest -Uri $global:JsonUrl -UseBasicParsing -TimeoutSec 30 -Headers $headers
+        $response = Invoke-WebRequest -Uri $global:JsonUrl -UseBasicParsing -TimeoutSec 30
         $json = $response.Content | ConvertFrom-Json
         Write-Log "Fetched JSON from $global:JsonUrl"
         return $json
@@ -249,83 +240,151 @@ function Validate-Json {
     }
 }
 
-# Function to save JSON to GitHub Enterprise Server
+# Function to save JSON to GitHub
 function Save-ToGitHub {
     param($JsonObject)
+
     try {
         if (-not $global:GitHubPAT) {
-            $newPat = [System.Windows.MessageBox]::Show("No PAT is set. Please enter it in the UI and press Enter or click Save PAT, then try again.", "PAT Missing", "OK", "Warning")
-            Write-Log "PAT not set during save attempt"
+            [System.Windows.MessageBox]::Show(
+                "No Personal Access Token (PAT) is set. Enter it and click Save PAT, then try again.",
+                "PAT Missing","OK","Warning"
+            ) | Out-Null
+            Write-Log "GitHub PAT not set during save attempt"
             return $false
         }
-        $repoUrlParts = $global:JsonUrl -split "/"
-        if ($repoUrlParts.Length -lt 7) {
-            throw "Invalid repository URL. Expected format: https://raw.servername/owner/repo/branch/file"
-        }
-        $owner = $repoUrlParts[3] # EndpointEngineering
-        $repo = $repoUrlParts[4]  # EndpointAdvisor
-        $branch = $repoUrlParts[5] # main
-        $filePath = $repoUrlParts[6..($repoUrlParts.Length-1)] -join "/" # ContentData.json
-        $apiUrl = "$global:ApiBaseUrl/repos/$owner/$repo/contents/$filePath"
-        Write-Log "Parsed URL components: owner=$owner, repo=$repo, branch=$branch, filePath=$filePath"
-        Write-Log "Preparing to save to Git at $apiUrl"
 
-        # Get the current file's SHA
+        # Parse the configured JSON URL (must be the RAW URL you load from)
+        $u    = [Uri]$global:JsonUrl
+        $host = $u.Host
+        $segs = $u.AbsolutePath.Trim('/').Split('/')
+
+        $provider = $null
+        $owner = $null; $repo = $null; $branch = $null; $filePath = $null
+        $apiBases = @()
         $headers = @{
             Authorization = "Bearer $global:GitHubPAT"
-            Accept = "application/vnd.github+json"
-            "User-Agent" = "ContentDataEditor"
-        }
-        try {
-            $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
-            $sha = $response.sha
-            Write-Log "Retrieved SHA for ${filePath}: ${sha}"
-        } catch {
-            if ($_.Exception.Response.StatusCode.Value__ -eq 404) {
-                Write-Log "File not found at $apiUrl. Creating new file."
-                $sha = $null
-            } else {
-                throw "Failed to retrieve file SHA: $($_.Exception.Message)"
-            }
+            Accept        = "application/vnd.github+json"
+            'User-Agent'  = "ContentDataEditor"
         }
 
-        # Prepare the new content
-        $content = $JsonObject | ConvertTo-Json -Depth 10 | ForEach-Object { [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($_)) }
-        $body = @{
-            message = "Update ContentData.json via ContentDataEditor"
-            content = $content
-            branch = $branch
+        function Join-Segments([int]$start) {
+            if ($start -ge $segs.Length) { return "" }
+            ($segs[$start..($segs.Length-1)] -join '/')
         }
-        if ($sha) {
-            $body.sha = $sha
-        }
-        $bodyJson = $body | ConvertTo-Json -Compress
 
-        # Update or create the file
-        $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Put -Body $bodyJson
-        Write-Log "Successfully saved to Git repository: $apiUrl"
-        [System.Windows.MessageBox]::Show("Successfully saved to Git repository!", "Success")
-        return $true
-    } catch {
-        $errorMessage = $_.Exception.Message
-        if ($_.Exception.Response) {
+        # -------- GitHub/GHE RAW patterns --------
+        # Public GitHub:
+        #   raw.githubusercontent.com/<owner>/<repo>/<branch>/<path...>
+        if ($host.ToLower() -eq 'raw.githubusercontent.com' -and $segs.Length -ge 4) {
+            $provider = 'github'
+            $owner    = $segs[0]
+            $repo     = $segs[1]
+            $branch   = $segs[2]
+            $filePath = Join-Segments 3
+            $apiBases = @('https://api.github.com')
+        }
+        # GHE common pattern A:
+        #   <ghe-host>/raw/<owner>/<repo>/<branch>/<path...>
+        elseif ($segs.Length -ge 5 -and $segs[0].ToLower() -eq 'raw') {
+            $provider = 'github'
+            $owner    = $segs[1]
+            $repo     = $segs[2]
+            $branch   = $segs[3]
+            $filePath = Join-Segments 4
+            $apiBases = @("https://$($u.Host)/api/v3","https://api.$($u.Host)")
+        }
+        # GHE common pattern B:
+        #   <ghe-host>/<owner>/<repo>/raw/<branch>/<path...>
+        elseif ($segs.Length -ge 5 -and $segs[2].ToLower() -eq 'raw') {
+            $provider = 'github'
+            $owner    = $segs[0]
+            $repo     = $segs[1]
+            $branch   = $segs[3]
+            $filePath = Join-Segments 4
+            $apiBases = @("https://$($u.Host)/api/v3","https://api.$($u.Host)")
+        }
+        # *** Your GHE pattern (raw.<ghe-host>/<owner>/<repo>/<branch>/<path...>) ***
+        elseif ($segs.Length -ge 4 -and $host.StartsWith('raw.', 'OrdinalIgnoreCase')) {
+            $provider = 'github'
+            $owner    = $segs[0]
+            $repo     = $segs[1]
+            $branch   = $segs[2]
+            $filePath = Join-Segments 3
+
+            # Switch to the non-raw host for API (strip leading "raw.")
+            $gheHost = $host.Substring(4)  # remove "raw."
+            $apiBases = @("https://$gheHost/api/v3","https://api.$gheHost")
+        }
+        else {
+            throw "Unsupported repository RAW URL pattern: $($global:JsonUrl)"
+        }
+
+        # Normalize 'refs/heads/<branch>'
+        if ($branch -match '^refs/heads/(.+)$') { $branch = $Matches[1] }
+        if ([string]::IsNullOrWhiteSpace($filePath)) { throw "Cannot determine file path from URL: $($global:JsonUrl)" }
+
+        Write-Log "Parsed URL → provider=github; owner=$owner; repo=$repo; branch=$branch; filePath=$filePath"
+        Write-Log "API candidates: $($apiBases -join ', ')"
+
+        # -------- GitHub/GHE save via Contents API --------
+        $lastErr = $null
+        foreach ($base in $apiBases) {
             try {
-                $errorResponse = $_.Exception.Response.GetResponseStream()
-                $reader = New-Object System.IO.StreamReader($errorResponse)
-                $errorBody = $reader.ReadToEnd()
-                $errorMessage += "`nGit API Response: $errorBody"
+                $apiUrl = "$base/repos/$owner/$repo/contents/$filePath"
+
+                # Get current SHA (if the file exists)
+                $sha = $null
+                try {
+                    $meta = Invoke-RestMethod -Uri "$apiUrl?ref=$branch" -Headers $headers -Method Get
+                    if ($meta -and $meta.sha) { $sha = $meta.sha }
+                } catch {
+                    # 404 means new file—proceed without SHA
+                    if (-not ($_.Exception.Response -and $_.Exception.Response.StatusCode.Value__ -eq 404)) { throw }
+                }
+
+                # Base64-encode JSON content (GitHub requires base64)
+                $jsonText  = $JsonObject | ConvertTo-Json -Depth 10
+                $contentB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($jsonText))
+
+                $body = @{
+                    message = "Update $filePath via ContentDataEditor"
+                    content = $contentB64
+                    branch  = $branch
+                }
+                if ($sha) { $body.sha = $sha }
+
+                $resp = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Put -Body ($body | ConvertTo-Json -Compress)
+                Write-Log "Saved via $apiUrl"
+                [System.Windows.MessageBox]::Show("Saved successfully to $owner/$repo ($branch): $filePath","Success") | Out-Null
+                return $true
             } catch {
-                $errorMessage += "`nFailed to read Git API response: $($_.Exception.Message)"
+                $lastErr = $_
+                Write-Log "Save via $base failed: $($_.Exception.Message)"
+                continue
             }
-            Write-Log "Git save failed: $errorMessage"
-            [System.Windows.MessageBox]::Show("Failed to save to Git: $errorMessage", "Error", "OK", "Error")
-        } else {
-            Write-Log "Git save failed: $errorMessage"
-            [System.Windows.MessageBox]::Show("Failed to save to Git: $errorMessage", "Error", "OK", "Error")
         }
+
+        if ($lastErr) {
+            $msg = $lastErr.Exception.Message
+            if ($lastErr.Exception.Response) {
+                try {
+                    $rs = $lastErr.Exception.Response.GetResponseStream()
+                    $r  = New-Object IO.StreamReader($rs)
+                    $msg += "`nAPI Response: " + $r.ReadToEnd()
+                } catch {}
+            }
+            throw $msg
+        }
+
+    } catch {
+        Write-Log "GitHub save failed: $($_.Exception.Message)"
+        [System.Windows.MessageBox]::Show("Failed to save: $($_.Exception.Message)", "Error", "OK", "Error") | Out-Null
         return $false
     }
 }
+
+
 
 # Function to convert Markdown to TextBlock (based on LLEA.ps1's Convert-MarkdownToTextBlock)
 function Convert-MarkdownToTextBlock {
@@ -583,15 +642,11 @@ $xaml = @"
             <Button x:Name="SavePatButton" Content="Save PAT" Width="80" ToolTip="Save the entered GitHub Personal Access Token securely."/>
         </StackPanel>
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock Text="Repository URL:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,5,0" ToolTip="Enter the URL to the ContentData.json file in your Git repository."/>
+            <TextBlock Text="Repository URL:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,5,0" ToolTip="Enter the URL to the ContentData.json file in your GitHub repository."/>
             <TextBox x:Name="RepoUrlTextBox" Width="500" Text="$($global:Config.RepositoryUrl)" ToolTip="Enter the URL to the ContentData.json file. Press Enter to update."/>
         </StackPanel>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock Text="API Base URL:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,5,0" ToolTip="Enter the API base URL for your Git server (e.g., https://servername/api/v3)."/>
-            <TextBox x:Name="ApiBaseUrlTextBox" Width="500" Text="$($global:Config.ApiBaseUrl)" ToolTip="Enter the API base URL. Press Enter to update."/>
-        </StackPanel>
-        <TextBlock Grid.Row="3" Text="Edit the Announcements and Support content for Lincoln Laboratory Endpoint Advisor. Use the tabs to edit sections, and preview the formatted output on the right. Markdown supported: **bold**, *italic*, __underline__, [color]text[/color] (green, red, yellow, blue). Note: Announcements must have 'Announcement Enabled' checked to appear in the Endpoint Advisor app." FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10"/>
-        <Grid Grid.Row="4">
+        <TextBlock Grid.Row="2" Text="Edit the Announcements and Support content for Lincoln Laboratory Endpoint Advisor. Use the tabs to edit sections, and preview the formatted output on the right. Markdown supported: **bold**, *italic*, __underline__, [color]text[/color] (green, red, yellow, blue). Note: Announcements must have 'Announcement Enabled' checked to appear in the Endpoint Advisor app." FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10"/>
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="10"/>
@@ -681,14 +736,14 @@ $xaml = @"
                 </StackPanel>
             </ScrollViewer>
         </Grid>
-        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,10,0,0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,10,0,0">
             <Button x:Name="ReloadButton" Content="Reload from Repo" Width="120" Margin="0,0,10,0" ToolTip="Reload the JSON from the specified repository URL."/>
             <Button x:Name="ValidateButton" Content="Validate JSON" Width="120" Margin="0,0,10,0" ToolTip="Check if the JSON is valid for use in Endpoint Advisor."/>
             <Button x:Name="SaveButton" Content="Save to File" Width="120" Margin="0,0,10,0" ToolTip="Save the JSON to a local file for manual upload to GitHub."/>
-            <Button x:Name="SaveToGitHubButton" Content="Save to GitHub" Width="120" Margin="0,0,10,0" ToolTip="Save the JSON directly to the Git repository."/>
+            <Button x:Name="SaveToGitHubButton" Content="Save to GitHub" Width="120" Margin="0,0,10,0" ToolTip="Save the JSON directly to the GitHub repository."/>
             <Button x:Name="CopyButton" Content="Copy to Clipboard" Width="120" Margin="0,0,10,0" ToolTip="Copy the JSON to the clipboard."/>
             <Button x:Name="CloseButton" Content="Close" Width="120" ToolTip="Close the editor."/>
-        </StackPanel>
+		</StackPanel>
     </Grid>
 </Window>
 "@
@@ -709,7 +764,6 @@ try {
 # Find controls
 $GitHubPatTextBox = $window.FindName("GitHubPatTextBox")
 $RepoUrlTextBox = $window.FindName("RepoUrlTextBox")
-$ApiBaseUrlTextBox = $window.FindName("ApiBaseUrlTextBox")
 $SavePatButton = $window.FindName("SavePatButton")
 $EditorTabs = $window.FindName("EditorTabs")
 $HelpRichTextBox = $window.FindName("HelpRichTextBox")
@@ -755,7 +809,7 @@ function Save-PatHandler {
         Write-Log "Attempting to save PAT from PasswordBox"
         $global:GitHubPAT = $newPat
         if (Save-PAT -PAT $newPat) {
-            [System.Windows.MessageBox]::Show("GitHub PAT saved securely! Please try saving to Git again.", "Success")
+            [System.Windows.MessageBox]::Show("GitHub PAT saved securely! Please try saving to GitHub again.", "Success")
         }
     } else {
         Write-Log "Invalid PAT entered: empty or whitespace"
@@ -1123,12 +1177,13 @@ function Load-JsonToUI {
         } else {
             Write-Log "HelpRichTextBox control could not be found."
         }
-        # Force a full UI layout update, then switch to the Help tab to force it to render.
+# Force a full UI layout update, then switch to the Help tab to force it to render.
         $window.UpdateLayout()
         $EditorTabs.SelectedIndex = 3 # Index of the "Help" tab
         $EditorTabs.SelectedIndex = 0 # Switch back to the first tab
 
         Write-Log "Successfully loaded JSON into UI"
+        # Update-Preview # This line is not needed on initial load and was causing a conflict.
     } catch {
         Write-Log "Failed to load JSON into UI: $($_.Exception.Message)"
         [System.Windows.MessageBox]::Show("Failed to load JSON into UI: $($_.Exception.Message)", "Error", "OK", "Error")
@@ -1138,4 +1193,106 @@ function Load-JsonToUI {
 # Event handlers
 $GitHubPatTextBox.Add_KeyDown({
     if ($_.Key -eq "Return") {
-        Save-P
+        Save-PatHandler
+    }
+})
+$SavePatButton.Add_Click({
+    Save-PatHandler
+})
+$RepoUrlTextBox.Add_KeyDown({
+    if ($_.Key -eq "Return") {
+        $newUrl = $RepoUrlTextBox.Text.Trim()
+        if ($newUrl -match "^https?://") {
+            Write-Log "Updating repository URL to $newUrl"
+            $global:JsonUrl = $newUrl
+            $global:Config.RepositoryUrl = $newUrl
+            Save-Configuration -Config $global:Config
+            $global:JsonData = Fetch-Json
+            Load-JsonToUI
+            [System.Windows.MessageBox]::Show("Updated repository URL and reloaded JSON!", "Success")
+        } else {
+            Write-Log "Invalid repository URL entered: $newUrl"
+            [System.Windows.MessageBox]::Show("Please enter a valid URL starting with http:// or https://", "Error", "OK", "Error")
+        }
+    }
+})
+$AddDefaultLinkButton.Add_Click({
+    New-LinkEditor -Panel $DefaultLinksPanel
+    Update-Preview
+})
+$RemoveDefaultLinkButton.Add_Click({
+    if ($DefaultLinksPanel.Children.Count -gt 0) {
+        $DefaultLinksPanel.Children.RemoveAt($DefaultLinksPanel.Children.Count - 1)
+        Update-Preview
+    }
+})
+$AddTargetedButton.Add_Click({
+    New-TargetedAnnouncementEditor
+    Update-Preview
+})
+$AddSupportLinkButton.Add_Click({
+    New-LinkEditor -Panel $SupportLinksPanel
+    Update-Preview
+})
+$RemoveSupportLinkButton.Add_Click({
+    if ($SupportLinksPanel.Children.Count -gt 0) {
+        $SupportLinksPanel.Children.RemoveAt($SupportLinksPanel.Children.Count - 1)
+        Update-Preview
+    }
+})
+$ReloadButton.Add_Click({
+    Write-Log "Reloading JSON from repository"
+    $global:JsonData = Fetch-Json
+    Load-JsonToUI
+    [System.Windows.MessageBox]::Show("Reloaded from $global:JsonUrl!", "Success")
+})
+$ValidateButton.Add_Click({
+    $json = Get-CurrentJson
+    if ($json -and (Validate-Json -JsonObject $json)) {
+        [System.Windows.MessageBox]::Show("JSON is valid!", "Validation")
+    }
+})
+$SaveButton.Add_Click({
+    $json = Get-CurrentJson
+    if ($json -and (Validate-Json -JsonObject $json)) {
+        $saveDialog = New-Object System.Windows.Forms.SaveFileDialog
+        $saveDialog.Filter = "JSON files (*.json)|*.json"
+        $saveDialog.InitialDirectory = $ScriptDir
+        $saveDialog.FileName = "ContentData_edited.json"
+        if ($saveDialog.ShowDialog() -eq "OK") {
+            $json | ConvertTo-Json -Depth 10 | Out-File -FilePath $saveDialog.FileName -Encoding utf8
+            Write-Log "Saved JSON to local file: $($saveDialog.FileName)"
+            [System.Windows.MessageBox]::Show("Saved to $($saveDialog.FileName)! You can now upload this file to your GitHub repository.", "Success")
+        }
+    }
+})
+$SaveToGitHubButton.Add_Click({
+    $json = Get-CurrentJson
+    if ($json -and (Validate-Json -JsonObject $json)) {
+        Write-Log "Attempting to save JSON to GitHub"
+        Save-ToGitHub -JsonObject $json
+    }
+})
+$CopyButton.Add_Click({
+    $json = Get-CurrentJson
+    if ($json -and (Validate-Json -JsonObject $json)) {
+        $json | ConvertTo-Json -Depth 10 | Set-Clipboard
+        Write-Log "Copied JSON to clipboard"
+        [System.Windows.MessageBox]::Show("JSON copied to clipboard!", "Success")
+    }
+})
+$CloseButton.Add_Click({
+    Write-Log "Closing editor"
+    $window.Close()
+})
+
+# Use a script-level flag to prevent events from firing during the initial load
+$script:IsLoading = $true
+Load-JsonToUI
+$script:IsLoading = $false
+
+# Manually run the preview function once after loading is complete
+Update-Preview
+
+# Show the window
+$window.ShowDialog() | Out-Null
