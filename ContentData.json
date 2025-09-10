@@ -56,12 +56,13 @@
                 "Text": "The **Lincoln Laboratory Endpoint Advisor** provides real-time status and announcements for your computer.\n\nThis tool is designed to keep you informed about important updates, security patches, and system compliance.",
                 "Links": [
                     {
-                        "Name": "View Project on GitHub",
-                        "Url": "https://github.com/burnoil/EndpointAdvisor"
+                        "Name": "ISD Homepage",
+                        "Url": "https://support.example.com"
                     }
                 ]
             }
         }
     ]
 }
+
 
