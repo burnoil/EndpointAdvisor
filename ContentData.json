@@ -46,7 +46,7 @@
                                   }
                   },
                   {
-                      "Title":  "Logs",
+                      "Title":  "Lab Alerts",
                       "Type":  "SimpleContent",
                       "Content":  {
                                       "Text":  "TESTTEST",
@@ -69,4 +69,5 @@
                                   }
                   }
               ]
+
 }
