@@ -19,7 +19,7 @@
                                                                              {
                                                                                  "Text":  "[green]PILOT GROUP:[/green] A new version is available for testing.",
                                                                                  "Details":  "Please install the new version from the Software Center and provide feedback.",
-                                                                                 "AppendToDefault":  false,
+                                                                                 "AppendToDefault":  true,
                                                                                  "Enabled":  true,
                                                                                  "Condition":  {
                                                                                                    "Type":  "Registry",
