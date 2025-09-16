@@ -20,7 +20,7 @@
                                                                                  "Text":  "[green]PILOT GROUP:[/green] A new version is available for testing.",
                                                                                  "Details":  "Please install the new version from the Software Center and provide feedback.",
                                                                                  "AppendToDefault":  true,
-                                                                                 "Enabled":  true,
+                                                                                 "Enabled":  false,
                                                                                  "Condition":  {
                                                                                                    "Type":  "Registry",
                                                                                                    "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
