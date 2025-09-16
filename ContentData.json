@@ -46,7 +46,7 @@
                                   }
                   },
                   {
-                      "Title":  "Logs",
+                      "Title":  "Lab Events",
                       "Type":  "SimpleContent",
                       "Content":  {
                                       "Text":  "TESTTEST",
@@ -72,4 +72,5 @@
                                   }
                   }
               ]
+
 }
