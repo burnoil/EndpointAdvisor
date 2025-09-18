@@ -1,1 +1,1 @@
-(following text of first " = """ of first "$ScriptVersion" of lines whose (it contains "$ScriptVersion") of file "path/to/your/file") before first """"
+following text of first " = """ of lines whose (it contains "$ScriptVersion") of file "path/to/your/file.txt" as string
