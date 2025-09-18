@@ -1,8 +1,13 @@
 if exists file "C:\Path\To\YourScript.ps1" then
   (
-    (item 1 of substrings separated by (character 34 as string) of it) of
-      (following text of first "=" of
-        lines whose (it contains "$ScriptVersion") of file "C:\Path\To\YourScript.ps1")
+    if exists lines whose (it contains "$ScriptVersion") of file "C:\Path\To\YourScript.ps1" then
+      (
+        if (number of substrings separated by (character 34 as string) of it > 1) of
+          (following text of first "=" of line of file "C:\Path\To\YourScript.ps1" whose (it contains "$ScriptVersion")) then
+            (item 1 of substrings separated by (character 34 as string) of
+              (following text of first "=" of line of file "C:\Path\To\YourScript.ps1" whose (it contains "$ScriptVersion")))
+        else "Version not found"
+      )
+    else "Line not found"
   )
-else
-  "N/A"
+else "File not found"
