@@ -1,3 +1,1 @@
-following text of first " = " of lines whose (it contains "$ScriptVersion") of file "/path/to/your/file"
 
-if exists file "/path/to/your/file" then (if exists line whose (it as trimmed string starts with "$ScriptVersion") of file "/path/to/your/file" then following text of first " = " of line whose (it as trimmed string starts with "$ScriptVersion") of file "/path/to/your/file" else "Key Not Found") else "File Not Found"
