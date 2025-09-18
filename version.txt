@@ -1,13 +1,12 @@
-if exists file "C:\Path\To\YourScript.ps1" then
+/* Property: Script Version (version type as string) */
+if not exists file "C:\Path\To\YourScript.ps1" then
+  "N/A"
+else
   (
-    if exists lines whose (it contains "$ScriptVersion") of file "C:\Path\To\YourScript.ps1" then
-      (
-        if (number of substrings separated by (character 34 as string) of it > 1) of
-          (following text of first "=" of line of file "C:\Path\To\YourScript.ps1" whose (it contains "$ScriptVersion")) then
-            (item 1 of substrings separated by (character 34 as string) of
-              (following text of first "=" of line of file "C:\Path\To\YourScript.ps1" whose (it contains "$ScriptVersion")))
-        else "Version not found"
-      )
-    else "Line not found"
+    if exists (match (regex "\$ScriptVersion\s*=\s*\"([0-9]+(?:\.[0-9]+)*)\"") of concatenation of lines of file "C:\Path\To\YourScript.ps1") then
+      (version of (item 1 of parenthesized parts of
+         first match (regex "\$ScriptVersion\s*=\s*\"([0-9]+(?:\.[0-9]+)*)\"")
+         of concatenation of lines of file "C:\Path\To\YourScript.ps1")) as string
+    else
+      "N/A"
   )
-else "File not found"
