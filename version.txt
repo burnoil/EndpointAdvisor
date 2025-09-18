@@ -1,12 +1,1 @@
-/* Property: Script Version (version type as string) */
-if not exists file "C:\Path\To\YourScript.ps1" then
-  "N/A"
-else
-  (
-    if exists (match (regex "\$ScriptVersion\s*=\s*\"([0-9]+(?:\.[0-9]+)*)\"") of concatenation of lines of file "C:\Path\To\YourScript.ps1") then
-      (version of (item 1 of parenthesized parts of
-         first match (regex "\$ScriptVersion\s*=\s*\"([0-9]+(?:\.[0-9]+)*)\"")
-         of concatenation of lines of file "C:\Path\To\YourScript.ps1")) as string
-    else
-      "N/A"
-  )
+(following text of first " = """ of first "$ScriptVersion" of lines whose (it contains "$ScriptVersion") of file "path/to/your/file") before first """"
