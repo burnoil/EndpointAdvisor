@@ -1,7 +1,4 @@
-Get-ChildItem -Path HKLM:\SOFTWARE -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -like '*FolderName*' }
-
-Get-ChildItem -Path HKLM:\SOFTWARE -Recurse -ErrorAction SilentlyContinue |
-    Where-Object { $_.PSChildName -like '*FolderName*' } |
-    Select-Object -ExpandProperty Name |
-    Out-File "C:\Temp\RegistrySearch.txt" -Encoding UTF8
-
+if exists file "C:\Path\To\YourScript.ps1" then
+   preceding text of last "\"" of following text of first "\"" of lines whose (it contains "$ScriptVersion") of file "C:\Path\To\YourScript.ps1"
+else
+   "File not found"
