@@ -37,3 +37,116 @@ override wait
 hidden=true
 runas=currentuser  
 wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Program Files\LLEA\LLEA.ps1" -RunMode LLEA
+
+ActivIdentity
+Adobe
+Anaconda Inc
+Analog Devices
+Apple
+Aras Corporation
+Arduino LLC
+Athena
+Atlassian
+Audacity
+AuriStor
+Avaya
+BeyondTrust
+Bit9
+Bitsum
+Blackberry
+Bomgar Corporation
+Bradford Networks
+Brain Technologies
+Bromium
+Carbon Black
+Centrify
+Certaid 2.2.6
+Christian Schenk
+Cisco
+Code42 Software
+Core FTP
+Cytoscape
+Dell
+DISA
+Docker
+Dominik Reichl
+Druva
+Dyslexie
+Eclipse Foundation
+ESM Software
+Essig PLM
+Fortinet
+Git
+GitHub Inc
+GlavSoft LLC
+GNU
+Google Chrome
+Guidance Software
+HCL Technologies Ltd
+Igor Pavlov
+Intel
+Irfan Skiljan
+JetBrains
+Juniper Networks
+Karakun AG
+KLayout.de
+Malwarebytes
+ManageEngine
+Mandiant-POC
+Martin Prikryl
+Mathworks
+Matthias Koefferlein
+McAfee
+Mentor Graphics
+Microsoft
+MIT
+MITLL
+Mozilla
+Nero AG
+Newell Rubbermaid
+NoMachine
+Notepad++ Team
+NV Access
+NVidia
+OneStream Software LLC
+OpenAFS
+OpenText
+Oracle
+Palo Alto Networks
+PTC
+Pulse Secure
+Python Software Foundation
+R Core Team
+Real Networks
+SAP
+Savance
+ScooterSoftware
+Secure Endpoints
+SentinelOne
+Simon Tatham
+Slack Technologies
+Solidworks
+Splunk
+StarNet
+Synactive Inc
+System Volume Information
+Tableau Software
+TechSmith
+Tenable
+Tera Term Project
+The GIMP Team
+Thingamahoochie Software
+TigerVNC
+TortoiseGit
+TortoiseSVN Team
+VanDyke
+Veritas
+VideoLAN
+VMware
+Winmagic SecureDoc 6.5SR3
+WinZip
+Wireshark Team
+XPLM
+Yasoon
+Yubico
+Zoom
