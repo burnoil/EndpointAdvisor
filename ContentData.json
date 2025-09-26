@@ -1,76 +1,34 @@
 {
-    "Pages":  [
-                  {
-                      "Title":  "ISD Dashboard",
-                      "Type":  "Dashboard",
-                      "Content":  {
-                                      "Announcements":  {
-                                                            "Default":  {
-                                                                            "Text":  "Welcome to [red]Endpoint[/red] [blue]Advisor![/blue] **Please review the latest updates below.**",
-                                                                            "Details":  "If you see __errors__ or have questions, use the links below. You can format with *italic*, **bold**, and [green]color[/green].",
-                                                                            "Links":  [
-                                                                                          {
-                                                                                              "Name":  "Endpoint Advisor Repo",
-                                                                                              "Url":  "https://github.com/burnoil/EndpointAdvisor"
-                                                                                          }
-                                                                                      ]
-                                                                        },
-                                                            "Targeted":  [
-                                                                             {
-                                                                                 "Text":  "[green]PILOT GROUP:[/green] A new version is available for testing.",
-                                                                                 "Details":  "Please install the new version from the Software Center and provide feedback.",
-                                                                                 "AppendToDefault":  true,
-                                                                                 "Enabled":  false,
-                                                                                 "Condition":  {
-                                                                                                   "Type":  "Registry",
-                                                                                                   "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-                                                                                                   "Name":  "Group",
-                                                                                                   "Value":  "VPN-Pilot"
-                                                                                               }
-                                                                             }
-                                                                         ]
-                                                        },
-                                      "Support":  {
-                                                      "Text":  "Need help with Endpoint Advisor or patching issues?",
-                                                      "Links":  [
-                                                                    {
-                                                                        "Name":  "Open a Ticket",
-                                                                        "Url":  "https://support.example.com/tickets/new"
-                                                                    },
-                                                                    {
-                                                                        "Name":  "Knowledge Base",
-                                                                        "Url":  "https://support.example.com/kb"
-                                                                    }
-                                                                ]
-                                                  }
-                                  }
-                  },
-                  {
-                      "Title":  "Lab Events",
-                      "Type":  "SimpleContent",
-                      "Content":  {
-                                      "Text":  "TESTTEST",
-                                      "Links":  [
-                                                    {
-                                                        "Name":  "Test URL",
-                                                        "Url":  "https://msn.com"
-                                                    }
-                                                ]
-                                  }
-                  },
-                  {
-                      "Title":  "About",
-                      "Type":  "SimpleContent",
-                      "Content":  {
-                                      "Text":  "The **Lincoln Laboratory Endpoint Advisor** provides real-time status and announcements for your computer.\n\nThis tool is designed to keep you informed about important updates, security patches, and system compliance.",
-                                      "Links":  [
-                                                    {
-                                                        "Name":  "ISD Homepage",
-                                                        "Url":  "https://support.example.com"
-                                                    }
-                                                ]
-                                  }
-                  }
-              ]
-
+  "messages": [
+    {
+      "id": "2025-09-26-D11",
+      "publishedDate": "2025-09-26T12:00:00Z",
+      "author": "IT Department",
+      "severity": "Info",
+      "title": "For Division 11 Only: Software Update",
+      "content": "This is a test message for members of Division 11.",
+      "targeting": {
+        "division": ["11"]
+      }
+    },
+    {
+      "id": "2025-09-26-D22",
+      "publishedDate": "2025-09-26T11:00:00Z",
+      "author": "IT Department",
+      "severity": "Warning",
+      "title": "For Division 22 Only: System Maintenance",
+      "content": "This is a test message for members of Division 22.",
+      "targeting": {
+        "division": ["22"]
+      }
+    },
+    {
+      "id": "2025-09-26-GLOBAL",
+      "publishedDate": "2025-09-26T10:00:00Z",
+      "author": "Internal Comms",
+      "severity": "Info",
+      "title": "Global Message: Welcome!",
+      "content": "This is a global test message that everyone should see."
+    }
+  ]
 }
