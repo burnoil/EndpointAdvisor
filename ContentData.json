@@ -8,9 +8,7 @@
                          "title":  "For Division 11 Only: Software Update",
                          "content":  "This is a test message for members of Division 11.",
                          "targeting":  {
-                                           "division":  [
-                                                            "11"
-                                                        ]
+                                           "division":  "11"
                                        }
                      },
                      {
