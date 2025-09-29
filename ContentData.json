@@ -1,36 +1,38 @@
 {
-  "messages": [
-    {
-      "id": "2025-09-26-D11",
-      "publishedDate": "2025-09-26T12:00:00Z",
-      "author": "IT Department",
-      "severity": "Info",
-      "title": "For Division 11 Only: Software Update",
-      "content": "This is a test message for members of Division 11.",
-      "targeting": {
-        "division": ["11"]
-      }
-    },
-    {
-      "id": "2025-09-26-D22",
-      "publishedDate": "2025-09-26T11:00:00Z",
-      "author": "IT Department",
-      "severity": "Warning",
-      "title": "For Division 22 Only: System Maintenance",
-      "content": "This is a test message for members of Division 22.",
-      "targeting": {
-        "division": ["22"]
-      }
-    },
-    {
-      "id": "2025-09-26-GLOBAL",
-      "publishedDate": "2025-09-26T10:00:00Z",
-      "author": "Internal Comms",
-      "severity": "Info",
-      "title": "Global Message: Welcome!",
-      "content": "This is a global test message that **everyone** should see. This is a global test message that **everyone** should see. This is a global test message that **everyone** should see. "
-    }
-  ]
+    "messages":  [
+                     {
+                         "id":  "2025-09-26-D11",
+                         "publishedDate":  "2025-09-26T12:00:00Z",
+                         "author":  "IT Department",
+                         "severity":  "Info",
+                         "title":  "For Division 11 Only: Software Update",
+                         "content":  "This is a test message for members of Division 11.",
+                         "targeting":  {
+                                           "division":  [
+                                                            "11"
+                                                        ]
+                                       }
+                     },
+                     {
+                         "id":  "2025-09-26-D22",
+                         "publishedDate":  "2025-09-26T11:00:00Z",
+                         "author":  "IT Department",
+                         "severity":  "Warning",
+                         "title":  "For Division 22 Only: System Maintenance",
+                         "content":  "This is a test message for members of Division 22.",
+                         "targeting":  {
+                                           "division":  [
+                                                            "22"
+                                                        ]
+                                       }
+                     },
+                     {
+                         "id":  "2025-09-26-GLOBAL",
+                         "publishedDate":  "2025-09-26T10:00:00Z",
+                         "author":  "Internal Comms",
+                         "severity":  "Info",
+                         "title":  "Global Message: Welcome!",
+                         "content":  "This is a global test message that **everyone** should see. This is a global test message that **everyone** should see. This is a global test message that **everyone** should see. "
+                     }
+                 ]
 }
-
-
