@@ -33,17 +33,6 @@
                          "severity":  "Info",
                          "title":  "Global Message: Welcome!",
                          "content":  "This is a global test message that **everyone** should see. This is a global test message that **everyone** should see. This is a global test message that **everyone** should see. "
-                     },
-                     {
-                         "id":  "20250929-094328",
-                         "publishedDate":  "2025-09-29T09:43:28.7229090-07:00",
-                         "author":  "ToddL",
-                         "severity":  "Info",
-                         "title":  "New test message!",
-                         "content":  "This will show a new test message!",
-                         "links":  [
-
-                                   ]
                      }
                  ]
 }
