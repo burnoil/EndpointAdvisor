@@ -28,7 +28,8 @@
       "author": "Internal Comms",
       "severity": "Info",
       "title": "Global Message: Welcome!",
-      "content": "This is a global test message that everyone should see."
+      "content": "This is a global test message that **everyone** should see."
     }
   ]
 }
+
