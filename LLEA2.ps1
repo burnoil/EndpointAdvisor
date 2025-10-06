@@ -193,6 +193,7 @@ function Get-DefaultConfig {
         AnnouncementsLastState = "{}"
         SupportLastState       = "{}"
         LastSeenUpdateState   = ""
+		LastPatchingState     = ""
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
@@ -385,11 +386,11 @@ $xamlString = @"
       </StackPanel>
     </Border>
     <!-- Patching and Updates Section -->
-<!-- Patching and Updates Section -->
 <Border Grid.Row="2" BorderBrush="#00008B" BorderThickness="2" Padding="8" CornerRadius="3" Background="White" Margin="0,5,0,5">
   <StackPanel>
-    <TextBlock Text="Patching and Updates" FontSize="12" FontWeight="Bold" Margin="0,0,0,5"/>
-    <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,5,0,2"/>
+    <!-- Red dot indicator for patching alerts -->
+    <Ellipse x:Name="PatchingAlertDot" Width="10" Height="10" Fill="Red" Visibility="Hidden" HorizontalAlignment="Left" Margin="0,0,0,5"/>
+    
     <Grid Margin="0,2,0,2">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
@@ -409,13 +410,16 @@ $xamlString = @"
     </Grid>
     <Separator Margin="0,5,0,5"/>
     <Grid Margin="0,2,0,2">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="Auto"/>
-      </Grid.ColumnDefinitions>
-      <TextBlock x:Name="DriverUpdateStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Driver Updates: Available during last week of month"/>
-      <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
-    </Grid>
+  <Grid.ColumnDefinitions>
+    <ColumnDefinition Width="*"/>
+    <ColumnDefinition Width="Auto"/>
+  </Grid.ColumnDefinitions>
+  <StackPanel Grid.Column="0" VerticalAlignment="Center">
+    <TextBlock x:Name="DriverUpdateStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Windows Driver Updates (Required every month) Your machine will RESTART automatically when finished."/>
+    <TextBlock x:Name="DriverUpdateLastRunText" FontSize="9" Foreground="Gray" TextWrapping="Wrap" Text="Checking status..."/>
+  </StackPanel>
+  <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
+</Grid>
   </StackPanel>
 </Border>
     <!-- NEW: TabControl to replace the ScrollViewer -->
@@ -446,7 +450,7 @@ $xamlString = @"
                     </StackPanel>
                   </Border>
                 </Expander>
-                <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                <TextBlock Text="Patching and Updates" FontSize="12" FontWeight="Bold" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
               </StackPanel>
             </ScrollViewer>
         </TabItem>
@@ -469,12 +473,7 @@ $xamlString = @"
     </StackPanel>
   </ScrollViewer>
 </TabItem>
-        <TabItem Header="Logs">
-            <Grid>
-                <TextBox x:Name="LogTextBox" Margin="5" IsReadOnly="True" VerticalScrollBarVisibility="Auto" Text="Logs will appear here..."/>
-            </Grid>
-        </TabItem>
-        <TabItem Header="About">
+       <TabItem Header="About">
             <StackPanel Margin="10">
                 <TextBlock Text="Lincoln Laboratory Endpoint Advisor" FontWeight="Bold" FontSize="14"/>
                 <TextBlock x:Name="AboutVersionText" Text="Version: (loading...)" Margin="0,5,0,10"/>
@@ -517,9 +516,10 @@ try {
     $uiElements = @(
     "HeaderIcon", "MainTabControl", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
     "AnnouncementsLinksPanel", "AnnouncementsSourceText", "SupportText", "SupportLinksPanel",
-    "SupportSourceText", "WindowsBuildText", "ClearAlertsButton",
+    "SupportSourceText", "ClearAlertsButton",
     "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
-    "AppendedAnnouncementsPanel", "LogTextBox", "AboutVersionText", "DashboardTabAlert", "SupportTabAlert", "SupportTab", "DriverUpdateStatusText", "DriverUpdateButton"
+    "AppendedAnnouncementsPanel", "AboutVersionText", "DashboardTabAlert", "SupportTabAlert", "SupportTab",
+    "DriverUpdateStatusText", "DriverUpdateButton", "DriverUpdateLastRunText", "PatchingAlertDot"
 )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -668,10 +668,17 @@ if (`$bitlockerstatus.ProtectionStatus -eq 'On') {
         }
         $config.SupportLastState = ($supportObject | ConvertTo-Json -Compress -Depth 10)
         
+        # Calculate and save current patching state
+        $showBigFix = $global:BigFixLaunchButton.Visibility -eq "Visible"
+        $showECM = $global:ECMLaunchButton.Visibility -eq "Visible"
+        $showDriver = $global:DriverUpdateButton.Visibility -eq "Visible"
+        $config.LastPatchingState = "BigFix:$showBigFix|ECM:$showECM|Driver:$showDriver"
+        
         $window.Dispatcher.Invoke({
             if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
             if ($global:DashboardTabAlert) { $global:DashboardTabAlert.Visibility = "Hidden" }
             if ($global:SupportTabAlert) { $global:SupportTabAlert.Visibility = "Hidden" }
+            if ($global:PatchingAlertDot) { $global:PatchingAlertDot.Visibility = "Hidden" }
             if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Hidden" }
         })
         $global:BlinkingTimer.Stop()
@@ -1008,9 +1015,51 @@ function Test-LastWeekOfMonth {
     return $daysRemaining -le 6
 }
 
+function Get-DaysSinceLastDriverUpdate {
+    try {
+        $logPath = "C:\Windows\mitll\Logs\MS_Update.txt"
+        if (-not (Test-Path $logPath)) {
+            return "Never run"
+        }
+        
+        $content = Get-Content $logPath -ErrorAction Stop
+        $dates = @()
+        
+        foreach ($line in $content) {
+            # Match date format MM/DD/YYYY
+            if ($line -match '(\d{2}/\d{2}/\d{4})') {
+                try {
+                    $date = [DateTime]::Parse($matches[1])
+                    $dates += $date
+                } catch {
+                    # Skip invalid dates
+                }
+            }
+        }
+        
+        if ($dates.Count -eq 0) {
+            return "Never run"
+        }
+        
+        $mostRecent = ($dates | Sort-Object -Descending | Select-Object -First 1)
+        $daysSince = ((Get-Date) - $mostRecent).Days
+        
+        if ($daysSince -eq 0) {
+            return "Last run today"
+        } elseif ($daysSince -eq 1) {
+            return "Last run 1 day ago"
+        } else {
+            return "Last run $daysSince days ago"
+        }
+    }
+    catch {
+        Write-Log "Error reading driver update log: $($_.Exception.Message)" -Level "ERROR"
+        return "Status unknown"
+    }
+}
+
 function Update-PatchingAndSystem {
     Write-Log "Updating Patching and System section..." -Level "INFO"
-    $windowsBuild = Get-WindowsBuildNumber
     
     $fixletPath = "C:\temp\X-Fixlet-Source_Count.txt"
     $bigfixStatusText = "Application Updates: No Updates Pending."
@@ -1033,26 +1082,62 @@ function Update-PatchingAndSystem {
     $ecmStatusText = $ecmResult.StatusText
     $showEcmButton = $ecmResult.HasPendingUpdates
     
-    $global:CurrentUpdateState = "$bigfixStatusText`n$ecmStatusText"
-    if ($global:CurrentUpdateState -ne $config.LastSeenUpdateState) {
-        $global:UpdatesPending = $showBigFixButton -or $showEcmButton
-    } else {
-        $global:UpdatesPending = $false
+    # Check if we're in the last week of the month for driver updates
+    $showDriverButton = $true
+	#$showDriverButton = Test-LastWeekOfMonth
+
+	# Get days since last driver update run
+	$driverLastRun = Get-DaysSinceLastDriverUpdate
+
+    # Create current state string
+    $currentPatchingState = "BigFix:$showBigFixButton|ECM:$showEcmButton|Driver:$showDriverButton"
+    
+    # Check if state has changed
+    $patchingStateChanged = $config.LastPatchingState -ne $currentPatchingState
+    
+    if ($patchingStateChanged) {
+        Write-Log "Patching state changed. Previous: $($config.LastPatchingState), Current: $currentPatchingState" -Level "INFO"
     }
     
-    $window.Dispatcher.Invoke({
-        $global:WindowsBuildText.Text = $windowsBuild
-        
-        $global:BigFixStatusText.FontWeight = "Bold"
-        $global:BigFixStatusText.Text = $bigfixStatusText
-        $global:BigFixLaunchButton.Visibility = if ($showBigFixButton) { "Visible" } else { "Collapsed" }
-        
-        $global:ECMStatusText.FontWeight = "Bold"
-        $global:ECMStatusText.Text = $ecmStatusText
-        $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
-        
-        $global:DriverUpdateButton.Visibility = if ($showDriverButton) { "Visible" } else { "Collapsed" }
-    })
+    try {
+        $window.Dispatcher.Invoke({
+            Write-Log "Inside Dispatcher.Invoke for patching update" -Level "INFO"
+            
+            $global:BigFixStatusText.FontWeight = "Bold"
+            $global:BigFixStatusText.Text = $bigfixStatusText
+            $global:BigFixLaunchButton.Visibility = if ($showBigFixButton) { "Visible" } else { "Collapsed" }
+            Write-Log "Set BigFix UI - Button visible: $showBigFixButton" -Level "INFO"
+            
+            $global:ECMStatusText.FontWeight = "Bold"
+            $global:ECMStatusText.Text = $ecmStatusText
+            $global:ECMLaunchButton.Visibility = if ($showEcmButton) { "Visible" } else { "Collapsed" }
+            Write-Log "Set ECM UI - Button visible: $showEcmButton" -Level "INFO"
+            
+            $global:DriverUpdateButton.Visibility = if ($showDriverButton) { "Visible" } else { "Collapsed" }
+            Write-Log "Set Driver UI - Button visible: $showDriverButton" -Level "INFO"
+            
+			$global:DriverUpdateButton.Visibility = if ($showDriverButton) { "Visible" } else { "Collapsed" }
+			$global:DriverUpdateLastRunText.Text = $driverLastRun
+			Write-Log "Set Driver UI - Button visible: $showDriverButton, Last run: $driverLastRun" -Level "INFO"
+			
+            # Show red dot if state changed and at least one button is visible
+            Write-Log "Checking alert conditions: StateChanged=$patchingStateChanged, AnyButton=$($showBigFixButton -or $showEcmButton -or $showDriverButton)" -Level "INFO"
+            if ($patchingStateChanged -and ($showBigFixButton -or $showEcmButton -or $showDriverButton)) {
+                Write-Log "Attempting to show patching alert dot. PatchingAlertDot exists: $($global:PatchingAlertDot -ne $null)" -Level "INFO"
+                if ($global:PatchingAlertDot) { 
+                    $global:PatchingAlertDot.Visibility = "Visible" 
+                    Write-Log "Patching alert dot set to Visible" -Level "INFO"
+                } else {
+                    Write-Log "PatchingAlertDot is null at runtime!" -Level "WARNING"
+                }
+                if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
+            }
+        })
+    } catch {
+        Write-Log "ERROR in Dispatcher.Invoke for patching update: $($_.Exception.Message)" -Level "ERROR"
+    }
+    
+   
 }
 
 function Convert-MarkdownToTextBlock {
@@ -1474,7 +1559,8 @@ function Update-TrayIcon {
     $announcementAlert = $global:AnnouncementsAlertIcon -and $global:AnnouncementsAlertIcon.Visibility -eq "Visible"
     $dashboardTabAlert = $global:DashboardTabAlert -and $global:DashboardTabAlert.Visibility -eq "Visible"
     $supportTabAlert = $global:SupportTabAlert -and $global:SupportTabAlert.Visibility -eq "Visible"
-    $hasAnyAlert = $announcementAlert -or $dashboardTabAlert -or $supportTabAlert
+    $patchingAlert = $global:PatchingAlertDot -and $global:PatchingAlertDot.Visibility -eq "Visible"
+    $hasAnyAlert = $announcementAlert -or $dashboardTabAlert -or $supportTabAlert -or $patchingAlert
 
     $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
     $global:TrayIcon.Text = if ($hasAnyAlert) { "Endpoint Advisor v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory Endpoint Advisor v$ScriptVersion" }
