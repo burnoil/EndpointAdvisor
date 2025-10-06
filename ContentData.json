@@ -79,7 +79,7 @@
     },
     {
       "TabHeader": "Resources",
-      "Enabled": true,
+      "Enabled": false,
       "Content": {
         "Text": "**Quick Links**\n\nFrequently accessed resources and tools.",
         "Sections": [
