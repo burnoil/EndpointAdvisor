@@ -480,6 +480,14 @@ $xamlString = @"
                 <TextBlock Text="This application provides timely announcements, system status, and support information for your endpoint." TextWrapping="Wrap"/>
             </StackPanel>
         </TabItem>
+		<TabItem Header="Lincoln Laboratory AI">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <TextBlock Text="Launch LLAI" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+      <Button x:Name="LLAI" Content="Launch Chrome App" Padding="10,5" FontSize="12" HorizontalAlignment="Center" ToolTip="Launch the LLAI Desktop application"/>
+    </StackPanel>
+  </ScrollViewer>
+</TabItem>
     </TabControl>
     
     <!-- Footer (unchanged) -->
