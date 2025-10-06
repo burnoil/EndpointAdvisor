@@ -473,6 +473,14 @@ $xamlString = @"
     </StackPanel>
   </ScrollViewer>
 </TabItem>
+<TabItem Header="Chrome App">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <TextBlock Text="Launch your Chrome application" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+      <Button x:Name="ChromeAppButton" Content="Launch Chrome App" Padding="10,5" FontSize="12" HorizontalAlignment="Center" ToolTip="Launch the Chrome application"/>
+    </StackPanel>
+  </ScrollViewer>
+</TabItem>
        <TabItem Header="About">
             <StackPanel Margin="10">
                 <TextBlock Text="Lincoln Laboratory Endpoint Advisor" FontWeight="Bold" FontSize="14"/>
@@ -480,14 +488,7 @@ $xamlString = @"
                 <TextBlock Text="This application provides timely announcements, system status, and support information for your endpoint." TextWrapping="Wrap"/>
             </StackPanel>
         </TabItem>
-		<TabItem Header="Lincoln Laboratory AI">
-  <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-      <TextBlock Text="Launch LLAI" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" HorizontalAlignment="Center"/>
-      <Button x:Name="LLAI" Content="Launch Chrome App" Padding="10,5" FontSize="12" HorizontalAlignment="Center" ToolTip="Launch the LLAI Desktop application"/>
-    </StackPanel>
-  </ScrollViewer>
-</TabItem>
+		
     </TabControl>
     
     <!-- Footer (unchanged) -->
@@ -527,7 +528,7 @@ try {
     "SupportSourceText", "ClearAlertsButton",
     "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
     "AppendedAnnouncementsPanel", "AboutVersionText", "DashboardTabAlert", "SupportTabAlert", "SupportTab",
-    "DriverUpdateStatusText", "DriverUpdateButton", "DriverUpdateLastRunText", "PatchingAlertDot"
+    "DriverUpdateStatusText", "DriverUpdateButton", "DriverUpdateLastRunText", "PatchingAlertDot", "ChromeAppButton"
 )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -655,6 +656,32 @@ if (`$bitlockerstatus.ProtectionStatus -eq 'On') {
             Handle-Error $_.Exception.Message -Source "DriverUpdateButton"
             [System.Windows.MessageBox]::Show(
                 "Failed to start driver update installation: $($_.Exception.Message)",
+                "Error",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Error
+            )
+        }
+    })
+}
+
+if ($global:ChromeAppButton) {
+    $global:ChromeAppButton.Add_Click({
+        try {
+            Write-Log "Launching Chrome app..." -Level "INFO"
+            $chromeAppPath = "C:\Program Files\Google\Chrome\Application\chrome_proxy.exe"
+            $chromeArgs = "--profile-directory=Default", "--app-id=kpcgfechalpmijckhajgmijpomjlkobb"
+            
+            if (-not (Test-Path $chromeAppPath)) {
+                throw "Chrome proxy executable not found at: `"$chromeAppPath`""
+            }
+            
+            Start-Process -FilePath $chromeAppPath -ArgumentList $chromeArgs
+            Write-Log "Chrome app launched successfully." -Level "INFO"
+        }
+        catch {
+            Handle-Error $_.Exception.Message -Source "ChromeAppButton"
+            [System.Windows.MessageBox]::Show(
+                "Failed to launch Chrome app: $($_.Exception.Message)",
                 "Error",
                 [System.Windows.MessageBoxButton]::OK,
                 [System.Windows.MessageBoxImage]::Error
