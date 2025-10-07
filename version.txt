@@ -1,1 +1,56 @@
+action uses wow64 redirection {not x64 of operating system}
+// 1. Ensure the target folder exists
+folder create "C:\Program Files\LLEA"
+waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
+// 2. Build a pure-batch downloader using certutil
+delete __createfile
+createfile until END_OF_BATCH
+@echo off
+REM — download the signed script and icons
+certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1 "C:\Program Files\LLEA\LLEA.ps1"
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico "C:\Program Files\LLEA\LL_LOGO.ico"
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico "C:\Program Files\LLEA\LL_LOGO_MSG.ico"
+exit /b 0
+END_OF_BATCH
+
+// 3. Drop the batch into place
+copy __createfile "C:\Program Files\LLEA\download_LLEA.bat"
+
+// 4. Run it as the current user, hidden
+override wait
+hidden=true
+wait cmd.exe /C "C:\Program Files\LLEA\download_LLEA.bat"
+
+// 5. (Optional) Clean up the batch once successful
+delete "C:\Program Files\LLEA\download_LLEA.bat"
+
+// 5a. Ensure log directory exists
+folder create "C:\Windows\mitll\Logs"
+
+// 5b. Create batch file for driver updates (no signing required)
+delete __createfile
+createfile until END_OF_BATCH_DRIVER
+@echo off
+powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue; Install-Module -Name PSWindowsUpdate -Force -ErrorAction SilentlyContinue; $dateTime = Get-Date -Format 'MM/dd/yyyy'; $dateTime | Out-File -Append -FilePath 'C:\Windows\mitll\Logs\MS_Update.txt'; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath 'C:\Windows\mitll\Logs\MS_Update.txt'; Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue; $bitlockerstatus = get-bitlockervolume -mountpoint 'c:'; if ($bitlockerstatus.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint 'C:' -RebootCount 1 }"
+END_OF_BATCH_DRIVER
+
+move __createfile "C:\Program Files\LLEA\DriverUpdate.bat"
+
+// 5c. Create scheduled task to run batch file
+override wait
+hidden=true
+wait schtasks /create /tn "MIT_LL_Driver_Update" /tr "C:\Program Files\LLEA\DriverUpdate.bat" /sc ONDEMAND /ru SYSTEM /rl HIGHEST /f
+
+// 6. Register per machine Run key (hidden PowerShell)
+override wait
+hidden=true
+wait reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLEA" /t REG_SZ /d "\"C:\Windows\System32\conhost.exe\" --headless \"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\Program Files\LLEA\LLEA.ps1\" -RunMode LLEA\"" /f
+
+// 7. Immediately invoke the (signed) script once
+override wait
+hidden=true
+runas=currentuser  
+wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Program Files\LLEA\LLEA.ps1" -RunMode LLEA
