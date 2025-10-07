@@ -663,6 +663,21 @@ function Start-DriverUpdateMonitoring {
                 $global:DriverMonitorTimer.Stop()
                 Write-Log "Driver update encountered errors." -Level "WARNING"
             }
+			elseif ($logContent -match "===== Driver Update Completed =====") {
+    # Check if no updates were installed
+    if ($logContent -match "NO_UPDATES") {
+        $global:DriverProgressStatus.Text = "[OK] Scan complete - No driver updates needed`n`nYour system is up to date!"
+    } elseif ($logContent -match "INSTALL_COMPLETE") {
+        $global:DriverProgressStatus.Text = "[OK] Driver installation complete!`n`nYour computer may restart shortly."
+    } else {
+        # Fallback if we missed the specific marker
+        $global:DriverProgressStatus.Text = "[OK] Driver update process completed."
+    }
+    $global:DriverProgressBar.IsIndeterminate = $false
+    $global:DriverProgressBar.Value = 100
+    $global:DriverMonitorTimer.Stop()
+    Write-Log "Driver update monitoring completed - script finished." -Level "INFO"
+}
             elseif ($logContent -match "SCAN_START") {
                 $global:DriverProgressStatus.Text = "[...] Scanning for driver updates...`n`nThis may take 5-10 minutes."
             }
