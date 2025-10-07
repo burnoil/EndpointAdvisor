@@ -711,17 +711,22 @@ if ($global:DriverUpdateButton) {
             $taskName = "MIT_LL_Driver_Update"
             
             # Check if scheduled task exists
-            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-            if (-not $task) {
-                [System.Windows.MessageBox]::Show(
-                    "Driver update task not found. Please contact IT Support.`n`nTask name: $taskName",
-                    "Configuration Error",
-                    [System.Windows.MessageBoxButton]::OK,
-                    [System.Windows.MessageBoxImage]::Error
-                )
-                Write-Log "Scheduled task '$taskName' not found!" -Level "ERROR"
-                return
-            }
+            # Check if scheduled task exists using schtasks (more reliable)
+$taskCheck = schtasks /query /tn $taskName 2>&1
+$taskExists = $LASTEXITCODE -eq 0
+
+if (-not $taskExists) {
+    Write-Log "Scheduled task '$taskName' not found. Exit code: $LASTEXITCODE" -Level "ERROR"
+    [System.Windows.MessageBox]::Show(
+        "Driver update task not found. Please contact IT Support.`n`nTask name: $taskName",
+        "Configuration Error",
+        [System.Windows.MessageBoxButton]::OK,
+        [System.Windows.MessageBoxImage]::Error
+    )
+    return
+}
+
+Write-Log "Scheduled task '$taskName' found successfully." -Level "INFO"
             
             # Check when drivers were last updated
             $lastRunStatus = Get-DaysSinceLastDriverUpdate
