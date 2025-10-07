@@ -708,6 +708,21 @@ if ($global:DriverUpdateButton) {
         try {
             Write-Log "Driver Update button clicked by user." -Level "INFO"
             
+            $taskName = "MIT_LL_Driver_Update"
+            
+            # Check if scheduled task exists
+            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+            if (-not $task) {
+                [System.Windows.MessageBox]::Show(
+                    "Driver update task not found. Please contact IT Support.`n`nTask name: $taskName",
+                    "Configuration Error",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Error
+                )
+                Write-Log "Scheduled task '$taskName' not found!" -Level "ERROR"
+                return
+            }
+            
             # Check when drivers were last updated
             $lastRunStatus = Get-DaysSinceLastDriverUpdate
             
@@ -719,7 +734,7 @@ if ($global:DriverUpdateButton) {
                     Write-Log "Driver updates were run $daysSinceUpdate days ago (within 30-day window)." -Level "INFO"
                     
                     $recentUpdateWarning = [System.Windows.MessageBox]::Show(
-                        "Driver updates were last run $daysSinceUpdate days ago.`n`nDriver updates are typically only required once per month. Running them more frequently is usually unnecessary unless requested by ISD.`n`nDo you still want to proceed?",
+                        "Driver updates were last run $daysSinceUpdate days ago.`n`nDriver updates are typically only required once per month. Running them more frequently is usually unnecessary and may cause system instability.`n`nDo you still want to proceed?",
                         "Recent Update Detected",
                         [System.Windows.MessageBoxButton]::YesNo,
                         [System.Windows.MessageBoxImage]::Information
@@ -736,9 +751,8 @@ if ($global:DriverUpdateButton) {
             $needsPowerWarning = Test-LaptopOnBattery
             
             if ($needsPowerWarning) {
-                # Show AC power warning for laptops on battery
                 $powerWarning = [System.Windows.MessageBox]::Show(
-                    "WARNING: Your laptop is currently running on battery power!`n`nPlease plug into AC power before continuing. Driver updates require a stable power source and will require a system restart.`n`nAre you plugged in and ready to proceed?",
+                    "WARNING: Your laptop is currently running on battery power!`n`nPlease plug into AC power before continuing. Driver updates require a stable power source and may require a system restart.`n`nAre you plugged in and ready to proceed?",
                     "AC Power Required",
                     [System.Windows.MessageBoxButton]::YesNo,
                     [System.Windows.MessageBoxImage]::Warning
@@ -750,9 +764,9 @@ if ($global:DriverUpdateButton) {
                 }
             }
             
-            # Final confirmation for the actual update
+            # Final confirmation
             $result = [System.Windows.MessageBox]::Show(
-                "This will install driver updates via Windows Update and will require a system restart. Continue?",
+                "This will install driver updates via Windows Update and may require a system restart. Continue?",
                 "Install Driver Updates",
                 [System.Windows.MessageBoxButton]::YesNo,
                 [System.Windows.MessageBoxImage]::Question
@@ -761,39 +775,25 @@ if ($global:DriverUpdateButton) {
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
                 Write-Log "User confirmed driver update installation." -Level "INFO"
                 
-                # Run the driver update script
-                $scriptBlock = @"
-Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue
-try { Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 3600 -type dword -ErrorAction Stop } catch { }
-Install-Module -Name PSWindowsUpdate -Force
-`$dateTime = Get-Date -Format "MM/dd/yyyy"
-`$dateTime | Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt"
-Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt"
-Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue
-try { Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 900 -type dword -ErrorAction Stop } catch { }
-`$bitlockerstatus = get-bitlockervolume -mountpoint "c:"
-if (`$bitlockerstatus.ProtectionStatus -eq 'On') {
-    Suspend-BitLocker -MountPoint "C:" -RebootCount 1
-}
-"@
+                # Start the scheduled task
+                Start-ScheduledTask -TaskName $taskName
+                Write-Log "Scheduled task '$taskName' started successfully." -Level "INFO"
                 
-Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", $scriptBlock -Verb RunAs
-
-# Start monitoring the update progress
-Start-DriverUpdateMonitoring
-
-[System.Windows.MessageBox]::Show(
-    "Driver update installation has been started. Progress will be shown below.",
-    "Driver Updates Started",
-    [System.Windows.MessageBoxButton]::OK,
-    [System.Windows.MessageBoxImage]::Information
-)
+                # Start monitoring the update progress
+                Start-DriverUpdateMonitoring
+                
+                [System.Windows.MessageBox]::Show(
+                    "Driver update installation has been started. Progress will be shown below.",
+                    "Driver Updates Started",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Information
+                )
             }
         }
         catch {
             Handle-Error $_.Exception.Message -Source "DriverUpdateButton"
             [System.Windows.MessageBox]::Show(
-                "Failed to start driver update installation: $($_.Exception.Message)",
+                "Failed to start driver update: $($_.Exception.Message)",
                 "Error",
                 [System.Windows.MessageBoxButton]::OK,
                 [System.Windows.MessageBoxImage]::Error
