@@ -1,14 +1,72 @@
 # DriverUpdate.ps1
-Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue
-Install-Module -Name PSWindowsUpdate -Force -ErrorAction SilentlyContinue
-$dateTime = Get-Date -Format "MM/dd/yyyy"
-$dateTime | Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt"
-Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt"
-Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue
-$bitlockerstatus = get-bitlockervolume -mountpoint "c:"
-if ($bitlockerstatus.ProtectionStatus -eq 'On') {
-    Suspend-BitLocker -MountPoint "C:" -RebootCount 1
+# Log file path
+$logPath = "C:\Windows\mitll\Logs\MS_Update.txt"
+
+# Function to log messages
+function Write-UpdateLog {
+    param([string]$Message)
+    $timestamp = Get-Date -Format "MM/dd/yyyy HH:mm:ss"
+    "$timestamp - $Message" | Out-File -Append -FilePath $logPath
 }
+
+Write-UpdateLog "===== Driver Update Started ====="
+
+# Set registry for driver updates
+Write-UpdateLog "Setting registry for driver updates..."
+Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue
+
+# Install PSWindowsUpdate module if not present
+Write-UpdateLog "Checking for PSWindowsUpdate module..."
+if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+    Write-UpdateLog "Installing PSWindowsUpdate module..."
+    try {
+        Install-Module -Name PSWindowsUpdate -Force -ErrorAction Stop
+        Write-UpdateLog "PSWindowsUpdate module installed successfully."
+    } catch {
+        Write-UpdateLog "ERROR: Failed to install PSWindowsUpdate - $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Import the module
+Write-UpdateLog "Importing PSWindowsUpdate module..."
+try {
+    Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+    Write-UpdateLog "PSWindowsUpdate module imported successfully."
+} catch {
+    Write-UpdateLog "ERROR: Failed to import PSWindowsUpdate - $($_.Exception.Message)"
+    exit 1
+}
+
+# Run Windows Update for drivers
+Write-UpdateLog "Checking for driver updates..."
+try {
+    Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath $logPath
+    Write-UpdateLog "Driver update check/install completed."
+} catch {
+    Write-UpdateLog "ERROR: Failed to install updates - $($_.Exception.Message)"
+}
+
+# Reset registry
+Write-UpdateLog "Resetting registry..."
+Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue
+
+# Check BitLocker and suspend if needed
+Write-UpdateLog "Checking BitLocker status..."
+try {
+    $bitlockerstatus = get-bitlockervolume -mountpoint "c:"
+    if ($bitlockerstatus.ProtectionStatus -eq 'On') {
+        Write-UpdateLog "BitLocker is enabled, suspending for next reboot..."
+        Suspend-BitLocker -MountPoint "C:" -RebootCount 1
+        Write-UpdateLog "BitLocker suspended successfully."
+    } else {
+        Write-UpdateLog "BitLocker is not enabled."
+    }
+} catch {
+    Write-UpdateLog "ERROR: BitLocker check failed - $($_.Exception.Message)"
+}
+
+Write-UpdateLog "===== Driver Update Completed ====="
 
 
 action uses wow64 redirection {not x64 of operating system}
