@@ -628,31 +628,43 @@ function Start-DriverUpdateMonitoring {
             }
             
             # Read last few lines of log
-            $logContent = Get-Content $logPath -Tail 20 -ErrorAction SilentlyContinue
-            $lastLine = $logContent | Select-Object -Last 1
+            $logContent = Get-Content $logPath -Tail 30 -ErrorAction SilentlyContinue
             
-            # Translate technical log entries to user-friendly messages
-            if ($logContent -match "Install-Module") {
-                $global:DriverProgressStatus.Text = "[OK] Preparing update tools...`n[...] Checking for available driver updates..."
+            # Check for specific status markers
+            if ($logContent -match "MODULE_READY") {
+                $global:DriverProgressStatus.Text = "[OK] Update tools ready`n[...] Scanning for driver updates..."
             }
-            elseif ($logContent -match "Downloading" -or $logContent -match "Download") {
-                $global:DriverProgressStatus.Text = "[OK] Found driver updates`n[...] Downloading updates..."
+            elseif ($logContent -match "NO_UPDATES") {
+                $global:DriverProgressStatus.Text = "[OK] Scan complete - No driver updates needed`n`nYour system is up to date!"
+                $global:DriverProgressBar.IsIndeterminate = $false
+                $global:DriverProgressBar.Value = 100
+                $global:DriverMonitorTimer.Stop()
+                Write-Log "Driver update monitoring completed - no updates needed." -Level "INFO"
             }
-            elseif ($logContent -match "Installing" -or $logContent -match "Install") {
+            elseif ($logContent -match "UPDATES_FOUND") {
+                $global:DriverProgressStatus.Text = "[OK] Driver updates found`n[...] Downloading updates..."
+            }
+            elseif ($logContent -match "DOWNLOAD_START") {
+                $global:DriverProgressStatus.Text = "[OK] Downloading driver updates...`n`nPlease wait, this may take several minutes."
+            }
+            elseif ($logContent -match "INSTALL_START") {
                 $global:DriverProgressStatus.Text = "[OK] Download complete`n[...] Installing drivers...`n`nPlease wait, this may take several minutes."
             }
-            elseif ($logContent -match "Success" -or $logContent -match "Installed") {
+            elseif ($logContent -match "INSTALL_COMPLETE") {
                 $global:DriverProgressStatus.Text = "[OK] Driver installation complete!`n`nYour computer may restart shortly."
                 $global:DriverProgressBar.IsIndeterminate = $false
                 $global:DriverProgressBar.Value = 100
                 $global:DriverMonitorTimer.Stop()
-                Write-Log "Driver update monitoring completed." -Level "INFO"
+                Write-Log "Driver update monitoring completed successfully." -Level "INFO"
             }
-            elseif ($logContent -match "Failed" -or $logContent -match "Error") {
+            elseif ($logContent -match "ERROR:") {
                 $global:DriverProgressStatus.Text = "[!] An issue occurred during installation.`n`nCheck C:\Windows\mitll\Logs\MS_Update.txt for details."
                 $global:DriverProgressBar.IsIndeterminate = $false
                 $global:DriverMonitorTimer.Stop()
                 Write-Log "Driver update encountered errors." -Level "WARNING"
+            }
+            elseif ($logContent -match "SCAN_START") {
+                $global:DriverProgressStatus.Text = "[...] Scanning for driver updates...`n`nThis may take 5-10 minutes."
             }
             
         } catch {
@@ -1864,73 +1876,3 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-# SIG # Begin signature block
-# MIIMjgYJKoZIhvcNAQcCoIIMfzCCDHsCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
-# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU7Ld7YaBvcRJN8EaRGCiW4VZ7
-# z1mgggnvMIIEwDCCA6igAwIBAgIBEzANBgkqhkiG9w0BAQsFADBWMQswCQYDVQQG
-# EwJVUzEfMB0GA1UEChMWTUlUIExpbmNvbG4gTGFib3JhdG9yeTEMMAoGA1UECxMD
-# UEtJMRgwFgYDVQQDEw9NSVRMTCBSb290IENBLTIwHhcNMTkwNzA4MTExMDAwWhcN
-# MjkwNzA4MTExMDAwWjBRMQswCQYDVQQGEwJVUzEfMB0GA1UECgwWTUlUIExpbmNv
-# bG4gTGFib3JhdG9yeTEMMAoGA1UECwwDUEtJMRMwEQYDVQQDDApNSVRMTCBDQS02
-# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj2T0hoZXOA+UPr8SD/Re
-# gKGDHDfz+8i1bm+cGV9V2Zxs1XxYrCBbnTB79AtuYR29HIf6HfsUrsqJH6gQtptF
-# tux8QrWqx25iOE4tg2yeSVmrc/ZB4fRfufKi0idq2IA13kJgYQ8xCLpIiBEm8be7
-# Lzlz9mGT0UVgRe3I5Jku935a7pOB2qHHH6OGWSs9AOPiJdo4oSWUbL5H3H5MmZCI
-# 8T3Rj7dobmrRYOsUADI5kkqvOf7o1j09X7X2q4Q+ez4JHgGTLTxjvox7QEDYglZM
-# Mh9qB2SGpvhCkKoZ3/05bT1oCt2Pb4iR7MlETNryi/mzZuOjf2gaYpuWweYVh2Ny
-# 3wIDAQABo4IBnDCCAZgwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUk5BH
-# A0LBTbQzHtRCl5+h4Ctwv4gwHwYDVR0jBBgwFoAU/8nJZUxTgPGpDDwhroIqx+74
-# MvswDgYDVR0PAQH/BAQDAgGGMGcGCCsGAQUFBwEBBFswWTAuBggrBgEFBQcwAoYi
-# aHR0cDovL2NybC5sbC5taXQuZWR1L2dldHRvL0xMUkNBMjAnBggrBgEFBQcwAYYb
-# aHR0cDovL29jc3AubGwubWl0LmVkdS9vY3NwMDQGA1UdHwQtMCswKaAnoCWGI2h0
-# dHA6Ly9jcmwubGwubWl0LmVkdS9nZXRjcmwvTExSQ0EyMIGSBgNVHSAEgYowgYcw
-# DQYLKoZIhvcSAgEDAQYwDQYLKoZIhvcSAgEDAQgwDQYLKoZIhvcSAgEDAQcwDQYL
-# KoZIhvcSAgEDAQkwDQYLKoZIhvcSAgEDAQowDQYLKoZIhvcSAgEDAQswDQYLKoZI
-# hvcSAgEDAQ4wDQYLKoZIhvcSAgEDAQ8wDQYLKoZIhvcSAgEDARAwDQYJKoZIhvcN
-# AQELBQADggEBALnwy+yzh/2SvpwC8q8EKdDQW8LxWnDM56DcHm5zgfi0WfEsQi8w
-# xcV2Vb2eCNs6j0NofdgsSP7k9DJ6LmDs+dfZEmD23+r9zlMhI6QQcwlvq+cgTrOI
-# oUcZd83oyTHr0ig5IFy1r9FpnG00/P5MV+zxmTbTDXJjC8VgxqWl2IhnPk8zr0Fc
-# JK0BoYHtv7NHeC4WbNHQZCQf9UMSDALcVR23YZemWizmEK2Mclhjv0E+s7mLZn0A
-# K03zCQSvwQrjt+2YzS7J8MxWlRA5cNj1bNbnTtIuEUPpLSYgsN8Q+Ks9ffk9D7yU
-# t8No/ntuf6R38t/33c0LTCSJ9AIgjz7hUHMwggUnMIIED6ADAgECAhMwAAW/Xff+
-# 6WMO1wIRAAAABb9dMA0GCSqGSIb3DQEBCwUAMFExCzAJBgNVBAYTAlVTMR8wHQYD
-# VQQKDBZNSVQgTGluY29sbiBMYWJvcmF0b3J5MQwwCgYDVQQLDANQS0kxEzARBgNV
-# BAMMCk1JVExMIENBLTYwHhcNMjQxMDI4MTgxMjU1WhcNMjcxMDI4MTgxMjU1WjBg
-# MQswCQYDVQQGEwJVUzEfMB0GA1UEChMWTUlUIExpbmNvbG4gTGFib3JhdG9yeTEO
-# MAwGA1UECxMFT3RoZXIxIDAeBgNVBAMTF0lTRCBEZXNrdG9wIEVuZ2luZWVyaW5n
-# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0BQ5+bMtDvgRT7pCIgHp
-# b0iuWsrGHTAKWvKo3T6uk/5r/Kp7VtqJFvcuwLqu0jm+As1kypxloyme0GAKCZcm
-# nvyEtRIS5Vxn0FpPO1/y1Bm1JOZ30O7xoy3kimp/16jSmROMeCSdm9qPEmG60M5Y
-# L12k7DOaU6/v+5MSZLQiDl20lf34u+Qt8SYNe/L4oA4kdsN3YMXuM6MVbbh6CJzb
-# wBT3ceZNwRmkkqQOEQtA0Zr0n2UmoijuraIxU5DC+pISBJIcF3RbfFQNQMivR0lq
-# rzQZDrKej/3D9FouGiBl8xZyVtJE0cNum6OE8b7nABtYwKP4jvz3ttxtIWVhoC/v
-# WQIDAQABo4IB5zCCAeMwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIg4PlHYfs
-# p2aGrYcVg+rwRYW2oR8dhuHfGoHsg1wCAWQCAQQwFgYDVR0lAQH/BAwwCgYIKwYB
-# BQUHAwMwDgYDVR0PAQH/BAQDAgeAMBgGA1UdIAQRMA8wDQYLKoZIhvcSAgEDAQYw
-# HQYDVR0OBBYEFLlL4q2UwnJN7ZTZ9W2D+7Y9a+tdMIGCBgNVHREEezB5pFswWTEY
-# MBYGA1UEAwwPQW50aG9ueS5NYXNzYXJvMQ8wDQYDVQQLDAZQZW9wbGUxHzAdBgNV
-# BAoMFk1JVCBMaW5jb2xuIExhYm9yYXRvcnkxCzAJBgNVBAYTAlVTgRpBbnRob255
-# Lk1hc3Nhcm9AbGwubWl0LmVkdTAfBgNVHSMEGDAWgBSTkEcDQsFNtDMe1EKXn6Hg
-# K3C/iDAzBgNVHR8ELDAqMCigJqAkhiJodHRwOi8vY3JsLmxsLm1pdC5lZHUvZ2V0
-# Y3JsL2xsY2E2MGYGCCsGAQUFBwEBBFowWDAtBggrBgEFBQcwAoYhaHR0cDovL2Ny
-# bC5sbC5taXQuZWR1L2dldHRvL2xsY2E2MCcGCCsGAQUFBzABhhtodHRwOi8vb2Nz
-# cC5sbC5taXQuZWR1L29jc3AwDQYJKoZIhvcNAQELBQADggEBAFqyP/3MhIsDF2Qu
-# ThdPiYz24768PIl64Tiaz8PjjxPnKTiayoOfnCG40wsZh+wlWvZZP5R/6FZab6ZC
-# nkrI9IObUZdJeiN4UEypO1v5L6J1iXGq4Zc3QpkJUmjCIIYU0IPG9BPo0SX7mBiz
-# DFafAGHReYkovs6vq035+4I6tsOQBpl+JfFPIT37Kpy+PlKz/OXzhVmQOa87mC1b
-# YADxWAwwDJd1Mm1GFbXUHHBPkdusW+POqR7qh5WQf0dJpRTsMG/MzIqWiUZxDzkD
-# lsqyRl4Y9nN9ii92PGpJF59AZAuEHDX0fqP6yeyMWYZGKpy7XqhQidW7nPxeqHl+
-# EQW6EH0xggIJMIICBQIBATBoMFExCzAJBgNVBAYTAlVTMR8wHQYDVQQKDBZNSVQg
-# TGluY29sbiBMYWJvcmF0b3J5MQwwCgYDVQQLDANQS0kxEzARBgNVBAMMCk1JVExM
-# IENBLTYCEzAABb9d9/7pYw7XAhEAAAAFv10wCQYFKw4DAhoFAKB4MBgGCisGAQQB
-# gjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYK
-# KwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFHk2+aZd
-# oyUn8SkKYR/zLj1z26WPMA0GCSqGSIb3DQEBAQUABIIBAGr4Pv8cOLTT/DHN1bkN
-# icjpsDt8Ssc6Lot6NQ3YmTCpElAk7frQ0RiAuDnzAhv3ok3mg/QHAH31NWGJcN5F
-# JqSfLWUCXZIWFCdcF6WcxqIux1AvbutFZwpd+PlN+RV44NIRBxNhzZSFm5WeW89L
-# q5lUoDw9V6KiHbsLAi1dEo2MARcs88yw7u7OBbmDcr+WIU/7hGSPGzXcLUatVSmm
-# QAP5jQ0Em8si4NeLl86H4vx6DlI2iqaMCFS0Gz8IoOjP8YZfnTEQGVHShHIznqZR
-# eD1QakIViS7BX4dEroPHaqyg0wZmkkaZgzVds1/CApdGM4OYZ48gZDx+UtqYG6IA
-# ZZo=
-# SIG # End signature block
