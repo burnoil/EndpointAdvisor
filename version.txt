@@ -30,11 +30,25 @@ delete "C:\Program Files\LLEA\download_LLEA.bat"
 // 5a. Ensure log directory exists
 folder create "C:\Windows\mitll\Logs"
 
-// 5b. Create batch file for driver updates (no signing required)
+// 5b. Create batch file for driver updates
 delete __createfile
 createfile until END_OF_BATCH_DRIVER
 @echo off
-powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue; Install-Module -Name PSWindowsUpdate -Force -ErrorAction SilentlyContinue; $dateTime = Get-Date -Format 'MM/dd/yyyy'; $dateTime | Out-File -Append -FilePath 'C:\Windows\mitll\Logs\MS_Update.txt'; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath 'C:\Windows\mitll\Logs\MS_Update.txt'; Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue; $bitlockerstatus = get-bitlockervolume -mountpoint 'c:'; if ($bitlockerstatus.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint 'C:' -RebootCount 1 }"
+REM Create temporary PowerShell script
+echo Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue > "%TEMP%\DriverUpdate_Temp.ps1"
+echo Install-Module -Name PSWindowsUpdate -Force -ErrorAction SilentlyContinue >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo $dateTime = Get-Date -Format "MM/dd/yyyy" >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo $dateTime ^| Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt" >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot ^| Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt" >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo $bitlockerstatus = get-bitlockervolume -mountpoint "c:" >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo if ($bitlockerstatus.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint "C:" -RebootCount 1 } >> "%TEMP%\DriverUpdate_Temp.ps1"
+
+REM Run the script
+powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%TEMP%\DriverUpdate_Temp.ps1"
+
+REM Clean up
+del "%TEMP%\DriverUpdate_Temp.ps1"
 END_OF_BATCH_DRIVER
 
 move __createfile "C:\Program Files\LLEA\DriverUpdate.bat"
