@@ -42,7 +42,7 @@ echo $dateTime ^| Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.tx
 echo Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot ^| Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt" >> "%TEMP%\DriverUpdate_Temp.ps1"
 echo Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue >> "%TEMP%\DriverUpdate_Temp.ps1"
 echo $bitlockerstatus = get-bitlockervolume -mountpoint "c:" >> "%TEMP%\DriverUpdate_Temp.ps1"
-echo if ($bitlockerstatus.ProtectionStatus -eq 'On') { Suspend-BitLocker -MountPoint "C:" -RebootCount 1 } >> "%TEMP%\DriverUpdate_Temp.ps1"
+echo if ^($bitlockerstatus.ProtectionStatus -eq 'On'^) { Suspend-BitLocker -MountPoint "C:" -RebootCount 1 } >> "%TEMP%\DriverUpdate_Temp.ps1"
 
 REM Run the script
 powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "%TEMP%\DriverUpdate_Temp.ps1"
