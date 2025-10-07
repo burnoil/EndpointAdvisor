@@ -763,21 +763,21 @@ if ($global:DriverUpdateButton) {
                 
                 # Run the driver update script
                 $scriptBlock = @"
-Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 3600 -type dword
+Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue
+try { Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 3600 -type dword -ErrorAction Stop } catch { }
 Install-Module -Name PSWindowsUpdate -Force
 `$dateTime = Get-Date -Format "MM/dd/yyyy"
 `$dateTime | Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt"
 Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath "C:\Windows\mitll\Logs\MS_Update.txt"
-Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 900 -type dword
+Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue
+try { Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 900 -type dword -ErrorAction Stop } catch { }
 `$bitlockerstatus = get-bitlockervolume -mountpoint "c:"
 if (`$bitlockerstatus.ProtectionStatus -eq 'On') {
     Suspend-BitLocker -MountPoint "C:" -RebootCount 1
 }
 "@
                 
-                Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $scriptBlock -Verb RunAs
+Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", $scriptBlock -Verb RunAs
 
 # Start monitoring the update progress
 Start-DriverUpdateMonitoring
