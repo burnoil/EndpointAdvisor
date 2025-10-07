@@ -45,10 +45,26 @@ delete "C:\Program Files\LLEA\download_LLEA.bat"
 // 5a. Ensure log directory exists
 folder create "C:\Windows\mitll\Logs"
 
-// 5b. Create scheduled task to run the signed PowerShell script
+// 5b. Create scheduled task using PowerShell
+delete __createfile
+createfile until END_OF_TASK_CREATION
+$taskName = "MIT_LL_Driver_Update"
+$taskDescription = "Monthly Windows driver updates via Windows Update"
+$scriptPath = "C:\Program Files\LLEA\DriverUpdate.ps1"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$scriptPath`""
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+Register-ScheduledTask -TaskName $taskName -Description $taskDescription -Action $action -Principal $principal -Settings $settings -Force
+Write-Output "Scheduled task created successfully."
+END_OF_TASK_CREATION
+
+move __createfile "C:\Program Files\LLEA\CreateTask.ps1"
+
 override wait
 hidden=true
-wait schtasks /create /tn "MIT_LL_Driver_Update" /tr "powershell.exe -ExecutionPolicy Bypass -File \"C:\Program Files\LLEA\DriverUpdate.ps1\"" /sc ONDEMAND /ru SYSTEM /rl HIGHEST /f
+wait powershell.exe -ExecutionPolicy Bypass -File "C:\Program Files\LLEA\CreateTask.ps1"
+
+delete "C:\Program Files\LLEA\CreateTask.ps1"
 
 // 6. Register per machine Run key (hidden PowerShell)
 override wait
