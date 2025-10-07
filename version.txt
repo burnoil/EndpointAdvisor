@@ -1,8 +1,8 @@
 action uses wow64 redirection {not x64 of operating system}
-
 // 1. Ensure the target folder exists
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
+
 // 2. Build a pure-batch downloader using certutil
 delete __createfile
 createfile until END_OF_BATCH
@@ -26,6 +26,41 @@ wait cmd.exe /C "C:\Program Files\LLEA\download_LLEA.bat"
 
 // 5. (Optional) Clean up the batch once successful
 delete "C:\Program Files\LLEA\download_LLEA.bat"
+
+// 5a. Create the scheduled task for driver updates
+delete __createfile
+createfile until END_OF_TASK_SCRIPT
+$taskName = "MIT_LL_Driver_Update"
+$taskDescription = "Monthly Windows driver updates via Windows Update"
+$scriptBlock = @'
+Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0 -ErrorAction SilentlyContinue
+Install-Module -Name PSWindowsUpdate -Force -ErrorAction SilentlyContinue
+$dateTime = Get-Date -Format "MM/dd/yyyy"
+$logPath = "C:\Windows\mitll\Logs\MS_Update.txt"
+$logDir = Split-Path $logPath
+if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+$dateTime | Out-File -Append -FilePath $logPath
+Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot | Out-File -Append -FilePath $logPath
+Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 1 -ErrorAction SilentlyContinue
+$bitlockerstatus = get-bitlockervolume -mountpoint "c:"
+if ($bitlockerstatus.ProtectionStatus -eq 'On') {
+    Suspend-BitLocker -MountPoint "C:" -RebootCount 1
+}
+'@
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$scriptBlock`""
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+Register-ScheduledTask -TaskName $taskName -Description $taskDescription -Action $action -Principal $principal -Settings $settings -Force
+Write-Output "Scheduled task '$taskName' created successfully."
+END_OF_TASK_SCRIPT
+
+move __createfile "C:\Program Files\LLEA\CreateDriverUpdateTask.ps1"
+
+override wait
+hidden=true
+wait powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "C:\Program Files\LLEA\CreateDriverUpdateTask.ps1"
+
+delete "C:\Program Files\LLEA\CreateDriverUpdateTask.ps1"
 
 // 6. Register per machine Run key (hidden PowerShell)
 override wait
