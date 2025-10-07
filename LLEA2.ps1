@@ -385,49 +385,61 @@ $xamlString = @"
         <TextBlock Text="Lincoln Laboratory Endpoint Advisor" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
       </StackPanel>
     </Border>
-    <!-- Patching and Updates Section -->
-<Border Grid.Row="2" BorderBrush="#00008B" BorderThickness="2" Padding="8" CornerRadius="3" Background="White" Margin="0,5,0,5">
-  <StackPanel>
-    <!-- Red dot indicator for patching alerts -->
-    <Ellipse x:Name="PatchingAlertDot" Width="10" Height="10" Fill="Red" Visibility="Hidden" HorizontalAlignment="Left" Margin="0,0,0,5"/>
-    
-    <Grid Margin="0,2,0,2">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="Auto"/>
-      </Grid.ColumnDefinitions>
-      <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-      <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
-    </Grid>
-    <Separator Margin="0,5,0,5"/>
-    <Grid Margin="0,2,0,2">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="Auto"/>
-      </Grid.ColumnDefinitions>
-      <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-      <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
-    </Grid>
-    <Separator Margin="0,5,0,5"/>
-    <Grid Margin="0,2,0,2">
-  <Grid.ColumnDefinitions>
-    <ColumnDefinition Width="*"/>
-    <ColumnDefinition Width="Auto"/>
-  </Grid.ColumnDefinitions>
-  <StackPanel Grid.Column="0" VerticalAlignment="Center">
-    <TextBlock x:Name="DriverUpdateStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Windows Driver Updates (Required every month) Your machine will RESTART automatically when finished."/>
-    <TextBlock x:Name="DriverUpdateLastRunText" FontSize="9" Foreground="Gray" TextWrapping="Wrap" Text="Checking status..."/>
+<!-- Patching and Updates Section -->
+<StackPanel Grid.Row="2" Margin="0,5,0,5">
+  <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+    <TextBlock Text="Patching and Updates" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+    <Ellipse x:Name="PatchingAlertDot" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
   </StackPanel>
-  <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
-</Grid>
+  <Border BorderBrush="#00008B" BorderThickness="2" Padding="8" CornerRadius="3" Background="White">
+    <StackPanel>
+      <Grid Margin="0,2,0,2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+        <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
+      </Grid>
+      <Separator Margin="0,5,0,5"/>
+      <Grid Margin="0,2,0,2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+        <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
+      </Grid>
+      <Separator Margin="0,5,0,5"/>
+      <Grid Margin="0,2,0,2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+          <TextBlock x:Name="DriverUpdateStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Windows Driver Updates (Required every month. Your computer will automatically restart when this is complete.)"/>
+          <TextBlock x:Name="DriverUpdateLastRunText" FontSize="9" Foreground="Gray" TextWrapping="Wrap" Text="Checking status..."/>
+        </StackPanel>
+        <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
+      </Grid>
+	  <!-- Driver Update Progress Panel (hidden by default) -->
+<Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
+  <StackPanel>
+    <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+    <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..."/>
+    <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
+    <TextBlock FontSize="9" Foreground="Gray" Margin="0,5,0,0" Text="This process may take several minutes. You can continue working."/>
   </StackPanel>
 </Border>
+    </StackPanel>
+  </Border>
+</StackPanel>
     <!-- NEW: TabControl to replace the ScrollViewer -->
     <TabControl x:Name="MainTabControl" Grid.Row="1" TabStripPlacement="Top">
         <TabItem>
   <TabItem.Header>
     <StackPanel Orientation="Horizontal">
-      <TextBlock Text="Dashboard" VerticalAlignment="Center"/>
+      <TextBlock Text="ISD Dashboard" VerticalAlignment="Center"/>
       <Ellipse x:Name="DashboardTabAlert" Width="8" Height="8" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
     </StackPanel>
   </TabItem.Header>
@@ -450,7 +462,7 @@ $xamlString = @"
                     </StackPanel>
                   </Border>
                 </Expander>
-                <TextBlock Text="Patching and Updates" FontSize="12" FontWeight="Bold" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                
               </StackPanel>
             </ScrollViewer>
         </TabItem>
@@ -470,14 +482,6 @@ $xamlString = @"
           <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,10,0,0"/>
         </StackPanel>
       </Border>
-    </StackPanel>
-  </ScrollViewer>
-</TabItem>
-<TabItem Header="Chrome App">
-  <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-      <TextBlock Text="Launch your Chrome application" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" HorizontalAlignment="Center"/>
-      <Button x:Name="ChromeAppButton" Content="Launch Chrome App" Padding="10,5" FontSize="12" HorizontalAlignment="Center" ToolTip="Launch the Chrome application"/>
     </StackPanel>
   </ScrollViewer>
 </TabItem>
@@ -528,7 +532,8 @@ try {
     "SupportSourceText", "ClearAlertsButton",
     "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
     "AppendedAnnouncementsPanel", "AboutVersionText", "DashboardTabAlert", "SupportTabAlert", "SupportTab",
-    "DriverUpdateStatusText", "DriverUpdateButton", "DriverUpdateLastRunText", "PatchingAlertDot", "ChromeAppButton"
+    "DriverUpdateStatusText", "DriverUpdateButton", "DriverUpdateLastRunText", "PatchingAlertDot",
+    "DriverProgressPanel", "DriverProgressStatus", "DriverProgressBar"
 )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -569,6 +574,94 @@ try {
         $_.Cancel = $true
         $window.Hide()
     })
+
+function Test-LaptopOnBattery {
+    try {
+        # Check if system has a battery (indicates laptop/portable device)
+        $battery = Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue
+        
+        if (-not $battery) {
+            # No battery found, likely a desktop
+            Write-Log "No battery detected - appears to be a desktop system." -Level "INFO"
+            return $false
+        }
+        
+        # Has battery - check power status
+        Add-Type -AssemblyName System.Windows.Forms
+        $powerStatus = [System.Windows.Forms.SystemInformation]::PowerStatus
+        
+        if ($powerStatus.PowerLineStatus -eq 'Online') {
+            Write-Log "Laptop detected on AC power." -Level "INFO"
+            return $false
+        } else {
+            Write-Log "Laptop detected on BATTERY power - warning needed!" -Level "WARNING"
+            return $true
+        }
+    }
+    catch {
+        Write-Log "Error detecting power status: $($_.Exception.Message)" -Level "ERROR"
+        # If we can't determine, be safe and show warning
+        return $true
+    }
+}
+
+function Start-DriverUpdateMonitoring {
+    Write-Log "Starting driver update monitoring..." -Level "INFO"
+    
+    # Show the progress panel
+    $window.Dispatcher.Invoke({
+        $global:DriverProgressPanel.Visibility = "Visible"
+        $global:DriverProgressStatus.Text = "Preparing system for driver updates..."
+    })
+    
+    # Create and start monitoring timer
+    $global:DriverMonitorTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $global:DriverMonitorTimer.Interval = [TimeSpan]::FromSeconds(5)
+    
+    $global:DriverMonitorTimer.Add_Tick({
+        try {
+            $logPath = "C:\Windows\mitll\Logs\MS_Update.txt"
+            
+            if (-not (Test-Path $logPath)) {
+                $global:DriverProgressStatus.Text = "Waiting for update process to start..."
+                return
+            }
+            
+            # Read last few lines of log
+            $logContent = Get-Content $logPath -Tail 20 -ErrorAction SilentlyContinue
+            $lastLine = $logContent | Select-Object -Last 1
+            
+            # Translate technical log entries to user-friendly messages
+            if ($logContent -match "Install-Module") {
+                $global:DriverProgressStatus.Text = "[OK] Preparing update tools...`n[...] Checking for available driver updates..."
+            }
+            elseif ($logContent -match "Downloading" -or $logContent -match "Download") {
+                $global:DriverProgressStatus.Text = "[OK] Found driver updates`n[...] Downloading updates..."
+            }
+            elseif ($logContent -match "Installing" -or $logContent -match "Install") {
+                $global:DriverProgressStatus.Text = "[OK] Download complete`n[...] Installing drivers...`n`nPlease wait, this may take several minutes."
+            }
+            elseif ($logContent -match "Success" -or $logContent -match "Installed") {
+                $global:DriverProgressStatus.Text = "[OK] Driver installation complete!`n`nYour computer may restart shortly."
+                $global:DriverProgressBar.IsIndeterminate = $false
+                $global:DriverProgressBar.Value = 100
+                $global:DriverMonitorTimer.Stop()
+                Write-Log "Driver update monitoring completed." -Level "INFO"
+            }
+            elseif ($logContent -match "Failed" -or $logContent -match "Error") {
+                $global:DriverProgressStatus.Text = "[!] An issue occurred during installation.`n`nCheck C:\Windows\mitll\Logs\MS_Update.txt for details."
+                $global:DriverProgressBar.IsIndeterminate = $false
+                $global:DriverMonitorTimer.Stop()
+                Write-Log "Driver update encountered errors." -Level "WARNING"
+            }
+            
+        } catch {
+            Write-Log "Error monitoring driver update progress: $($_.Exception.Message)" -Level "ERROR"
+        }
+    })
+    
+    $global:DriverMonitorTimer.Start()
+}
 
     # Initialize events after a delay
     function InitializeUI {
@@ -615,18 +708,60 @@ if ($global:DriverUpdateButton) {
         try {
             Write-Log "Driver Update button clicked by user." -Level "INFO"
             
-            # Confirm with user
+            # Check when drivers were last updated
+            $lastRunStatus = Get-DaysSinceLastDriverUpdate
+            
+            # Parse the days from the status string
+            if ($lastRunStatus -match "Last run (\d+) day") {
+                $daysSinceUpdate = [int]$matches[1]
+                
+                if ($daysSinceUpdate -lt 30) {
+                    Write-Log "Driver updates were run $daysSinceUpdate days ago (within 30-day window)." -Level "INFO"
+                    
+                    $recentUpdateWarning = [System.Windows.MessageBox]::Show(
+                        "Driver updates were last run $daysSinceUpdate days ago.`n`nDriver updates are typically only required once per month. Running them more frequently is usually unnecessary unless requested by ISD.`n`nDo you still want to proceed?",
+                        "Recent Update Detected",
+                        [System.Windows.MessageBoxButton]::YesNo,
+                        [System.Windows.MessageBoxImage]::Information
+                    )
+                    
+                    if ($recentUpdateWarning -ne [System.Windows.MessageBoxResult]::Yes) {
+                        Write-Log "User cancelled driver update - recent update detected." -Level "INFO"
+                        return
+                    }
+                }
+            }
+            
+            # Check if laptop on battery power
+            $needsPowerWarning = Test-LaptopOnBattery
+            
+            if ($needsPowerWarning) {
+                # Show AC power warning for laptops on battery
+                $powerWarning = [System.Windows.MessageBox]::Show(
+                    "WARNING: Your laptop is currently running on battery power!`n`nPlease plug into AC power before continuing. Driver updates require a stable power source and will require a system restart.`n`nAre you plugged in and ready to proceed?",
+                    "AC Power Required",
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning
+                )
+                
+                if ($powerWarning -ne [System.Windows.MessageBoxResult]::Yes) {
+                    Write-Log "User cancelled driver update - needs AC power." -Level "INFO"
+                    return
+                }
+            }
+            
+            # Final confirmation for the actual update
             $result = [System.Windows.MessageBox]::Show(
-                "This will install driver updates via Windows Update and may require a system restart. Continue?",
+                "This will install driver updates via Windows Update and will require a system restart. Continue?",
                 "Install Driver Updates",
                 [System.Windows.MessageBoxButton]::YesNo,
-                [System.Windows.MessageBoxImage]::Warning
+                [System.Windows.MessageBoxImage]::Question
             )
             
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
                 Write-Log "User confirmed driver update installation." -Level "INFO"
                 
-                # Run the driver update script in a new PowerShell process with elevated privileges
+                # Run the driver update script
                 $scriptBlock = @"
 Set-itemproperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate' -Name SetPolicyDrivenUpdateSourceForDriverUpdates -Value 0
 Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\TrustedInstaller" -Name "BlockTimeIncrement" -Value 3600 -type dword
@@ -643,13 +778,16 @@ if (`$bitlockerstatus.ProtectionStatus -eq 'On') {
 "@
                 
                 Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $scriptBlock -Verb RunAs
-                
-                [System.Windows.MessageBox]::Show(
-                    "Driver update installation has been started in the background. Check C:\Windows\mitll\Logs\MS_Update.txt for progress.",
-                    "Driver Updates Started",
-                    [System.Windows.MessageBoxButton]::OK,
-                    [System.Windows.MessageBoxImage]::Information
-                )
+
+# Start monitoring the update progress
+Start-DriverUpdateMonitoring
+
+[System.Windows.MessageBox]::Show(
+    "Driver update installation has been started. Progress will be shown below.",
+    "Driver Updates Started",
+    [System.Windows.MessageBoxButton]::OK,
+    [System.Windows.MessageBoxImage]::Information
+)
             }
         }
         catch {
@@ -664,31 +802,6 @@ if (`$bitlockerstatus.ProtectionStatus -eq 'On') {
     })
 }
 
-if ($global:ChromeAppButton) {
-    $global:ChromeAppButton.Add_Click({
-        try {
-            Write-Log "Launching Chrome app..." -Level "INFO"
-            $chromeAppPath = "C:\Program Files\Google\Chrome\Application\chrome_proxy.exe"
-            $chromeArgs = "--profile-directory=Default", "--app-id=kpcgfechalpmijckhajgmijpomjlkobb"
-            
-            if (-not (Test-Path $chromeAppPath)) {
-                throw "Chrome proxy executable not found at: `"$chromeAppPath`""
-            }
-            
-            Start-Process -FilePath $chromeAppPath -ArgumentList $chromeArgs
-            Write-Log "Chrome app launched successfully." -Level "INFO"
-        }
-        catch {
-            Handle-Error $_.Exception.Message -Source "ChromeAppButton"
-            [System.Windows.MessageBox]::Show(
-                "Failed to launch Chrome app: $($_.Exception.Message)",
-                "Error",
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Error
-            )
-        }
-    })
-}
         if ($global:ClearAlertsButton) {
     $global:ClearAlertsButton.Add_Click({
         Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
