@@ -778,11 +778,23 @@ Write-Log "Scheduled task '$taskName' found successfully." -Level "INFO"
             )
             
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-                Write-Log "User confirmed driver update installation." -Level "INFO"
-                
-                # Start the scheduled task
-                Start-ScheduledTask -TaskName $taskName
-                Write-Log "Scheduled task '$taskName' started successfully." -Level "INFO"
+    Write-Log "User confirmed driver update installation." -Level "INFO"
+    
+    # Start the scheduled task
+    try {
+        Write-Log "Attempting to start scheduled task: $taskName" -Level "INFO"
+        Start-ScheduledTask -TaskName $taskName -ErrorAction Stop
+        Write-Log "Start-ScheduledTask command completed." -Level "INFO"
+        
+        # Verify it actually started
+        Start-Sleep -Seconds 2
+        $taskInfo = Get-ScheduledTask -TaskName $taskName | Get-ScheduledTaskInfo
+        Write-Log "Task state after start: $($taskInfo.LastTaskResult), Running: $($taskInfo.NumberOfRunningInstances)" -Level "INFO"
+    }
+    catch {
+        Write-Log "ERROR starting scheduled task: $($_.Exception.Message)" -Level "ERROR"
+        throw
+    }
                 
                 # Start monitoring the update progress
                 Start-DriverUpdateMonitoring
