@@ -386,13 +386,14 @@ $xamlString = @"
       </StackPanel>
     </Border>
 <!-- Patching and Updates Section -->
-<StackPanel Grid.Row="2" Margin="0,5,0,5">
-  <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-    <TextBlock Text="Patching and Updates" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
-    <Ellipse x:Name="PatchingAlertDot" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
-  </StackPanel>
-  <Border BorderBrush="#00008B" BorderThickness="2" Padding="8" CornerRadius="3" Background="White">
-    <StackPanel>
+<ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" MaxHeight="250">
+  <StackPanel Margin="0,5,0,5">
+    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+      <TextBlock Text="Patching and Updates" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+      <Ellipse x:Name="PatchingAlertDot" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+    </StackPanel>
+    <Border BorderBrush="#00008B" BorderThickness="2" Padding="8" CornerRadius="3" Background="White">
+      <StackPanel>
       <Grid Margin="0,2,0,2">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
@@ -630,17 +631,7 @@ function Start-DriverUpdateMonitoring {
             # Read last few lines of log
             $logContent = Get-Content $logPath -Tail 30 -ErrorAction SilentlyContinue
             
-			# Read last few lines of log
-$logContent = Get-Content $logPath -Tail 30 -ErrorAction SilentlyContinue
-$lastLine = $logContent | Select-Object -Last 1
-
-# DEBUG: See what we're checking
-Write-Log "Monitor tick - Last line: $lastLine" -Level "INFO"
-Write-Log "Monitor tick - Has NO_UPDATES: $($logContent -match 'NO_UPDATES')" -Level "INFO"
-Write-Log "Monitor tick - Has REBOOT_REQUIRED: $($logContent -match 'REBOOT_REQUIRED')" -Level "INFO"
-Write-Log "Monitor tick - Has Completed: $($logContent -match '===== Driver Update Completed =====')" -Level "INFO"
-			
-            # CHECK COMPLETION STATES FIRST (most recent events)
+			# CHECK COMPLETION STATES FIRST (most recent events)
             if ($logContent -match "REBOOT_REQUIRED") {
                 $global:DriverProgressStatus.Text = "[OK] Driver installation complete!`n`n*** RESTART REQUIRED ***`nPlease save your work and restart your computer."
                 $global:DriverProgressBar.IsIndeterminate = $false
