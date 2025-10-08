@@ -425,14 +425,17 @@ $xamlString = @"
         </Grid>
         
         <!-- Driver Update Progress Panel (hidden by default) -->
-        <Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
-          <StackPanel>
-            <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..."/>
-            <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
-            <TextBlock FontSize="9" Foreground="Gray" Margin="0,5,0,0" Text="This process may take several minutes. You can continue working."/>
-          </StackPanel>
-        </Border>
+<Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
+  <StackPanel>
+    <Grid>
+      <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+      <Button x:Name="DriverProgressCloseButton" Content="✕" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="0" FontSize="12" ToolTip="Close progress panel"/>
+    </Grid>
+    <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..." Margin="0,5,0,0"/>
+    <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
+    <TextBlock FontSize="9" Foreground="Gray" Margin="0,5,0,0" Text="This process may take several minutes. You can continue working."/>
+  </StackPanel>
+</Border>
       </StackPanel>
     </Border>
   </StackPanel>
@@ -536,7 +539,7 @@ try {
     "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
     "AppendedAnnouncementsPanel", "AboutVersionText", "DashboardTabAlert", "SupportTabAlert", "SupportTab",
     "DriverUpdateStatusText", "DriverUpdateButton", "DriverUpdateLastRunText", "PatchingAlertDot",
-    "DriverProgressPanel", "DriverProgressStatus", "DriverProgressBar"
+    "DriverProgressPanel", "DriverProgressStatus", "DriverProgressBar", "DriverProgressCloseButton"
 )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -746,6 +749,15 @@ if ($global:DriverUpdateButton) {
             # Check if scheduled task exists using schtasks (more reliable)
 $taskCheck = schtasks /query /tn $taskName 2>&1
 $taskExists = $LASTEXITCODE -eq 0
+
+if ($global:DriverProgressCloseButton) {
+    $global:DriverProgressCloseButton.Add_Click({
+        Write-Log "User closed driver progress panel." -Level "INFO"
+        $window.Dispatcher.Invoke({
+            $global:DriverProgressPanel.Visibility = "Collapsed"
+        })
+    })
+}
 
 if (-not $taskExists) {
     Write-Log "Scheduled task '$taskName' not found. Exit code: $LASTEXITCODE" -Level "ERROR"
