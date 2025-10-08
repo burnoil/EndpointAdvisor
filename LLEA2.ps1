@@ -429,7 +429,7 @@ $xamlString = @"
   <StackPanel>
     <Grid>
       <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
-      <Button x:Name="DriverProgressCloseButton" Content="✕" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="0" FontSize="12" ToolTip="Close progress panel"/>
+      <Button x:Name="DriverProgressCloseButton" Content="X" Width="20" Height="20" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="0" FontSize="12" ToolTip="Close progress panel"/>
     </Grid>
     <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..." Margin="0,5,0,0"/>
     <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
@@ -783,7 +783,7 @@ Write-Log "Scheduled task '$taskName' found successfully." -Level "INFO"
                     Write-Log "Driver updates were run $daysSinceUpdate days ago (within 30-day window)." -Level "INFO"
                     
                     $recentUpdateWarning = [System.Windows.MessageBox]::Show(
-                        "Driver updates were last run $daysSinceUpdate days ago.`n`nDriver updates are typically only required once per month. Running them more frequently is usually unnecessary and may cause system instability.`n`nDo you still want to proceed?",
+                        "Driver updates were last run $daysSinceUpdate days ago.`n`nDriver updates are typically only required once per month. Running them more frequently is usually unnecessary unless directed by ISD.`n`nDo you still want to proceed?",
                         "Recent Update Detected",
                         [System.Windows.MessageBoxButton]::YesNo,
                         [System.Windows.MessageBoxImage]::Information
@@ -1326,8 +1326,31 @@ function Update-PatchingAndSystem {
             Write-Log "Set Driver UI - Button visible: $showDriverButton" -Level "INFO"
             
 			$global:DriverUpdateButton.Visibility = if ($showDriverButton) { "Visible" } else { "Collapsed" }
-			$global:DriverUpdateLastRunText.Text = $driverLastRun
-			Write-Log "Set Driver UI - Button visible: $showDriverButton, Last run: $driverLastRun" -Level "INFO"
+$global:DriverUpdateLastRunText.Text = $driverLastRun
+
+# Check if last run was 25+ days ago
+$daysOverdue = $false
+if ($driverLastRun -match "Last run (\d+) day") {
+    $daysSince = [int]$matches[1]
+    if ($daysSince -ge 25) {
+        $daysOverdue = $true
+    }
+} elseif ($driverLastRun -eq "Never run") {
+    $daysOverdue = $true
+}
+
+if ($daysOverdue) {
+    $global:DriverUpdateLastRunText.FontWeight = "Bold"
+    $global:DriverUpdateLastRunText.Foreground = [System.Windows.Media.Brushes]::Red
+    if ($global:PatchingAlertDot) { $global:PatchingAlertDot.Visibility = "Visible" }
+    if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
+} else {
+    $global:DriverUpdateLastRunText.FontWeight = "Normal"
+    $global:DriverUpdateLastRunText.Foreground = [System.Windows.Media.Brushes]::Gray
+    # Don't automatically hide PatchingAlertDot - might be visible for other reasons
+}
+
+Write-Log "Set Driver UI - Button visible: $showDriverButton, Last run: $driverLastRun, Days overdue alert: $daysOverdue" -Level "INFO"
 			
             # Show red dot if state changed and at least one button is visible
             Write-Log "Checking alert conditions: StateChanged=$patchingStateChanged, AnyButton=$($showBigFixButton -or $showEcmButton -or $showDriverButton)" -Level "INFO"
@@ -1769,7 +1792,17 @@ function Update-TrayIcon {
     $dashboardTabAlert = $global:DashboardTabAlert -and $global:DashboardTabAlert.Visibility -eq "Visible"
     $supportTabAlert = $global:SupportTabAlert -and $global:SupportTabAlert.Visibility -eq "Visible"
     $patchingAlert = $global:PatchingAlertDot -and $global:PatchingAlertDot.Visibility -eq "Visible"
-    $hasAnyAlert = $announcementAlert -or $dashboardTabAlert -or $supportTabAlert -or $patchingAlert
+    # Check if driver updates are overdue (25+ days)
+$driverOverdue = $false
+$driverLastRun = Get-DaysSinceLastDriverUpdate
+if ($driverLastRun -match "Last run (\d+) day") {
+    $daysSince = [int]$matches[1]
+    if ($daysSince -ge 25) { $driverOverdue = $true }
+} elseif ($driverLastRun -eq "Never run") {
+    $driverOverdue = $true
+}
+
+$hasAnyAlert = $announcementAlert -or $dashboardTabAlert -or $supportTabAlert -or $patchingAlert -or $driverOverdue
 
     $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
     $global:TrayIcon.Text = if ($hasAnyAlert) { "Endpoint Advisor v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory Endpoint Advisor v$ScriptVersion" }
