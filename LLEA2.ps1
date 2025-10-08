@@ -394,47 +394,49 @@ $xamlString = @"
     </StackPanel>
     <Border BorderBrush="#00008B" BorderThickness="2" Padding="8" CornerRadius="3" Background="White">
       <StackPanel>
-      <Grid Margin="0,2,0,2">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-        <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
-      </Grid>
-      <Separator Margin="0,5,0,5"/>
-      <Grid Margin="0,2,0,2">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-        <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
-      </Grid>
-      <Separator Margin="0,5,0,5"/>
-      <Grid Margin="0,2,0,2">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-          <TextBlock x:Name="DriverUpdateStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Windows Driver Updates (Required every month. Your computer will automatically restart when this is complete.)"/>
-          <TextBlock x:Name="DriverUpdateLastRunText" FontSize="9" Foreground="Gray" TextWrapping="Wrap" Text="Checking status..."/>
-        </StackPanel>
-        <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
-      </Grid>
-	  <!-- Driver Update Progress Panel (hidden by default) -->
-<Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
-  <StackPanel>
-    <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
-    <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..."/>
-    <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
-    <TextBlock FontSize="9" Foreground="Gray" Margin="0,5,0,0" Text="This process may take several minutes. You can continue working."/>
+        <Grid Margin="0,2,0,2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+          <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
+        </Grid>
+        <Separator Margin="0,5,0,5"/>
+        <Grid Margin="0,2,0,2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+          <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
+        </Grid>
+        <Separator Margin="0,5,0,5"/>
+        <Grid Margin="0,2,0,2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Grid.Column="0" VerticalAlignment="Center">
+            <TextBlock x:Name="DriverUpdateStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Windows Driver Updates (Required every month. Your computer will automatically restart when this is complete.)"/>
+            <TextBlock x:Name="DriverUpdateLastRunText" FontSize="9" Foreground="Gray" TextWrapping="Wrap" Text="Checking status..."/>
+          </StackPanel>
+          <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
+        </Grid>
+        
+        <!-- Driver Update Progress Panel (hidden by default) -->
+        <Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+            <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..."/>
+            <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
+            <TextBlock FontSize="9" Foreground="Gray" Margin="0,5,0,0" Text="This process may take several minutes. You can continue working."/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
   </StackPanel>
-</Border>
-    </StackPanel>
-  </Border>
-</StackPanel>
+</ScrollViewer>
     <!-- NEW: TabControl to replace the ScrollViewer -->
     <TabControl x:Name="MainTabControl" Grid.Row="1" TabStripPlacement="Top">
         <TabItem>
