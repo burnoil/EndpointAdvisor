@@ -48,12 +48,14 @@ try {
         Write-UpdateLog "DOWNLOAD_START: Downloading driver updates..."
         
         $rebootNeeded = $false
-        foreach ($update in $updates) {
-            Write-UpdateLog "  - $($update.Title)"
-            if ($update.RebootRequired) {
-                $rebootNeeded = $true
-            }
-        }
+		foreach ($update in $updates) {
+			$sizeInMB = [math]::Round($update.Size / 1MB, 2)
+			$kbInfo = if ($update.KB) { " (KB$($update.KB))" } else { "" }
+			Write-UpdateLog "  - $($update.Title)$kbInfo - Size: $sizeInMB MB"
+			if ($update.RebootRequired) {
+				$rebootNeeded = $true
+    }
+}
         
         Write-UpdateLog "INSTALL_START: Installing driver updates..."
         Write-UpdateLog "INSTALL_COMPLETE: Driver updates installed successfully"
