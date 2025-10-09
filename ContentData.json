@@ -1,116 +1,116 @@
 {
-  "version": "1.0.0",
-  "publishedDate": "2025-10-03T12:00:00Z",
-  "minimumClientVersion": "6.1.0",
-  
-  "Dashboard": {
-    "Announcements": {
-      "Default": {
-        "Text": "This app is currently in BETA. Please submit feedback to endpointengineering@ll.mit.edu. Thank you.",
-        "Details": "Windows OS Updates will start deploying on **[red]October 15[/red]**. Please make sure your computer is plugged into power and connected to the network. A computer restart will be required.",
-        "Links": []
-      },
-      "Targeted": [
-        {
-          "Text": "[green]Attention[/green]: **Pilot** build is available.",
-          "Details": "- Install by end of week\n- Open the ticket if you hit issues",
-          "AppendToDefault": true,
-          "Enabled": false,
-          "Condition": {
-            "Type": "Registry",
-            "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-            "Name": "Group",
-            "Value": "VPN-Pilot"
-          },
-          "Links": [
-            {
-              "Name": "Pilot Instructions",
-              "Url": "https://example.org/pilot"
-            }
-          ]
-        }
-      ]
-    },
-    "Support": {
-      "Text": "Computer problems? Call the ISD Support Center at 781-981-4357 (HELP).",
-      "Links": [
-        {
-          "Name": "ISD Knowledge Base",
-          "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
-        },
-        {
-          "Name": "Service Portal",
-          "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
-        }
-      ]
-    }
-  },
-  
-  "AdditionalTabs": [
-    {
-      "TabHeader": "News",
-      "Enabled": false,
-      "Content": {
-        "Text": "**Lab-Wide Updates**\n\nCheck here for important laboratory announcements and events.",
-        "Sections": [
-          {
-            "Title": "Upcoming Maintenance",
-            "Text": "Network maintenance scheduled for this weekend.",
-            "Details": "Saturday 2am-6am EST. Brief connectivity interruptions expected."
-          },
-          {
-            "Title": "New Services",
-            "Text": "The new file sharing service is now available.",
-            "Links": [
-              {
-                "Name": "Access Portal",
-                "Url": "https://share.example.com"
-              }
-            ]
-          }
-        ],
-        "Links": [
-          {
-            "Name": "Full Calendar",
-            "Url": "https://events.example.com"
-          }
-        ]
-      }
-    },
-    {
-      "TabHeader": "Resources",
-      "Enabled": false,
-      "Content": {
-        "Text": "**Quick Links**\n\nFrequently accessed resources and tools.",
-        "Sections": [
-          {
-            "Title": "Training",
-            "Links": [
-              {
-                "Name": "Security Awareness",
-                "Url": "https://training.example.com/security"
-              },
-              {
-                "Name": "Software Tutorials",
-                "Url": "https://training.example.com/software"
-              }
-            ]
-          },
-          {
-            "Title": "Documentation",
-            "Links": [
-              {
-                "Name": "IT Policies",
-                "Url": "https://docs.example.com/policies"
-              },
-              {
-                "Name": "Best Practices",
-                "Url": "https://docs.example.com/practices"
-              }
-            ]
-          }
-        ]
-      }
-    }
-  ]
+    "version":  "1.0.0",
+    "publishedDate":  "2025-10-03T12:00:00Z",
+    "minimumClientVersion":  "6.1.0",
+    "Dashboard":  {
+                      "Announcements":  {
+                                            "Default":  {
+                                                            "Text":  "This app is currently in BETA. Please submit feedback to endpointengineering@ll.mit.edu. Thank you!!",
+                                                            "Details":  "Windows OS Updates will start deploying on **[red]October 15[/red]**. Please make sure your computer is plugged into power and connected to the network. A computer restart will be required.",
+                                                            "Links":  [
+
+                                                                      ]
+                                                        },
+                                            "Targeted":  [
+                                                             {
+                                                                 "Text":  "[green]Attention[/green]: **Pilot** build is available.",
+                                                                 "Details":  "- Install by end of week\n- Open the ticket if you hit issues",
+                                                                 "AppendToDefault":  true,
+                                                                 "Enabled":  false,
+                                                                 "Condition":  {
+                                                                                   "Type":  "Registry",
+                                                                                   "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+                                                                                   "Name":  "Group",
+                                                                                   "Value":  "VPN-Pilot"
+                                                                               },
+                                                                 "Links":  [
+                                                                               {
+                                                                                   "Name":  "Pilot Instructions",
+                                                                                   "Url":  "https://example.org/pilot"
+                                                                               }
+                                                                           ]
+                                                             }
+                                                         ]
+                                        },
+                      "Support":  {
+                                      "Text":  "Computer problems? Call the ISD Support Center at 781-981-4357 (HELP).",
+                                      "Links":  [
+                                                    {
+                                                        "Name":  "ISD Knowledge Base",
+                                                        "Url":  "https://llesm.servicenowservices.com/sp?id=kb_view2"
+                                                    },
+                                                    {
+                                                        "Name":  "Service Portal",
+                                                        "Url":  "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+                                                    }
+                                                ]
+                                  }
+                  },
+    "AdditionalTabs":  [
+                           {
+                               "TabHeader":  "News",
+                               "Enabled":  false,
+                               "Content":  {
+                                               "Text":  "**Lab-Wide Updates**\n\nCheck here for important laboratory announcements and events.",
+                                               "Sections":  [
+                                                                {
+                                                                    "Title":  "Upcoming Maintenance",
+                                                                    "Text":  "Network maintenance scheduled for this weekend.",
+                                                                    "Details":  "Saturday 2am-6am EST. Brief connectivity interruptions expected."
+                                                                },
+                                                                {
+                                                                    "Title":  "New Services",
+                                                                    "Text":  "The new file sharing service is now available.",
+                                                                    "Links":  [
+                                                                                  {
+                                                                                      "Name":  "Access Portal",
+                                                                                      "Url":  "https://share.example.com"
+                                                                                  }
+                                                                              ]
+                                                                }
+                                                            ],
+                                               "Links":  [
+                                                             {
+                                                                 "Name":  "Full Calendar",
+                                                                 "Url":  "https://events.example.com"
+                                                             }
+                                                         ]
+                                           }
+                           },
+                           {
+                               "TabHeader":  "Resources",
+                               "Enabled":  false,
+                               "Content":  {
+                                               "Text":  "**Quick Links**\n\nFrequently accessed resources and tools.",
+                                               "Sections":  [
+                                                                {
+                                                                    "Title":  "Training",
+                                                                    "Links":  [
+                                                                                  {
+                                                                                      "Name":  "Security Awareness",
+                                                                                      "Url":  "https://training.example.com/security"
+                                                                                  },
+                                                                                  {
+                                                                                      "Name":  "Software Tutorials",
+                                                                                      "Url":  "https://training.example.com/software"
+                                                                                  }
+                                                                              ]
+                                                                },
+                                                                {
+                                                                    "Title":  "Documentation",
+                                                                    "Links":  [
+                                                                                  {
+                                                                                      "Name":  "IT Policies",
+                                                                                      "Url":  "https://docs.example.com/policies"
+                                                                                  },
+                                                                                  {
+                                                                                      "Name":  "Best Practices",
+                                                                                      "Url":  "https://docs.example.com/practices"
+                                                                                  }
+                                                                              ]
+                                                                }
+                                                            ]
+                                           }
+                           }
+                       ]
 }
