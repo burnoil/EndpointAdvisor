@@ -49,7 +49,7 @@
   "AdditionalTabs": [
     {
       "TabHeader": "News",
-      "Enabled": false,
+      "Enabled": True,
       "Content": {
         "Text": "**Lab-Wide Updates**\n\nCheck here for important laboratory announcements and events.",
         "Sections": [
