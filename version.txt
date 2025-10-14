@@ -1,1 +1,16 @@
+action uses wow64 redirection {not x64 of operating system}
 
+// 1) Kill any running LLNotify processes via WMIC
+override wait
+hidden=true
+wait cmd.exe /C wmic process where "CommandLine like '%LLEA.ps1%'" call terminate
+
+// 2) Remove the HKLM Run registry entry
+override wait
+hidden=true
+wait reg delete "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLEA" /f
+
+// 3) Delete the LLEA folder and all contents
+override wait
+hidden=true
+wait cmd.exe /C rmdir /S /Q "C:\Program Files\LLEA"
