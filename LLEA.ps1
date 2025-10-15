@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.0.0"
+$ScriptVersion = "6.0.1"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -385,92 +385,118 @@ $xamlString = @"
       </StackPanel>
     </Border>
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-      <StackPanel VerticalAlignment="Top">
-        <Expander x:Name="AnnouncementsExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Announcements" VerticalAlignment="Center"/>
-              <Ellipse x:Name="AnnouncementsAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="AnnouncementsText" FontSize="11" TextWrapping="Wrap"/>
-              <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
-              <StackPanel x:Name="AppendedAnnouncementsPanel" Orientation="Vertical" Margin="0,5,0,0" Visibility="Collapsed"/>
-              <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
-              <TextBlock x:Name="AnnouncementsSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
-            </StackPanel>
-          </Border>
-        </Expander>
-        <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
-              <Ellipse x:Name="PatchingAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <StackPanel>
-              <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"/>
-              
-              <StackPanel x:Name="PendingRestartPanel" Orientation="Vertical" Visibility="Collapsed">
-                <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,0,0,0"/>
-                <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
-              </StackPanel>
-              
-              <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,10,0,2"/>
-              
-              <Grid Margin="0,2,0,2">
-                  <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*"/>
-                      <ColumnDefinition Width="Auto"/>
-                  </Grid.ColumnDefinitions>
-                  <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-                  <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
-              </Grid>
+  <StackPanel VerticalAlignment="Top">
+    <Expander x:Name="AnnouncementsExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
+      <Expander.Header>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Announcements" VerticalAlignment="Center"/>
+          <Ellipse x:Name="AnnouncementsAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+        </StackPanel>
+      </Expander.Header>
+      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+        <StackPanel>
+          <TextBlock x:Name="AnnouncementsText" FontSize="11" TextWrapping="Wrap"/>
+          <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+          <StackPanel x:Name="AppendedAnnouncementsPanel" Orientation="Vertical" Margin="0,5,0,0" Visibility="Collapsed"/>
+          <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
+          <TextBlock x:Name="AnnouncementsSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
+        </StackPanel>
+      </Border>
+    </Expander>
+    <Expander x:Name="PatchingExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
+      <Expander.Header>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
+          <Ellipse x:Name="PatchingAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+        </StackPanel>
+      </Expander.Header>
+      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+        <StackPanel>
+          <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"/>
+          
+          <StackPanel x:Name="PendingRestartPanel" Orientation="Vertical" Visibility="Collapsed">
+            <TextBlock Text="Pending Restart Status:" FontSize="11" FontWeight="Bold" Margin="0,0,0,0"/>
+            <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
+          </StackPanel>
+          
+          <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,10,0,2"/>
+          
+          <Grid Margin="0,2,0,2">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="BigFixStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+            <Button x:Name="BigFixLaunchButton" Grid.Column="1" Content="App Updates" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install available application updates"/>
+          </Grid>
 
-              <Separator Margin="0,8,0,8"/>
+          <Separator Margin="0,8,0,8"/>
 
-              <Grid Margin="0,2,0,2">
-                  <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="*"/>
-                      <ColumnDefinition Width="Auto"/>
-                  </Grid.ColumnDefinitions>
-                  <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
-                  <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
-              </Grid>
+          <Grid Margin="0,2,0,2">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="ECMStatusText" Grid.Column="0" VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap"/>
+            <Button x:Name="ECMLaunchButton" Grid.Column="1" Content="Install Patches" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install pending Windows OS patches"/>
+          </Grid>
+
+          <Separator Margin="0,8,0,8"/>
+
+          <Grid Margin="0,2,0,2">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+              <TextBlock x:Name="DriverUpdateStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap" Text="Windows Driver Updates (Required every month. Your computer will automatically restart when this is complete.)"/>
+              <TextBlock x:Name="DriverUpdateLastRunText" FontSize="9" Foreground="Gray" TextWrapping="Wrap" Text="Checking status..."/>
             </StackPanel>
-          </Border>
-        </Expander>
-        <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Support" VerticalAlignment="Center"/>
-              <Ellipse x:Name="SupportAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+            <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
+          </Grid>
+
+          <Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
             <StackPanel>
-              <TextBlock x:Name="SupportText" FontSize="11" TextWrapping="Wrap"/>
-              <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
-              <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
+              <Grid>
+                <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                <Button x:Name="DriverProgressCloseButton" Content="X" Width="22" Height="22" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="0" FontSize="11" FontWeight="Bold" ToolTip="Close progress panel"/>
+              </Grid>
+              <TextBlock x:Name="DriverProgressStatus" FontSize="11" TextWrapping="Wrap" Text="Initializing..." Margin="0,5,0,0"/>
+              <ProgressBar x:Name="DriverProgressBar" Height="20" Margin="0,10,0,0" IsIndeterminate="True"/>
+              <TextBlock FontSize="9" Foreground="Gray" Margin="0,5,0,0" Text="This process may take several minutes. You can continue working."/>
             </StackPanel>
           </Border>
-        </Expander>
-        <Expander x:Name="ComplianceExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
-          <Expander.Header>
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Certificate Status" VerticalAlignment="Center"/>
-            </StackPanel>
-          </Expander.Header>
-          <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-            <TextBlock x:Name="YubiKeyComplianceText" FontSize="11" TextWrapping="Wrap"/>
-          </Border>
-        </Expander>
-        <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-      </StackPanel>
-    </ScrollViewer>
+        </StackPanel>
+      </Border>
+    </Expander>
+    <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
+      <Expander.Header>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Support" VerticalAlignment="Center"/>
+          <Ellipse x:Name="SupportAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+        </StackPanel>
+      </Expander.Header>
+      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+        <StackPanel>
+          <TextBlock x:Name="SupportText" FontSize="11" TextWrapping="Wrap"/>
+          <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
+          <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
+        </StackPanel>
+      </Border>
+    </Expander>
+    <Expander x:Name="ComplianceExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
+      <Expander.Header>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="Certificate Status" VerticalAlignment="Center"/>
+        </StackPanel>
+      </Expander.Header>
+      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+        <TextBlock x:Name="YubiKeyComplianceText" FontSize="11" TextWrapping="Wrap"/>
+      </Border>
+    </Expander>
+    <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+  </StackPanel>
+</ScrollViewer>
     <Grid Grid.Row="2" Margin="0,5,0,0">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -502,13 +528,15 @@ try {
 
     # Modified UI Elements list
     $uiElements = @(
-        "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
-        "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
-        "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
-        "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
-        "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
-        "PatchingAlertIcon", "AppendedAnnouncementsPanel"
-    )
+    "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
+    "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
+    "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
+    "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
+    "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
+    "PatchingAlertIcon", "AppendedAnnouncementsPanel",
+    "DriverUpdateStatusText", "DriverUpdateLastRunText", "DriverUpdateButton", "DriverProgressPanel", 
+    "DriverProgressStatus", "DriverProgressBar", "DriverProgressCloseButton"  # ADD THIS LINE
+)
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
         Set-Variable -Name "global:$elementName" -Value $value
@@ -603,7 +631,20 @@ try {
                 }
             })
         }
+if ($global:DriverUpdateButton) {
+            $global:DriverUpdateButton.Add_Click({
+                Start-DriverUpdate
+            })
+        }
 
+        if ($global:DriverProgressCloseButton) {
+            $global:DriverProgressCloseButton.Add_Click({
+                Write-Log "User closed driver progress panel." -Level "INFO"
+                $window.Dispatcher.Invoke({
+                    $global:DriverProgressPanel.Visibility = "Collapsed"
+                })
+            })
+        }
         if ($global:ClearAlertsButton) {
             $global:ClearAlertsButton.Add_Click({
                 Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
@@ -918,6 +959,274 @@ function Get-ECMUpdateStatus {
     }
 }
 
+function Get-DaysSinceLastDriverUpdate {
+    $logFile = "C:\Windows\mitll\Logs\MS_Update.txt"
+    
+    if (Test-Path $logFile) {
+        try {
+            $content = Get-Content $logFile -ErrorAction Stop
+            
+            # Find all dates in MM/DD/YYYY format
+            $datePattern = '(\d{2}/\d{2}/\d{4})'
+            $dates = @()
+            
+            foreach ($line in $content) {
+                if ($line -match $datePattern) {
+                    try {
+                        $dateStr = $matches[1]
+                        $parsedDate = [DateTime]::ParseExact($dateStr, "MM/dd/yyyy", $null)
+                        $dates += $parsedDate
+                    } catch {
+                        # Skip invalid dates
+                    }
+                }
+            }
+            
+            if ($dates.Count -eq 0) {
+                return "Never run"
+            }
+            
+            # Get the most recent date
+            $lastRun = ($dates | Sort-Object -Descending)[0]
+            $daysSince = ([DateTime]::Now - $lastRun).Days
+            
+            if ($daysSince -eq 0) {
+                return "Last run today"
+            } elseif ($daysSince -eq 1) {
+                return "Last run 1 day ago"
+            } else {
+                return "Last run $daysSince days ago"
+            }
+        } catch {
+            Write-Log "Error reading MS_Update.txt: $($_.Exception.Message)" -Level "ERROR"
+            return "Unable to determine last run"
+        }
+    } else {
+        return "Never run"
+    }
+}
+
+function Update-DriverUpdateStatus {
+    try {
+        $driverLastRun = Get-DaysSinceLastDriverUpdate
+        
+        # Determine if button should show (30+ days or never run)
+        $showDriverButton = $false
+        if ($driverLastRun -eq "Never run") {
+            $showDriverButton = $true
+        } elseif ($driverLastRun -match "Last run (\d+) day") {
+            $days = [int]$matches[1]
+            if ($days -ge 30) {
+                $showDriverButton = $true
+            }
+        }
+        
+        $window.Dispatcher.Invoke({
+            $global:DriverUpdateButton.Visibility = if ($showDriverButton) { "Visible" } else { "Collapsed" }
+            $global:DriverUpdateLastRunText.Text = $driverLastRun
+            
+            # Check if last run was 25+ days ago for alert styling
+            $daysOverdue = $false
+            if ($driverLastRun -match "Last run (\d+) day") {
+                $daysSince = [int]$matches[1]
+                if ($daysSince -ge 25) {
+                    $daysOverdue = $true
+                }
+            } elseif ($driverLastRun -eq "Never run") {
+                $daysOverdue = $true
+            }
+            
+            if ($daysOverdue) {
+                $global:DriverUpdateLastRunText.FontWeight = "Bold"
+                $global:DriverUpdateLastRunText.Foreground = [System.Windows.Media.Brushes]::Red
+                if ($global:PatchingAlertIcon) { $global:PatchingAlertIcon.Visibility = "Visible" }
+            } else {
+                $global:DriverUpdateLastRunText.FontWeight = "Normal"
+                $global:DriverUpdateLastRunText.Foreground = [System.Windows.Media.Brushes]::Gray
+            }
+        })
+        
+        Write-Log "Driver update status checked: $driverLastRun, Button visible: $showDriverButton" -Level "INFO"
+        
+    } catch {
+        Write-Log "Error checking driver update status: $($_.Exception.Message)" -Level "ERROR"
+    }
+}
+
+function Start-DriverUpdate {
+    try {
+        # Check if last run was within 30 days
+        $lastRunFile = "C:\Windows\mitll\Logs\LastDriverUpdate.txt"
+        if (Test-Path $lastRunFile) {
+            $lastRunDate = Get-Content $lastRunFile -Raw | Out-String
+            $lastRunDate = $lastRunDate.Trim()
+            $lastRun = [DateTime]::Parse($lastRunDate)
+            $daysSince = ([DateTime]::Now - $lastRun).Days
+            
+            if ($daysSince -lt 30) {
+                $result = [System.Windows.MessageBox]::Show(
+                    "Driver updates were run $daysSince day(s) ago. Driver updates are only required once per month.`n`nAre you sure you want to run driver updates again?",
+                    "Confirm Driver Update",
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning
+                )
+                
+                if ($result -eq [System.Windows.MessageBoxResult]::No) {
+                    return
+                }
+            }
+        }
+        
+        # Check battery power
+        $powerStatus = [System.Windows.Forms.SystemInformation]::PowerStatus
+        if ($powerStatus.PowerLineStatus -ne [System.Windows.Forms.PowerLineStatus]::Online) {
+            [System.Windows.MessageBox]::Show(
+                "Your computer is running on battery power.`n`nPlease connect to AC power before installing driver updates to prevent installation failures.",
+                "AC Power Required",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Warning
+            )
+            return
+        }
+        
+        # Final confirmation
+        $result = [System.Windows.MessageBox]::Show(
+            "This will install Windows driver updates. Your computer will automatically restart in 5 minutes after installation completes.`n`nSave your work before proceeding.`n`nContinue?",
+            "Install Driver Updates",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Question
+        )
+        
+        if ($result -eq [System.Windows.MessageBoxResult]::No) {
+            return
+        }
+        
+        Write-Log "User initiated driver update" -Level "INFO"
+        
+        # Show progress panel
+        $window.Dispatcher.Invoke({
+            $global:DriverProgressPanel.Visibility = "Visible"
+            $global:DriverProgressStatus.Text = "Starting driver update process..."
+            $global:DriverProgressBar.IsIndeterminate = $true
+            $global:DriverUpdateButton.IsEnabled = $false
+            $global:DriverProgressCloseButton.Visibility = "Collapsed"  # ADD THIS LINE
+        })
+        
+        # Start the scheduled task
+        Start-ScheduledTask -TaskName "MITLL_DriverUpdate" -ErrorAction Stop
+        Write-Log "Scheduled task 'MITLL_DriverUpdate' started" -Level "INFO"
+        
+        # Monitor the task
+        $monitorJob = Start-Job -ScriptBlock {
+            $logFile = "C:\Windows\mitll\Logs\MS_Update.txt"
+            $timeout = 1800  # 30 minutes
+            $elapsed = 0
+            $checkInterval = 5
+            
+            while ($elapsed -lt $timeout) {
+                Start-Sleep -Seconds $checkInterval
+                $elapsed += $checkInterval
+                
+                if (Test-Path $logFile) {
+                    $lastLines = Get-Content $logFile -Tail 10 -ErrorAction SilentlyContinue
+                    
+                    if ($lastLines -match "INSTALL_COMPLETE|DRIVER_UPDATE_END") {
+                        return @{Status="Complete"; Message="Driver updates installed successfully"}
+                    }
+                    if ($lastLines -match "ERROR|FAILED") {
+                        return @{Status="Error"; Message="Driver update failed. Check log file for details."}
+                    }
+                    if ($lastLines -match "NO_UPDATES") {
+                        return @{Status="NoUpdates"; Message="No driver updates available"}
+                    }
+                    if ($lastLines -match "REBOOT_SCHEDULED") {
+                        return @{Status="RebootScheduled"; Message="Installation complete. Restart scheduled in 5 minutes."}
+                    }
+                }
+            }
+            
+            return @{Status="Timeout"; Message="Update process timed out"}
+        }
+        
+        # Update UI while monitoring
+        $timer = New-Object System.Windows.Threading.DispatcherTimer
+        $timer.Interval = [TimeSpan]::FromSeconds(5)
+        $timer.Add_Tick({
+            if ($monitorJob.State -eq "Completed") {
+                $result = Receive-Job -Job $monitorJob
+                
+                $window.Dispatcher.Invoke({
+                    $global:DriverProgressBar.IsIndeterminate = $false
+                    $global:DriverProgressBar.Value = 100
+                    $global:DriverProgressCloseButton.Visibility = "Visible"  # ADD THIS LINE
+                    
+                    switch ($result.Status) {
+                        "Complete" {
+                            $global:DriverProgressStatus.Text = $result.Message
+                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Green
+                        }
+                        "RebootScheduled" {
+                            $global:DriverProgressStatus.Text = $result.Message
+                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Orange
+                        }
+                        "NoUpdates" {
+                            $global:DriverProgressStatus.Text = $result.Message
+                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Blue
+                        }
+                        "Error" {
+                            $global:DriverProgressStatus.Text = $result.Message
+                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Red
+                        }
+                        "Timeout" {
+                            $global:DriverProgressStatus.Text = $result.Message
+                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Orange
+                        }
+                    }
+                    
+                    $global:DriverUpdateButton.IsEnabled = $true
+                })
+                
+                Remove-Job -Job $monitorJob
+                $this.Stop()
+                
+                # Refresh status
+                Update-DriverUpdateStatus
+            } else {
+                # Update status from log
+                $logFile = "C:\Windows\mitll\Logs\MS_Update.txt"
+                if (Test-Path $logFile) {
+                    $lastLine = Get-Content $logFile -Tail 1 -ErrorAction SilentlyContinue
+                    if ($lastLine) {
+                        $window.Dispatcher.Invoke({
+                            if ($lastLine -match "SEARCH_START") {
+                                $global:DriverProgressStatus.Text = "Searching for driver updates..."
+                            } elseif ($lastLine -match "UPDATES_FOUND") {
+                                $global:DriverProgressStatus.Text = "Driver updates found. Downloading..."
+                            } elseif ($lastLine -match "DOWNLOAD_COMPLETE") {
+                                $global:DriverProgressStatus.Text = "Download complete. Installing..."
+                            } elseif ($lastLine -match "INSTALL_START") {
+                                $global:DriverProgressStatus.Text = "Installing driver updates. Please wait..."
+                            }
+                        })
+                    }
+                }
+            }
+        })
+        $timer.Start()
+        
+    } catch {
+        Write-Log "Error starting driver update: $($_.Exception.Message)" -Level "ERROR"
+        $window.Dispatcher.Invoke({
+            $global:DriverProgressPanel.Visibility = "Visible"
+            $global:DriverProgressStatus.Text = "Error: $($_.Exception.Message)"
+            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Red
+            $global:DriverProgressBar.IsIndeterminate = $false
+            $global:DriverUpdateButton.IsEnabled = $true
+            $global:DriverProgressCloseButton.Visibility = "Visible"
+        })
+    }
+}
+
 function Update-PatchingAndSystem {
     Write-Log "Updating Patching and System section..." -Level "INFO"
     $restartStatusText = Get-PendingRestartStatus
@@ -988,6 +1297,7 @@ function Update-PatchingAndSystem {
             $global:PatchingAlertIcon.Visibility = if ($global:UpdatesPending) { "Visible" } else { "Collapsed" }
         }
     })
+	Update-DriverUpdateStatus
 }
 
 function Convert-MarkdownToTextBlock {
