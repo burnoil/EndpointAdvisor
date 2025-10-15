@@ -1677,6 +1677,13 @@ function Create-DynamicTabs {
         foreach ($tabConfig in $global:contentData.Data.AdditionalTabs) {
             if (-not $tabConfig.Enabled) { continue }
             
+            # Check platform filter
+            $platform = $tabConfig.Platform
+            if ($platform -and $platform -ne "Windows") {
+                Write-Log "Skipping tab '$($tabConfig.TabHeader)' - Platform: $platform" -Level "INFO"
+                continue
+            }
+            
             $tabItem = New-Object System.Windows.Controls.TabItem
             $tabItem.Header = $tabConfig.TabHeader
             
