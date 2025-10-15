@@ -2,7 +2,7 @@
 # Version 1.0 - Phase 1: Basic Load/Display
 
 $ScriptVersion = "1.0.0"
-$GitHubUrl = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData2.json"
+$GitHubUrl = $GitHubUrl = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/ContentData2.json"
 
 # Import required assemblies
 Add-Type -AssemblyName PresentationFramework
@@ -230,7 +230,12 @@ $xamlString = @"
           
           <TextBlock Text="Tab Header (Name):" FontWeight="Bold" Margin="0,5,0,2"/>
           <TextBox x:Name="TabHeaderBox" Margin="0,0,0,10"/>
-          
+          <TextBlock Text="Platform:" FontWeight="Bold" Margin="0,5,0,2"/>
+		<ComboBox x:Name="TabPlatformCombo" Margin="0,0,0,10" SelectedIndex="0">
+		<ComboBoxItem Content="Both Platforms"/>
+		<ComboBoxItem Content="Windows Only"/>
+		<ComboBoxItem Content="macOS Only"/>
+		</ComboBox>
           <CheckBox x:Name="TabEnabledCheck" Content="Enabled (visible to users)" Margin="0,0,0,10"/>
           
           <TextBlock Text="Content Text:" FontWeight="Bold" Margin="0,5,0,2"/>
@@ -282,7 +287,7 @@ $xamlString = @"
       
       <TextBlock Text="Repository Information" FontWeight="Bold" Margin="0,10,0,5"/>
       <TextBlock Text="Owner/Organization:" Margin="0,5,0,2"/>
-      <TextBox x:Name="GitHubOwnerBox" Text="burnoil" Margin="0,0,0,5"/>
+      <TextBox x:Name="GitHubOwnerBox" Text="EndpointEngineering" Margin="0,0,0,5"/>
       
       <TextBlock Text="Repository Name:" Margin="0,5,0,2"/>
       <TextBox x:Name="GitHubRepoBox" Text="EndpointAdvisor" Margin="0,0,0,5"/>
@@ -466,6 +471,7 @@ $TabHeaderBox = $window.FindName("TabHeaderBox")
 $TabEnabledCheck = $window.FindName("TabEnabledCheck")
 $TabContentTextBox = $window.FindName("TabContentTextBox")
 $TabContentLinksPanel = $window.FindName("TabContentLinksPanel")
+$TabPlatformCombo = $window.FindName("TabPlatformCombo")
 $AddTabContentLinkButton = $window.FindName("AddTabContentLinkButton")
 $SaveTabButton = $window.FindName("SaveTabButton")
 $RevertTabButton = $window.FindName("RevertTabButton")
@@ -1070,7 +1076,14 @@ function Load-TabIntoEditor {
     $TabHeaderBox.Text = $tab.TabHeader
     $TabEnabledCheck.IsChecked = $tab.Enabled
     $TabContentTextBox.Text = $tab.Content.Text
-    
+    $platform = $tab.Platform
+    if ($platform -eq "Windows") {
+        $TabPlatformCombo.SelectedIndex = 1
+    } elseif ($platform -eq "macOS") {
+        $TabPlatformCombo.SelectedIndex = 2
+    } else {
+        $TabPlatformCombo.SelectedIndex = 0  # Both platforms
+    }
     # Load content links
     $TabContentLinksPanel.Children.Clear()
     if ($tab.Content.Links) {
@@ -1140,7 +1153,27 @@ function Save-CurrentTabChanges {
         $tab.TabHeader = $TabHeaderBox.Text
         $tab.Enabled = $TabEnabledCheck.IsChecked
         $tab.Content.Text = $TabContentTextBox.Text
-        
+        $platformIndex = $TabPlatformCombo.SelectedIndex
+        if ($platformIndex -eq 1) {
+            # Windows Only
+            if (-not ($tab.PSObject.Properties.Name -contains "Platform")) {
+                $tab | Add-Member -NotePropertyName "Platform" -NotePropertyValue "Windows" -Force
+            } else {
+                $tab.Platform = "Windows"
+            }
+        } elseif ($platformIndex -eq 2) {
+            # macOS Only
+            if (-not ($tab.PSObject.Properties.Name -contains "Platform")) {
+                $tab | Add-Member -NotePropertyName "Platform" -NotePropertyValue "macOS" -Force
+            } else {
+                $tab.Platform = "macOS"
+            }
+        } else {
+            # Both Platforms - remove Platform property if it exists
+            if ($tab.PSObject.Properties.Name -contains "Platform") {
+                $tab.PSObject.Properties.Remove("Platform")
+            }
+        }
         # Save links
         $links = @()
         foreach ($grid in $TabContentLinksPanel.Children) {
@@ -1185,6 +1218,7 @@ function Add-NewTab {
                 Links = @()
             }
         }
+        # Note: No Platform property by default = shows on both platforms
         
         $global:ContentData.AdditionalTabs += $newTab
         Populate-AdditionalTabsList
@@ -1515,7 +1549,7 @@ function Test-GitHubConnection {
             "Accept" = "application/vnd.github.v3+json"
         }
         
-        $url = "https://api.github.com/repos/$owner/$repo"
+        $url = "https://llcad-github.llan.ll.mit.edu/api/v3/repos/$owner/$repo"
         $response = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
         
         $CommitStatusText.Text = "[OK] Connected to: $($response.full_name)"
@@ -1555,7 +1589,7 @@ function Commit-ToGitHub {
         }
         
         # Step 1: Get current file SHA
-        $fileUrl = "https://api.github.com/repos/$owner/$repo/contents/$filePath"
+        $fileUrl = "https://llcad-github.llan.ll.mit.edu/api/v3/repos/$owner/$repo/contents/$filePath"
         $fileInfo = Invoke-RestMethod -Uri $fileUrl -Headers $headers -Method Get
         $currentSha = $fileInfo.sha
         
