@@ -19,7 +19,7 @@ fetch_json() {
     fi
     
     if [ ! -f "$CACHE_FILE" ]; then
-        echo "⚠️ Endpoint Advisor"
+        echo "Endpoint Advisor"
         echo "---"
         echo "Failed to load data | color=red"
         echo "Check network connection"
@@ -54,15 +54,15 @@ HAS_ALERT=false
 
 # Menu bar icon and title
 if [ "$HAS_ALERT" = true ]; then
-    echo "🔴 Endpoint Advisor"
+    echo "Endpoint Advisor"
 else
-    echo "💻 Endpoint Advisor"
+    echo "Endpoint Advisor"
 fi
 
 echo "---"
 
 # Announcements Section
-echo "📢 Announcements | size=14"
+echo "Announcements | size=14"
 CLEAN_ANNOUNCEMENT=$(strip_markdown "$ANNOUNCEMENT_TEXT")
 echo "$CLEAN_ANNOUNCEMENT | size=12 trim=false"
 
@@ -78,14 +78,14 @@ if [ "$LINK_COUNT" -gt 0 ]; then
     for ((i=0; i<$LINK_COUNT; i++)); do
         LINK_NAME=$(jq -r ".Dashboard.Announcements.Default.Links[$i].Name" "$CACHE_FILE")
         LINK_URL=$(jq -r ".Dashboard.Announcements.Default.Links[$i].Url" "$CACHE_FILE")
-        echo "🔗 $LINK_NAME | href=$LINK_URL size=11"
+        echo "$LINK_NAME | href=$LINK_URL size=11"
     done
 fi
 
 echo "---"
 
 # Support Section
-echo "🆘 Support | size=14"
+echo "Support | size=14"
 CLEAN_SUPPORT=$(strip_markdown "$SUPPORT_TEXT")
 echo "$CLEAN_SUPPORT | size=12 trim=false"
 
@@ -95,7 +95,7 @@ if [ "$SUPPORT_LINK_COUNT" -gt 0 ]; then
     for ((i=0; i<$SUPPORT_LINK_COUNT; i++)); do
         LINK_NAME=$(jq -r ".Dashboard.Support.Links[$i].Name" "$CACHE_FILE")
         LINK_URL=$(jq -r ".Dashboard.Support.Links[$i].Url" "$CACHE_FILE")
-        echo "🔗 $LINK_NAME | href=$LINK_URL size=11"
+        echo "$LINK_NAME | href=$LINK_URL size=11"
     done
 fi
 
@@ -119,7 +119,7 @@ if [ "$TAB_COUNT" -gt 0 ]; then
             TAB_HEADER=$(jq -r ".AdditionalTabs[$i].TabHeader" "$CACHE_FILE")
             TAB_TEXT=$(jq -r ".AdditionalTabs[$i].Content.Text" "$CACHE_FILE")
             
-            echo "📑 $TAB_HEADER | size=14"
+            echo "$TAB_HEADER | size=14"
             CLEAN_TAB_TEXT=$(strip_markdown "$TAB_TEXT")
             echo "$CLEAN_TAB_TEXT | size=12 trim=false"
             
@@ -129,7 +129,7 @@ if [ "$TAB_COUNT" -gt 0 ]; then
                 for ((j=0; j<$TAB_LINK_COUNT; j++)); do
                     LINK_NAME=$(jq -r ".AdditionalTabs[$i].Content.Links[$j].Name" "$CACHE_FILE")
                     LINK_URL=$(jq -r ".AdditionalTabs[$i].Content.Links[$j].Url" "$CACHE_FILE")
-                    echo "--🔗 $LINK_NAME | href=$LINK_URL size=11"
+                    echo "--$LINK_NAME | href=$LINK_URL size=11"
                 done
             fi
             
@@ -140,8 +140,8 @@ if [ "$TAB_COUNT" -gt 0 ]; then
 fi
 
 # Footer
-echo "🔄 Refresh | refresh=true"
-echo "ℹ️ About"
+echo "Refresh | refresh=true"
+echo "About"
 echo "--Version: $(jq -r '.version // "1.0.0"' "$CACHE_FILE")"
 echo "--Published: $(jq -r '.publishedDate // "Unknown"' "$CACHE_FILE" | cut -d'T' -f1)"
 echo "--Cache: $CACHE_FILE | size=10 color=gray"
