@@ -2,7 +2,7 @@
 # Version 1.0 - Phase 1: Basic Load/Display
 
 $ScriptVersion = "1.0.0"
-$GitHubUrl = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json"
+$GitHubUrl = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData2.json"
 
 # Import required assemblies
 Add-Type -AssemblyName PresentationFramework
@@ -291,7 +291,7 @@ $xamlString = @"
       <TextBox x:Name="GitHubBranchBox" Text="main" Margin="0,0,0,5"/>
       
       <TextBlock Text="File Path:" Margin="0,5,0,2"/>
-      <TextBox x:Name="GitHubFilePathBox" Text="ContentData.json" Margin="0,0,0,5"/>
+      <TextBox x:Name="GitHubFilePathBox" Text="ContentData2.json" Margin="0,0,0,5"/>
       
       <Separator Margin="0,20,0,20"/>
       
@@ -406,7 +406,7 @@ function Load-FromFile {
     try {
         $openFileDialog = New-Object System.Windows.Forms.OpenFileDialog
         $openFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
-        $openFileDialog.Title = "Select ContentData.json file"
+        $openFileDialog.Title = "Select ContentData2.json file"
         
         if ($openFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             $StatusText.Text = "Loading from file..."
@@ -1558,8 +1558,8 @@ function Save-ToLocalFile {
     try {
         $saveFileDialog = New-Object System.Windows.Forms.SaveFileDialog
         $saveFileDialog.Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*"
-        $saveFileDialog.Title = "Save ContentData.json"
-        $saveFileDialog.FileName = "ContentData.json"
+        $saveFileDialog.Title = "Save ContentData2.json"
+        $saveFileDialog.FileName = "ContentData2.json"
         
         if ($saveFileDialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             $jsonContent = $global:ContentData | ConvertTo-Json -Depth 100
