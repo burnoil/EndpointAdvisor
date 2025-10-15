@@ -2,7 +2,7 @@
 # Version 1.0 - Phase 1: Basic Load/Display
 
 $ScriptVersion = "1.0.0"
-$GitHubUrl = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData2.json"
+$GitHubUrl = $GitHubUrl = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/ContentData2.json"
 
 # Import required assemblies
 Add-Type -AssemblyName PresentationFramework
