@@ -61,7 +61,7 @@ $xamlString = @"
         <!-- Main Text -->
         <TextBlock Text="Main Text:" FontWeight="Bold" Margin="0,5,0,2"/>
         <TextBox x:Name="AnnouncementText" TextWrapping="Wrap" AcceptsReturn="True" Height="80" VerticalScrollBarVisibility="Auto"/>
-        <TextBlock Text="Supports markdown: **bold**, *italic*, [color]text[/color]" FontSize="9" Foreground="Gray" Margin="0,2,0,10"/>
+        <TextBlock Text="Supports markdown: **bold**, *italic*, __underline__, [color]text[/color]" FontSize="9" Foreground="Gray" Margin="0,2,0,10"/>
         
         <!-- Details -->
         <TextBlock Text="Details (optional):" FontWeight="Bold" Margin="0,5,0,2"/>
@@ -162,7 +162,7 @@ $xamlString = @"
         <!-- Main Text -->
         <TextBlock Text="Support Text:" FontWeight="Bold" Margin="0,5,0,2"/>
         <TextBox x:Name="SupportText" TextWrapping="Wrap" AcceptsReturn="True" Height="100" VerticalScrollBarVisibility="Auto"/>
-        <TextBlock Text="Supports markdown: **bold**, *italic*, [color]text[/color]" FontSize="9" Foreground="Gray" Margin="0,2,0,10"/>
+        <TextBlock Text="Supports markdown: **bold**, *italic*, __underline__, [color]text[/color]" FontSize="9" Foreground="Gray" Margin="0,2,0,10"/>
         
         <!-- Links -->
         <TextBlock Text="Links:" FontWeight="Bold" Margin="0,10,0,5"/>
@@ -658,15 +658,21 @@ function Update-AnnouncementsPreview {
         }
         
         # Details
-        if ($AnnouncementDetails.Text) {
-            $detailsBlock = New-Object System.Windows.Controls.TextBlock
-            $detailsBlock.Text = $AnnouncementDetails.Text
-            $detailsBlock.TextWrapping = "Wrap"
-            $detailsBlock.FontSize = 10
-            $detailsBlock.Foreground = [System.Windows.Media.Brushes]::Gray
-            $detailsBlock.Margin = [System.Windows.Thickness]::new(0,5,0,5)
-            $expanderContent.Children.Add($detailsBlock)
-        }
+        # Details
+# Details
+if ($AnnouncementDetails.Text) {
+    $detailsBlock = New-Object System.Windows.Controls.TextBlock
+    $detailsBlock.TextWrapping = "Wrap"
+    $detailsBlock.FontSize = 12  # Larger size
+    $detailsBlock.Foreground = [System.Windows.Media.Brushes]::DarkGray  # Darker gray
+    $detailsBlock.Margin = [System.Windows.Thickness]::new(0,5,0,5)
+    
+    # Apply markdown rendering
+    $renderedDetails = Render-SimpleMarkdown -Text $AnnouncementDetails.Text
+    $detailsBlock.Inlines.AddRange($renderedDetails)
+    
+    $expanderContent.Children.Add($detailsBlock)
+}
         
         # Links
         $hasLinks = $false
@@ -703,76 +709,119 @@ function Update-AnnouncementsPreview {
     }
 }
 
-# Function: Simple markdown renderer (keep the one we created earlier)
+# Function: Simple markdown renderer (FIXED SYNTAX)
 function Render-SimpleMarkdown {
     param([string]$Text)
     
+    if (-not $Text) { 
+        return @()
+    }
+    
     $inlines = New-Object System.Collections.ArrayList
-    $lines = $Text -split "`n"
+    $lines = $Text -split "`r?`n"
     
     foreach ($line in $lines) {
-        # Process bold **text**
-        while ($line -match '\*\*(.+?)\*\*') {
-            $beforeMatch = $line.Substring(0, $matches.Index)
-            if ($beforeMatch) {
-                $run = New-Object System.Windows.Documents.Run
-                $run.Text = $beforeMatch
-                $inlines.Add($run) | Out-Null
-            }
-            
-            $boldRun = New-Object System.Windows.Documents.Run
-            $boldRun.Text = $matches[1]
-            $boldRun.FontWeight = "Bold"
-            $inlines.Add($boldRun) | Out-Null
-            
-            $line = $line.Substring($matches.Index + $matches[0].Length)
+        if (-not $line) {
+            $lineBreak = New-Object System.Windows.Documents.LineBreak
+            $inlines.Add($lineBreak) | Out-Null
+            continue
         }
         
-        # Process italic *text*
-        while ($line -match '\*([^*]+?)\*') {
-            $beforeMatch = $line.Substring(0, $matches.Index)
-            if ($beforeMatch) {
-                $run = New-Object System.Windows.Documents.Run
-                $run.Text = $beforeMatch
-                $inlines.Add($run) | Out-Null
-            }
-            
-            $italicRun = New-Object System.Windows.Documents.Run
-            $italicRun.Text = $matches[1]
-            $italicRun.FontStyle = "Italic"
-            $inlines.Add($italicRun) | Out-Null
-            
-            $line = $line.Substring($matches.Index + $matches[0].Length)
-        }
+        # Find all formatting in order: colors first, then bold/italic/underline within
+        $i = 0
+        $currentColor = $null
         
-        # Process color [color]text[/color]
-        while ($line -match '\[(\w+)\](.+?)\[/\1\]') {
-            $beforeMatch = $line.Substring(0, $matches.Index)
-            if ($beforeMatch) {
-                $run = New-Object System.Windows.Documents.Run
-                $run.Text = $beforeMatch
-                $inlines.Add($run) | Out-Null
+        while ($i -lt $line.Length) {
+            $remainder = $line.Substring($i)
+            
+            # Check for color start
+            if ($remainder -match '^\[(\w+)\]') {
+                $currentColor = $matches[1]
+                $i += $matches[0].Length
+                continue
             }
             
-            $colorRun = New-Object System.Windows.Documents.Run
-            $colorRun.Text = $matches[2]
-            try {
-                $colorRun.Foreground = [System.Windows.Media.Brushes]::($matches[1])
-            } catch {
-                # Invalid color, use default
+            # Check for color end
+            if ($currentColor -and $remainder -match '^\[/' + [regex]::Escape($currentColor) + '\]') {
+                $currentColor = $null
+                $i += $matches[0].Length
+                continue
             }
-            $inlines.Add($colorRun) | Out-Null
             
-            $line = $line.Substring($matches.Index + $matches[0].Length)
-        }
-        
-        # Add remaining text
-        if ($line) {
+            # Check for bold **
+            if (($remainder.Length -ge 2) -and ($remainder.Substring(0,2) -eq '**')) {
+                $endIdx = $remainder.IndexOf('**', 2)
+                if ($endIdx -gt 0) {
+                    $text = $remainder.Substring(2, $endIdx - 2)
+                    $run = New-Object System.Windows.Documents.Run
+                    $run.Text = $text
+                    $run.FontWeight = "Bold"
+                    if ($currentColor) {
+                        try {
+                            $cName = $currentColor.Substring(0,1).ToUpper() + $currentColor.Substring(1).ToLower()
+                            $run.Foreground = [System.Windows.Media.Brushes]::($cName)
+                        } catch {}
+                    }
+                    $inlines.Add($run) | Out-Null
+                    $i += $endIdx + 2
+                    continue
+                }
+            }
+            
+            # Check for underline __
+            if (($remainder.Length -ge 2) -and ($remainder.Substring(0,2) -eq '__')) {
+                $endIdx = $remainder.IndexOf('__', 2)
+                if ($endIdx -gt 0) {
+                    $text = $remainder.Substring(2, $endIdx - 2)
+                    $run = New-Object System.Windows.Documents.Run
+                    $run.Text = $text
+                    $run.TextDecorations = [System.Windows.TextDecorations]::Underline
+                    if ($currentColor) {
+                        try {
+                            $cName = $currentColor.Substring(0,1).ToUpper() + $currentColor.Substring(1).ToLower()
+                            $run.Foreground = [System.Windows.Media.Brushes]::($cName)
+                        } catch {}
+                    }
+                    $inlines.Add($run) | Out-Null
+                    $i += $endIdx + 2
+                    continue
+                }
+            }
+            
+            # Check for italic *
+            if (($remainder.Length -ge 1) -and ($remainder[0] -eq '*')) {
+                $endIdx = $remainder.IndexOf('*', 1)
+                if ($endIdx -gt 0) {
+                    $text = $remainder.Substring(1, $endIdx - 1)
+                    $run = New-Object System.Windows.Documents.Run
+                    $run.Text = $text
+                    $run.FontStyle = "Italic"
+                    if ($currentColor) {
+                        try {
+                            $cName = $currentColor.Substring(0,1).ToUpper() + $currentColor.Substring(1).ToLower()
+                            $run.Foreground = [System.Windows.Media.Brushes]::($cName)
+                        } catch {}
+                    }
+                    $inlines.Add($run) | Out-Null
+                    $i += $endIdx + 1
+                    continue
+                }
+            }
+            
+            # Plain character
             $run = New-Object System.Windows.Documents.Run
-            $run.Text = $line
+            $run.Text = $line[$i].ToString()
+            if ($currentColor) {
+                try {
+                    $cName = $currentColor.Substring(0,1).ToUpper() + $currentColor.Substring(1).ToLower()
+                    $run.Foreground = [System.Windows.Media.Brushes]::($cName)
+                } catch {}
+            }
             $inlines.Add($run) | Out-Null
+            $i++
         }
         
+        # Line break
         $lineBreak = New-Object System.Windows.Documents.LineBreak
         $inlines.Add($lineBreak) | Out-Null
     }
@@ -1773,91 +1822,6 @@ function Show-AdditionalTabsPreview {
             }
         }
     }
-}
-
-# Function: Simple markdown renderer
-function Render-SimpleMarkdown {
-    param([string]$Text)
-    
-    $inlines = New-Object System.Collections.ArrayList
-    
-    # Split by lines for processing
-    $lines = $Text -split "`n"
-    
-    foreach ($line in $lines) {
-        $position = 0
-        
-        # Process bold **text**
-        while ($line -match '\*\*(.+?)\*\*') {
-            # Add text before match
-            $beforeMatch = $line.Substring(0, $matches.Index)
-            if ($beforeMatch) {
-                $run = New-Object System.Windows.Documents.Run
-                $run.Text = $beforeMatch
-                $inlines.Add($run) | Out-Null
-            }
-            
-            # Add bold text
-            $boldRun = New-Object System.Windows.Documents.Run
-            $boldRun.Text = $matches[1]
-            $boldRun.FontWeight = "Bold"
-            $inlines.Add($boldRun) | Out-Null
-            
-            # Continue with rest of line
-            $line = $line.Substring($matches.Index + $matches[0].Length)
-        }
-        
-        # Process italic *text*
-        while ($line -match '\*(.+?)\*') {
-            $beforeMatch = $line.Substring(0, $matches.Index)
-            if ($beforeMatch) {
-                $run = New-Object System.Windows.Documents.Run
-                $run.Text = $beforeMatch
-                $inlines.Add($run) | Out-Null
-            }
-            
-            $italicRun = New-Object System.Windows.Documents.Run
-            $italicRun.Text = $matches[1]
-            $italicRun.FontStyle = "Italic"
-            $inlines.Add($italicRun) | Out-Null
-            
-            $line = $line.Substring($matches.Index + $matches[0].Length)
-        }
-        
-        # Process color [color]text[/color]
-        while ($line -match '\[(\w+)\](.+?)\[/\1\]') {
-            $beforeMatch = $line.Substring(0, $matches.Index)
-            if ($beforeMatch) {
-                $run = New-Object System.Windows.Documents.Run
-                $run.Text = $beforeMatch
-                $inlines.Add($run) | Out-Null
-            }
-            
-            $colorRun = New-Object System.Windows.Documents.Run
-            $colorRun.Text = $matches[2]
-            try {
-                $colorRun.Foreground = [System.Windows.Media.Brushes]::($matches[1])
-            } catch {
-                # Invalid color, use default
-            }
-            $inlines.Add($colorRun) | Out-Null
-            
-            $line = $line.Substring($matches.Index + $matches[0].Length)
-        }
-        
-        # Add remaining text
-        if ($line) {
-            $run = New-Object System.Windows.Documents.Run
-            $run.Text = $line
-            $inlines.Add($run) | Out-Null
-        }
-        
-        # Add line break
-        $lineBreak = New-Object System.Windows.Documents.LineBreak
-        $inlines.Add($lineBreak) | Out-Null
-    }
-    
-    return $inlines
 }
 
 # Load GitHub configuration on startup
