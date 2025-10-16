@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.1 (Definitive stability and compatibility release. Driver updates enabled.)
+# Version 6.0.1 (Definitive stability and compatibility release. Driver update enabled.)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -484,16 +484,7 @@ $xamlString = @"
         </StackPanel>
       </Border>
     </Expander>
-    <Expander x:Name="ComplianceExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
-      <Expander.Header>
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="Certificate Status" VerticalAlignment="Center"/>
-        </StackPanel>
-      </Expander.Header>
-      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-        <TextBlock x:Name="YubiKeyComplianceText" FontSize="11" TextWrapping="Wrap"/>
-      </Border>
-    </Expander>
+    
     <TextBlock x:Name="WindowsBuildText" FontSize="11" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,10,0,0"/>
   </StackPanel>
 </ScrollViewer>
@@ -531,7 +522,7 @@ try {
     "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
     "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
     "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
-    "SupportSourceText", "ComplianceExpander", "YubiKeyComplianceText", "WindowsBuildText", "ClearAlertsButton",
+    "SupportSourceText", "WindowsBuildText", "ClearAlertsButton",
     "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
     "PatchingAlertIcon", "AppendedAnnouncementsPanel",
     "DriverUpdateStatusText", "DriverUpdateLastRunText", "DriverUpdateButton", "DriverProgressPanel", 
@@ -870,13 +861,64 @@ function Get-VirtualSmartCardCertExpiry {
 
 function Update-CertificateInfo {
     try {
-        Write-Log "Updating certificate info..." -Level "INFO"
-        $ykStatus = Get-YubiKeyCertExpiryDays
-        $vscStatus = Get-VirtualSmartCardCertExpiry
-        $combinedStatus = "$ykStatus`n$vscStatus"
-        $global:CachedCertificateStatus = $combinedStatus
-        $window.Dispatcher.Invoke({ $global:YubiKeyComplianceText.Text = $combinedStatus })
-    } catch { Handle-Error $_.Exception.Message -Source "Update-CertificateInfo" }
+        Write-Log "Checking certificate expiration..." -Level "INFO"
+        
+        $alertDays = $config.YubiKeyAlertDays  # 14 days by default
+        $now = Get-Date
+        $alerts = @()
+        
+        # Check YubiKey certificates
+        try {
+            $ykmanPath = $config.YubiKeyManager_Path
+            if (-not [string]::IsNullOrWhiteSpace($ykmanPath) -and (Test-Path $ykmanPath)) {
+                if (& $ykmanPath info 2>$null) {
+                    $slots = @("9a", "9c", "9d", "9e")
+                    foreach ($slot in $slots) {
+                        $certPem = & $ykmanPath "piv" "certificates" "export" $slot "-" 2>$null
+                        if ($certPem -and $certPem -match "-----BEGIN CERTIFICATE-----") {
+                            $tempFile = [System.IO.Path]::GetTempFileName()
+                            $certPem | Out-File $tempFile -Encoding ASCII
+                            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($tempFile)
+                            Remove-Item $tempFile -Force
+                            
+                            $daysUntilExpiry = ($cert.NotAfter - $now).Days
+                            if ($daysUntilExpiry -le $alertDays) {
+                                if ($daysUntilExpiry -lt 0) {
+                                    $alerts += "Your YubiKey certificate (Slot $slot) has EXPIRED on $($cert.NotAfter.ToString('yyyy-MM-dd'))."
+                                } else {
+                                    $alerts += "Your YubiKey certificate (Slot $slot) will expire in $daysUntilExpiry day(s) on $($cert.NotAfter.ToString('yyyy-MM-dd'))."
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            Write-Log "YubiKey certificate check error - $($_.Exception.Message)" -Level "WARNING"
+        }
+        
+        # Show alert if any certificates are expiring soon
+        if ($alerts.Count -gt 0) {
+            $alertMessage = "Certificate Expiration Alert:`n`n" + ($alerts -join "`n`n") + "`n`nPlease renew your certificate(s) as soon as possible."
+            Write-Log "Certificate expiration alert: $($alerts -join '; ')" -Level "WARNING"
+            
+            $window.Dispatcher.Invoke({
+                [System.Windows.MessageBox]::Show(
+                    $alertMessage,
+                    "Certificate Expiration Warning",
+                    [System.Windows.MessageBoxButton]::OK,
+                    [System.Windows.MessageBoxImage]::Warning
+                )
+            })
+        } else {
+            Write-Log "All certificates are valid for more than $alertDays days" -Level "INFO"
+        }
+        
+        $global:CachedCertificateStatus = if ($alerts.Count -gt 0) { "Alerts: $($alerts.Count)" } else { "Valid" }
+        
+    } catch {
+        Write-Log "Error checking certificate expiration - $($_.Exception.Message)" -Level "ERROR"
+    }
 }
 
 function Get-PendingRestartStatus {
@@ -1907,4 +1949,3 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-
