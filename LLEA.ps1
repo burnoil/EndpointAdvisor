@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.0 (Definitive stability and compatibility release)
+# Version 6.0.1 (Definitive stability and compatibility release. Driver updates enabled.)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -1907,3 +1907,4 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
+
