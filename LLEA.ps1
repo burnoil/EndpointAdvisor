@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.1 (Definitive stability and compatibility release. Driver update enabled.)
+# Version 6.0.0 (Definitive stability and compatibility release)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -774,11 +774,36 @@ function Fetch-ContentData {
     try {
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
+        # Force TLS 1.2
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        
         $response = Invoke-WithRetry -Action {
             $job = Start-Job -ScriptBlock {
                 param($url)
-                Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+                # Force TLS 1.2 in the job context too
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                
+                # Create web request with better error handling
+                $webRequest = [System.Net.HttpWebRequest]::Create($url)
+                $webRequest.Timeout = 30000
+                $webRequest.UseDefaultCredentials = $true  # Use Windows credentials for proxy
+                $webRequest.Proxy = [System.Net.WebRequest]::GetSystemWebProxy()
+                $webRequest.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+                
+                try {
+                    $response = $webRequest.GetResponse()
+                    $stream = $response.GetResponseStream()
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $content = $reader.ReadToEnd()
+                    $reader.Close()
+                    $stream.Close()
+                    $response.Close()
+                    return $content
+                } catch {
+                    throw "Web request failed: $($_.Exception.Message)"
+                }
             } -ArgumentList $url
+            
             $jobResult = Wait-Job $job -Timeout 30
             if (-not $jobResult) {
                 throw "Background job timed out after 30 seconds."
@@ -786,14 +811,14 @@ function Fetch-ContentData {
             $result = Receive-Job $job
             Remove-Job $job
             if (-not $result) {
-                throw "No response received from Invoke-WebRequest."
+                throw "No response received from web request."
             }
             return $result
         } -MaxRetries 3 -RetryDelayMs 500
 
-        Write-Log "Successfully fetched content from Git repository (Status: $($response.StatusCode))." -Level "INFO"
+        Write-Log "Successfully fetched content from Git repository." -Level "INFO"
         
-        $contentData = $response.Content | ConvertFrom-Json
+        $contentData = $response | ConvertFrom-Json
         Validate-ContentData -Data $contentData
         Write-Log "Content data validated successfully." -Level "INFO"
         Save-CachedContentData -ContentData ([PSCustomObject]@{ Data = $contentData })
