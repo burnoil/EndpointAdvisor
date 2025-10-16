@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.1 (Definitive stability and compatibility release. Driver updates enabled.)
+# Version 6.0.1 (Definitive stability and compatibility release)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -1085,112 +1085,161 @@ function Start-DriverUpdate {
         $window.Dispatcher.Invoke({
             $global:DriverProgressPanel.Visibility = "Visible"
             $global:DriverProgressStatus.Text = "Starting driver update process..."
+            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Black
             $global:DriverProgressBar.IsIndeterminate = $true
             $global:DriverUpdateButton.IsEnabled = $false
-            $global:DriverProgressCloseButton.Visibility = "Collapsed"  # ADD THIS LINE
+            $global:DriverProgressCloseButton.Visibility = "Collapsed"
         })
         
         # Start the scheduled task
-        Start-ScheduledTask -TaskName "MITLL_DriverUpdate" -ErrorAction Stop
-        Write-Log "Scheduled task 'MITLL_DriverUpdate' started" -Level "INFO"
-        
-        # Monitor the task
-        $monitorJob = Start-Job -ScriptBlock {
-            $logFile = "C:\Windows\MITLL\Logs\MS_Update.txt"
-            $timeout = 1800  # 30 minutes
-            $elapsed = 0
-            $checkInterval = 5
-            
-            while ($elapsed -lt $timeout) {
-                Start-Sleep -Seconds $checkInterval
-                $elapsed += $checkInterval
-                
-                if (Test-Path $logFile) {
-                    $lastLines = Get-Content $logFile -Tail 10 -ErrorAction SilentlyContinue
-                    
-                    if ($lastLines -match "INSTALL_COMPLETE|DRIVER_UPDATE_END") {
-                        return @{Status="Complete"; Message="Driver updates installed successfully"}
-                    }
-                    if ($lastLines -match "ERROR|FAILED") {
-                        return @{Status="Error"; Message="Driver update failed. Check log file for details."}
-                    }
-                    if ($lastLines -match "NO_UPDATES") {
-                        return @{Status="NoUpdates"; Message="No driver updates available"}
-                    }
-                    if ($lastLines -match "REBOOT_SCHEDULED") {
-                        return @{Status="RebootScheduled"; Message="Installation complete. Restart scheduled in 5 minutes."}
-                    }
-                }
-            }
-            
-            return @{Status="Timeout"; Message="Update process timed out"}
+        try {
+            Start-ScheduledTask -TaskName "MITLL_DriverUpdate" -ErrorAction Stop
+            Write-Log "Scheduled task 'MITLL_DriverUpdate' started successfully" -Level "INFO"
+        } catch {
+            throw "Failed to start scheduled task: $($_.Exception.Message)"
         }
         
-        # Update UI while monitoring
-        $timer = New-Object System.Windows.Threading.DispatcherTimer
-        $timer.Interval = [TimeSpan]::FromSeconds(5)
-        $timer.Add_Tick({
-            if ($monitorJob.State -eq "Completed") {
-                $result = Receive-Job -Job $monitorJob
-                
-                $window.Dispatcher.Invoke({
-                    $global:DriverProgressBar.IsIndeterminate = $false
-                    $global:DriverProgressBar.Value = 100
-                    $global:DriverProgressCloseButton.Visibility = "Visible"  # ADD THIS LINE
-                    
-                    switch ($result.Status) {
-                        "Complete" {
-                            $global:DriverProgressStatus.Text = $result.Message
-                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Green
-                        }
-                        "RebootScheduled" {
-                            $global:DriverProgressStatus.Text = $result.Message
-                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Orange
-                        }
-                        "NoUpdates" {
-                            $global:DriverProgressStatus.Text = $result.Message
-                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Blue
-                        }
-                        "Error" {
-                            $global:DriverProgressStatus.Text = $result.Message
-                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Red
-                        }
-                        "Timeout" {
-                            $global:DriverProgressStatus.Text = $result.Message
-                            $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Orange
-                        }
-                    }
-                    
-                    $global:DriverUpdateButton.IsEnabled = $true
-                })
-                
-                Remove-Job -Job $monitorJob
-                $this.Stop()
-                
-                # Refresh status
-                Update-DriverUpdateStatus
-            } else {
-                # Update status from log
+        # Create timer for monitoring
+        $script:monitorTimer = New-Object System.Windows.Threading.DispatcherTimer
+        $script:monitorTimer.Interval = [TimeSpan]::FromSeconds(3)
+        $script:monitorStartTime = Get-Date
+        $script:lastLogUpdate = ""
+        $script:monitorComplete = $false
+        
+        $script:monitorTimer.Add_Tick({
+            try {
                 $logFile = "C:\Windows\MITLL\Logs\MS_Update.txt"
-                if (Test-Path $logFile) {
-                    $lastLine = Get-Content $logFile -Tail 1 -ErrorAction SilentlyContinue
-                    if ($lastLine) {
-                        $window.Dispatcher.Invoke({
-                            if ($lastLine -match "SEARCH_START") {
-                                $global:DriverProgressStatus.Text = "Searching for driver updates..."
-                            } elseif ($lastLine -match "UPDATES_FOUND") {
-                                $global:DriverProgressStatus.Text = "Driver updates found. Downloading..."
-                            } elseif ($lastLine -match "DOWNLOAD_COMPLETE") {
-                                $global:DriverProgressStatus.Text = "Download complete. Installing..."
-                            } elseif ($lastLine -match "INSTALL_START") {
-                                $global:DriverProgressStatus.Text = "Installing driver updates. Please wait..."
-                            }
-                        })
-                    }
+                $elapsed = ((Get-Date) - $script:monitorStartTime).TotalSeconds
+                
+                # Timeout after 30 minutes
+                if ($elapsed -gt 1800) {
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressBar.IsIndeterminate = $false
+                        $global:DriverProgressBar.Value = 100
+                        $global:DriverProgressStatus.Text = "Update process timed out after 30 minutes. Check log file for details."
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Orange
+                        $global:DriverProgressCloseButton.Visibility = "Visible"
+                        $global:DriverUpdateButton.IsEnabled = $true
+                    })
+                    Write-Log "Driver update monitoring timed out after 30 minutes" -Level "WARNING"
+                    $script:monitorTimer.Stop()
+                    $script:monitorComplete = $true
+                    Update-DriverUpdateStatus
+                    return
                 }
+                
+                if (-not (Test-Path $logFile)) {
+                    Write-Log "Log file not found: $logFile" -Level "WARNING"
+                    return
+                }
+                
+                # Read last 20 lines for better pattern matching
+                $lastLines = Get-Content $logFile -Tail 20 -ErrorAction SilentlyContinue
+                if (-not $lastLines) { return }
+                
+                $allContent = $lastLines -join "`n"
+                
+                # Check for completion states
+                if ($allContent -match "Driver Update Completed|Driver update process completed") {
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressBar.IsIndeterminate = $false
+                        $global:DriverProgressBar.Value = 100
+                        $global:DriverProgressStatus.Text = "Driver updates completed successfully!"
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Green
+                        $global:DriverProgressCloseButton.Visibility = "Visible"
+                        $global:DriverUpdateButton.IsEnabled = $true
+                    })
+                    Write-Log "Driver update completed successfully" -Level "INFO"
+                    $script:monitorTimer.Stop()
+                    $script:monitorComplete = $true
+                    Update-DriverUpdateStatus
+                    return
+                }
+                
+                if ($allContent -match "REBOOT_SCHEDULED") {
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressBar.IsIndeterminate = $false
+                        $global:DriverProgressBar.Value = 100
+                        $global:DriverProgressStatus.Text = "Installation complete. Your computer will restart in 5 minutes."
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Orange
+                        $global:DriverProgressCloseButton.Visibility = "Visible"
+                        $global:DriverUpdateButton.IsEnabled = $true
+                    })
+                    Write-Log "Driver update complete - reboot scheduled" -Level "INFO"
+                    $script:monitorTimer.Stop()
+                    $script:monitorComplete = $true
+                    Update-DriverUpdateStatus
+                    return
+                }
+                
+                if ($allContent -match "NO_UPDATES") {
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressBar.IsIndeterminate = $false
+                        $global:DriverProgressBar.Value = 100
+                        $global:DriverProgressStatus.Text = "No driver updates are currently available."
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Blue
+                        $global:DriverProgressCloseButton.Visibility = "Visible"
+                        $global:DriverUpdateButton.IsEnabled = $true
+                    })
+                    Write-Log "No driver updates available" -Level "INFO"
+                    $script:monitorTimer.Stop()
+                    $script:monitorComplete = $true
+                    Update-DriverUpdateStatus
+                    return
+                }
+                
+                if ($allContent -match "ERROR") {
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressBar.IsIndeterminate = $false
+                        $global:DriverProgressBar.Value = 100
+                        $global:DriverProgressStatus.Text = "Driver update failed. Check log file at C:\Windows\MITLL\Logs\MS_Update.txt for details."
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Red
+                        $global:DriverProgressCloseButton.Visibility = "Visible"
+                        $global:DriverUpdateButton.IsEnabled = $true
+                    })
+                    Write-Log "Driver update encountered an error" -Level "ERROR"
+                    $script:monitorTimer.Stop()
+                    $script:monitorComplete = $true
+                    Update-DriverUpdateStatus
+                    return
+                }
+                
+                # Update progress status based on current stage
+                $statusText = "Installing driver updates. Please wait..."
+                
+                if ($allContent -match "SCAN_START") {
+                    $statusText = "Scanning for available driver updates..."
+                } elseif ($allContent -match "Checking for PSWindowsUpdate module") {
+                    $statusText = "Preparing Windows Update module..."
+                } elseif ($allContent -match "MODULE_IMPORT") {
+                    $statusText = "Loading Windows Update module..."
+                } elseif ($allContent -match "MODULE_READY") {
+                    $statusText = "Module ready. Starting scan..."
+                } elseif ($allContent -match "Downloading driver updates") {
+                    $statusText = "Downloading driver updates..."
+                } elseif ($allContent -match "Installing driver updates") {
+                    $statusText = "Installing driver updates. This may take several minutes..."
+                } elseif ($allContent -match "Checking BitLocker") {
+                    $statusText = "Finalizing installation..."
+                }
+                
+                # Only update if status changed
+                if ($statusText -ne $script:lastLogUpdate) {
+                    $script:lastLogUpdate = $statusText
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressStatus.Text = $statusText
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Black
+                    })
+                    Write-Log "Driver update progress: $statusText" -Level "INFO"
+                }
+                
+            } catch {
+                Write-Log "Error in driver update monitoring: $($_.Exception.Message)" -Level "ERROR"
             }
         })
-        $timer.Start()
+        
+        $script:monitorTimer.Start()
+        Write-Log "Driver update monitoring started" -Level "INFO"
         
     } catch {
         Write-Log "Error starting driver update: $($_.Exception.Message)" -Level "ERROR"
