@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.1 (Definitive stability and compatibility release)
+# Version 6.0.0 (Definitive stability and compatibility release)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -1139,12 +1139,31 @@ function Start-DriverUpdate {
                 
                 $allContent = $lastLines -join "`n"
                 
-                # Check for completion states
+                # Check for completion states - ORDER MATTERS!
+                
+                # Check NO_UPDATES first before general completion
+                if ($allContent -match "NO_UPDATES") {
+                    $window.Dispatcher.Invoke({
+                        $global:DriverProgressBar.IsIndeterminate = $false
+                        $global:DriverProgressBar.Value = 100
+                        $global:DriverProgressStatus.Text = "No driver updates are currently available. Your system is up to date."
+                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Blue
+                        $global:DriverProgressCloseButton.Visibility = "Visible"
+                        $global:DriverUpdateButton.IsEnabled = $true
+                    })
+                    Write-Log "No driver updates available" -Level "INFO"
+                    $script:monitorTimer.Stop()
+                    $script:monitorComplete = $true
+                    Update-DriverUpdateStatus
+                    return
+                }
+                
+                # Then check for successful installation completion
                 if ($allContent -match "Driver Update Completed|Driver update process completed") {
                     $window.Dispatcher.Invoke({
                         $global:DriverProgressBar.IsIndeterminate = $false
                         $global:DriverProgressBar.Value = 100
-                        $global:DriverProgressStatus.Text = "Driver updates completed successfully!"
+                        $global:DriverProgressStatus.Text = "Driver updates installed successfully!"
                         $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Green
                         $global:DriverProgressCloseButton.Visibility = "Visible"
                         $global:DriverUpdateButton.IsEnabled = $true
@@ -1166,38 +1185,6 @@ function Start-DriverUpdate {
                         $global:DriverUpdateButton.IsEnabled = $true
                     })
                     Write-Log "Driver update complete - reboot scheduled" -Level "INFO"
-                    $script:monitorTimer.Stop()
-                    $script:monitorComplete = $true
-                    Update-DriverUpdateStatus
-                    return
-                }
-                
-                if ($allContent -match "NO_UPDATES") {
-                    $window.Dispatcher.Invoke({
-                        $global:DriverProgressBar.IsIndeterminate = $false
-                        $global:DriverProgressBar.Value = 100
-                        $global:DriverProgressStatus.Text = "No driver updates are currently available."
-                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Blue
-                        $global:DriverProgressCloseButton.Visibility = "Visible"
-                        $global:DriverUpdateButton.IsEnabled = $true
-                    })
-                    Write-Log "No driver updates available" -Level "INFO"
-                    $script:monitorTimer.Stop()
-                    $script:monitorComplete = $true
-                    Update-DriverUpdateStatus
-                    return
-                }
-                
-                if ($allContent -match "ERROR") {
-                    $window.Dispatcher.Invoke({
-                        $global:DriverProgressBar.IsIndeterminate = $false
-                        $global:DriverProgressBar.Value = 100
-                        $global:DriverProgressStatus.Text = "Driver update failed. Check log file at C:\Windows\MITLL\Logs\MS_Update.txt for details."
-                        $global:DriverProgressStatus.Foreground = [System.Windows.Media.Brushes]::Red
-                        $global:DriverProgressCloseButton.Visibility = "Visible"
-                        $global:DriverUpdateButton.IsEnabled = $true
-                    })
-                    Write-Log "Driver update encountered an error" -Level "ERROR"
                     $script:monitorTimer.Stop()
                     $script:monitorComplete = $true
                     Update-DriverUpdateStatus
