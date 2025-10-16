@@ -179,6 +179,34 @@ function Handle-Error {
 
 Write-Log "--- Lincoln Laboratory Endpoint Advisor Script Started (Version $ScriptVersion) ---"
 
+# Force TLS 1.2 for web requests (required for GitHub and most modern HTTPS sites)
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Write-Log "TLS 1.2 protocol enabled for web requests" -Level "INFO"
+} catch {
+    Write-Log "Warning: Could not set TLS protocol - $($_.Exception.Message)" -Level "WARNING"
+}
+
+# Skip certificate validation for internal GitHub (GlobalProtect SSL inspection compatibility)
+try {
+    add-type @"
+        using System.Net;
+        using System.Security.Cryptography.X509Certificates;
+        public class TrustAllCertsPolicy : ICertificatePolicy {
+            public bool CheckValidationResult(
+                ServicePoint srvPoint, X509Certificate certificate,
+                WebRequest request, int certificateProblem) {
+                return true;
+            }
+        }
+"@
+    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+    Write-Log "Certificate validation configured for GlobalProtect compatibility" -Level "INFO"
+} catch {
+    # Type might already be loaded, that's okay
+    Write-Log "Certificate policy already configured" -Level "INFO"
+}
+
 # ============================================================
 # MODULE: Configuration Management
 # ============================================================
