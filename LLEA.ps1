@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.0 (Definitive stability and compatibility release)
+# Version 6.0.1 (Definitive stability and compatibility release. Driver updates enabled.)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -960,7 +960,7 @@ function Get-ECMUpdateStatus {
 }
 
 function Get-DaysSinceLastDriverUpdate {
-    $logFile = "C:\Windows\mitll\Logs\MS_Update.txt"
+    $logFile = "C:\Windows\MITLL\Logs\MS_Update.txt"
     
     if (Test-Path $logFile) {
         try {
@@ -1055,28 +1055,6 @@ function Update-DriverUpdateStatus {
 
 function Start-DriverUpdate {
     try {
-        # Check if last run was within 30 days
-        $lastRunFile = "C:\Windows\mitll\Logs\LastDriverUpdate.txt"
-        if (Test-Path $lastRunFile) {
-            $lastRunDate = Get-Content $lastRunFile -Raw | Out-String
-            $lastRunDate = $lastRunDate.Trim()
-            $lastRun = [DateTime]::Parse($lastRunDate)
-            $daysSince = ([DateTime]::Now - $lastRun).Days
-            
-            if ($daysSince -lt 30) {
-                $result = [System.Windows.MessageBox]::Show(
-                    "Driver updates were run $daysSince day(s) ago. Driver updates are only required once per month.`n`nAre you sure you want to run driver updates again?",
-                    "Confirm Driver Update",
-                    [System.Windows.MessageBoxButton]::YesNo,
-                    [System.Windows.MessageBoxImage]::Warning
-                )
-                
-                if ($result -eq [System.Windows.MessageBoxResult]::No) {
-                    return
-                }
-            }
-        }
-        
         # Check battery power
         $powerStatus = [System.Windows.Forms.SystemInformation]::PowerStatus
         if ($powerStatus.PowerLineStatus -ne [System.Windows.Forms.PowerLineStatus]::Online) {
@@ -1118,7 +1096,7 @@ function Start-DriverUpdate {
         
         # Monitor the task
         $monitorJob = Start-Job -ScriptBlock {
-            $logFile = "C:\Windows\mitll\Logs\MS_Update.txt"
+            $logFile = "C:\Windows\MITLL\Logs\MS_Update.txt"
             $timeout = 1800  # 30 minutes
             $elapsed = 0
             $checkInterval = 5
@@ -1193,7 +1171,7 @@ function Start-DriverUpdate {
                 Update-DriverUpdateStatus
             } else {
                 # Update status from log
-                $logFile = "C:\Windows\mitll\Logs\MS_Update.txt"
+                $logFile = "C:\Windows\MITLL\Logs\MS_Update.txt"
                 if (Test-Path $logFile) {
                     $lastLine = Get-Content $logFile -Tail 1 -ErrorAction SilentlyContinue
                     if ($lastLine) {
