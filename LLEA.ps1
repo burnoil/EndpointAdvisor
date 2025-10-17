@@ -215,7 +215,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json?token=GHSAT0AAAAAADKOYOKHJB65QWWJVUMJRQOS2HSQ5KQ"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -668,11 +668,11 @@ if ($global:DriverUpdateButton) {
             })
         }
         if ($global:ClearAlertsButton) {
-            $global:ClearAlertsButton.Add_Click({
-                Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
-                
-                $config.AnnouncementsLastState = $global:LastAnnouncementState
-                $config.SupportLastState = ($global:contentData.Data.Support | ConvertTo-Json -Compress)
+			$global:ClearAlertsButton.Add_Click({
+				Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
+        
+			$config.AnnouncementsLastState = $global:LastAnnouncementState
+			$config.SupportLastState = ($global:contentData.Data.Support | ConvertTo-Json -Compress -Depth 10)
                 
                 $window.Dispatcher.Invoke({
                     if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
