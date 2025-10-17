@@ -805,9 +805,6 @@ function Fetch-ContentData {
     try {
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
-        # Force TLS 1.2
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        
         $response = Invoke-WithRetry -Action {
             $job = Start-Job -ScriptBlock {
                 param($url)
@@ -815,7 +812,21 @@ function Fetch-ContentData {
                     # Force TLS 1.2 in job context
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                     
-                    # Simple Invoke-WebRequest with proxy support
+                    # Skip certificate validation in job context
+                    add-type @"
+                        using System.Net;
+                        using System.Security.Cryptography.X509Certificates;
+                        public class TrustAllCertsPolicy : ICertificatePolicy {
+                            public bool CheckValidationResult(
+                                ServicePoint srvPoint, X509Certificate certificate,
+                                WebRequest request, int certificateProblem) {
+                                return true;
+                            }
+                        }
+"@
+                    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+                    
+                    # Make the web request
                     $result = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -UseDefaultCredentials -ErrorAction Stop
                     
                     if (-not $result -or -not $result.Content) {
