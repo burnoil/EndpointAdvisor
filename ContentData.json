@@ -1,88 +1,86 @@
 {
-    "Announcements":  {
-                          "Default":  {
-                                          "Text":  "This app is currently in BETA. Please submit feedback to endpointengineering@ll.mit.edu. Thank you.",
-                                          "Details":  "**Starting today at 3pm** the Windows monthly patches for October will be made available. This includes updates for both Windows and Office.  The updates will be automatically installed in the overnight hours beginning tonight for ISD and early adopters, then Thursday night for the rest of the Laboratory.  __Computers will reboot after installing the updates. Computers with Bitlocker Security may power off instead of restarting.__\r\n \r\nDaytime patching for these updates will begin Wednesday morning on [red]October 22nd[/red] for any computer still needing an update. At this time the computer will have it applied soon after connecting to the Laboratory network. ",
-                                          "Links":  [
-
-                                                    ]
-                                      },
-                          "Targeted":  [
-                                           {
-                                               "Text":  "[green]Attention[/green]: **Pilot** build is available.",
-                                               "Details":  "- Install by end of week\n- Open the ticket if you hit issues",
-                                               "AppendToDefault":  true,
-                                               "DisableAppended":  false,
-                                               "Enabled":  false,
-                                               "Condition":  {
-                                                                 "Type":  "Registry",
-                                                                 "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-                                                                 "Name":  "Group",
-                                                                 "Value":  "VPN-Pilot"
-                                                             },
-                                               "Links":  [
-                                                             {
-                                                                 "Name":  "Pilot Instructions",
-                                                                 "Url":  "https://example.org/pilot"
-                                                             }
-                                                         ],
-                                               "Message":  {
-                                                               "Text":  "[green]Attention[/green]: **Pilot** build is available.",
-                                                               "Details":  "- Install by end of week\n- Open the ticket if you hit issues",
-                                                               "Links":  [
-                                                                             {
-                                                                                 "Name":  "Pilot Instructions",
-                                                                                 "Url":  "https://example.org/pilot"
-                                                                             }
-                                                                         ]
-                                                           }
-                                           },
-                                           {
-                                               "Text":  "**Windows 11** devices require the June CU.",
-                                               "Details":  "- Check Windows Update\n- Reboot when prompted",
-                                               "AppendToDefault":  true,
-                                               "DisableAppended":  false,
-                                               "Enabled":  false,
-                                               "Condition":  {
-                                                                 "Type":  "Registry",
-                                                                 "Path":  "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-                                                                 "Name":  "Group_11",
-                                                                 "Value":  "Win11"
-                                                             },
-                                               "Links":  [
-                                                             {
-                                                                 "Name":  "KB Details",
-                                                                 "Url":  "https://support.microsoft.com/"
-                                                             }
-                                                         ],
-                                               "Message":  {
-                                                               "Text":  "**Windows 11** devices require the June CU.",
-                                                               "Details":  "- Check Windows Update\n- Reboot when prompted",
-                                                               "Links":  [
-                                                                             {
-                                                                                 "Name":  "KB Details",
-                                                                                 "Url":  "https://support.microsoft.com/"
-                                                                             }
-                                                                         ]
-                                                           }
-                                           }
-                                       ]
-                      },
-    "Support":  {
-                    "Text":  "Computer problems? Call the ISD Support Center at 781-981-4357 (HELP).",
-                    "Links":  [
-                                  {
-                                      "Name":  "ISD Knowledge Base",
-                                      "Url":  "https://llesm.servicenowservices.com/sp?id=kb_view2"
-                                  },
-                                  {
-                                      "Name":  "ISD Support Center Info (Location, Hours, etc.)",
-                                      "Url":  "https://llesm.servicenowservices.com/sp?id=kb_view2"
-                                  },
-                                  {
-                                      "Name":  "Service Portal",
-                                      "Url":  "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
-                                  }
-                              ]
-                }
+  "Announcements": {
+    "Default": {
+      "Text": "This app is currently in BETA. Please submit feedback to endpointengineering@ll.mit.edu. Thank you.",
+      "Details": "**Starting today at 3pm** the Windows monthly patches for October will be made available. This includes updates for both Windows and Office.  The updates will be automatically installed in the overnight hours beginning tonight for ISD and early adopters, then Thursday night for the rest of the Laboratory.  __Computers will reboot after installing the updates. Computers with Bitlocker Security may power off instead of restarting.__\r\n \r\nDaytime patching for these updates will begin Wednesday morning on [red]October 22nd[/red] for any computer still needing an update. At this time the computer will have it applied soon after connecting to the Laboratory network. Dont forget to eat your pudding. ",
+      "Links": []
+    },
+    "Targeted": [
+      {
+        "Text": "[green]Attention[/green]: **Pilot** build is available.",
+        "Details": "- Install by end of week\n- Open the ticket if you hit issues",
+        "AppendToDefault": true,
+        "DisableAppended": false,
+        "Enabled": false,
+        "Condition": {
+          "Type": "Registry",
+          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+          "Name": "Group",
+          "Value": "VPN-Pilot"
+        },
+        "Links": [
+          {
+            "Name": "Pilot Instructions",
+            "Url": "https://example.org/pilot"
+          }
+        ],
+        "Message": {
+          "Text": "[green]Attention[/green]: **Pilot** build is available.",
+          "Details": "- Install by end of week\n- Open the ticket if you hit issues",
+          "Links": [
+            {
+              "Name": "Pilot Instructions",
+              "Url": "https://example.org/pilot"
+            }
+          ]
+        }
+      },
+      {
+        "Text": "**Windows 11** devices require the June CU.",
+        "Details": "- Check Windows Update\n- Reboot when prompted",
+        "AppendToDefault": true,
+        "DisableAppended": false,
+        "Enabled": false,
+        "Condition": {
+          "Type": "Registry",
+          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+          "Name": "Group_11",
+          "Value": "Win11"
+        },
+        "Links": [
+          {
+            "Name": "KB Details",
+            "Url": "https://support.microsoft.com/"
+          }
+        ],
+        "Message": {
+          "Text": "**Windows 11** devices require the June CU.",
+          "Details": "- Check Windows Update\n- Reboot when prompted",
+          "Links": [
+            {
+              "Name": "KB Details",
+              "Url": "https://support.microsoft.com/"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "Support": {
+    "Text": "Computer problems? Call the ISD Support Center at 781-981-4357 (HELP).",
+    "Links": [
+      {
+        "Name": "ISD Knowledge Base",
+        "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
+      },
+      {
+        "Name": "ISD Support Center Info (Location, Hours, etc.)",
+        "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
+      },
+      {
+        "Name": "Service Portal",
+        "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+      }
+    ]
+  }
 }
