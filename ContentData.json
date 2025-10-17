@@ -1,7 +1,7 @@
 {
   "Announcements": {
     "Default": {
-      "Text": "This app is currently in BETA. Please submit feedback to endpointengineering@ll.mit.edu. Thank you.",
+      "Text": "",
       "Details": "**Starting today at 3pm** the Windows monthly patches for October will be made available. This includes updates for both Windows and Office.  The updates will be automatically installed in the overnight hours beginning tonight for ISD and early adopters, then Thursday night for the rest of the Laboratory.  __Computers will reboot after installing the updates. Computers with Bitlocker Security may power off instead of restarting.__\r\n \r\nDaytime patching for these updates will begin Wednesday morning on [red]October 22nd[/red] for any computer still needing an update. At this time the computer will have it applied soon after connecting to the Laboratory network. Dont forget to eat your pudding. ",
       "Links": []
     },
