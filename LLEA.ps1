@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.1 (Definitive stability and compatibility release)
+# Version 6.0.0 (Definitive stability and compatibility release)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -607,6 +607,9 @@ try {
             $global:SupportExpander.IsExpanded = $true
             $global:SupportExpander.Add_Expanded({ 
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
+                # Save the state when user views it
+                $config.SupportLastState = ($global:contentData.Data.Support | ConvertTo-Json -Compress -Depth 10)
+                Save-Configuration -Config $config
                 Update-TrayIcon
             })
         }
@@ -1792,7 +1795,7 @@ function Update-Support {
     $newSupportObject = $global:contentData.Data.Support
     if (-not $newSupportObject) { return }
 
-    $newJsonState = $newSupportObject | ConvertTo-Json -Compress
+    $newJsonState = $newSupportObject | ConvertTo-Json -Compress -Depth 10
 
     $isNew = $false
     if ($config.SupportLastState -ne $newJsonState) {
@@ -2019,4 +2022,3 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-
