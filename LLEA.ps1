@@ -806,100 +806,44 @@ function Fetch-ContentData {
         Write-Log "Attempting to fetch content from: $url" -Level "INFO"
         
         $response = Invoke-WithRetry -Action {
-            $job = Start-Job -ScriptBlock {
-                param($url)
-                try {
-                    # Force TLS 1.2
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-                    
-                    # Certificate bypass
-                    try {
-                        add-type @"
-                            using System.Net;
-                            using System.Security.Cryptography.X509Certificates;
-                            public class TrustAllCertsPolicy : ICertificatePolicy {
-                                public bool CheckValidationResult(
-                                    ServicePoint srvPoint, X509Certificate certificate,
-                                    WebRequest request, int certificateProblem) {
-                                    return true;
-                                }
-                            }
-"@
-                        [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-                    } catch {
-                        try {
-                            [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-                        } catch {}
-                    }
-                    
-                    # Configure web request
-                    $webClient = New-Object System.Net.WebClient
-                    $webClient.Headers.Add("User-Agent", "PowerShell-EndpointAdvisor/6.0")
-                    $webClient.Encoding = [System.Text.Encoding]::UTF8
-                    $webClient.UseDefaultCredentials = $true
-                    
-                    # Get system proxy
-                    $proxy = [System.Net.WebRequest]::GetSystemWebProxy()
-                    $proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-                    $webClient.Proxy = $proxy
-                    
-                    # Download content
-                    $content = $webClient.DownloadString($url)
-                    $webClient.Dispose()
-                    
-                    if (-not $content) {
-                        throw "Empty response from web request"
-                    }
-                    
-                    # Validate it looks like JSON
-                    $trimmed = $content.Trim()
-                    if (-not ($trimmed.StartsWith("{") -or $trimmed.StartsWith("["))) {
-                        throw "Response does not appear to be JSON. First 100 chars: $($trimmed.Substring(0, [Math]::Min(100, $trimmed.Length)))"
-                    }
-                    
-                    return $content
-                } catch {
-                    return @{
-                        Error = $true
-                        Message = $_.Exception.Message
-                        InnerMessage = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { "" }
-                    }
-                }
-            } -ArgumentList $url
+            # Configure WebClient with proxy and credentials
+            $webClient = New-Object System.Net.WebClient
+            $webClient.Headers.Add("User-Agent", "PowerShell-EndpointAdvisor/6.0")
+            $webClient.Encoding = [System.Text.Encoding]::UTF8
+            $webClient.UseDefaultCredentials = $true
             
-            $jobResult = Wait-Job $job -Timeout 35
-            if (-not $jobResult) {
-                Remove-Job $job -Force
-                throw "Web request timed out after 35 seconds."
+            # Get system proxy with credentials
+            $proxy = [System.Net.WebRequest]::GetSystemWebProxy()
+            $proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+            $webClient.Proxy = $proxy
+            
+            try {
+                $content = $webClient.DownloadString($url)
+                return $content
+            } finally {
+                $webClient.Dispose()
             }
-            
-            $result = Receive-Job $job
-            Remove-Job $job
-            
-            # Check if job returned an error
-            if ($result -is [hashtable] -and $result.Error) {
-                $errorMsg = "Web request failed: $($result.Message)"
-                if ($result.InnerMessage) {
-                    $errorMsg += " | Inner: $($result.InnerMessage)"
-                }
-                throw $errorMsg
-            }
-            
-            if (-not $result) {
-                throw "No response received from web request."
-            }
-            
-            return $result
-        } -MaxRetries 3 -RetryDelayMs 500
+        } -MaxRetries 3 -RetryDelayMs 1000
+
+        if (-not $response) {
+            throw "Empty response received from web request"
+        }
 
         Write-Log "Successfully fetched content from remote source." -Level "INFO"
         
-        # Try to parse JSON with better error handling
+        # Validate it looks like JSON before parsing
+        $trimmed = $response.Trim()
+        if (-not ($trimmed.StartsWith("{") -or $trimmed.StartsWith("["))) {
+            Write-Log "Response does not appear to be JSON. First 200 chars: $($trimmed.Substring(0, [Math]::Min(200, $trimmed.Length)))" -Level "ERROR"
+            throw "Response is not valid JSON format"
+        }
+        
+        # Parse JSON
         try {
             $contentData = $response | ConvertFrom-Json -ErrorAction Stop
         } catch {
-            Write-Log "JSON parsing failed. Response preview: $($response.Substring(0, [Math]::Min(200, $response.Length)))" -Level "ERROR"
-            throw "Failed to parse JSON: $($_.Exception.Message)"
+            Write-Log "JSON parsing failed. Error: $($_.Exception.Message)" -Level "ERROR"
+            throw
         }
         
         Validate-ContentData -Data $contentData
@@ -913,8 +857,12 @@ function Fetch-ContentData {
         $global:FailedFetchAttempts++
         Write-Log "Failed to fetch or validate content from $url (Attempt $global:FailedFetchAttempts) - $($_.Exception.Message)" -Level "ERROR"
         
+        if ($_.Exception.InnerException) {
+            Write-Log "Inner exception: $($_.Exception.InnerException.Message)" -Level "ERROR"
+        }
+        
         if ($global:FailedFetchAttempts -ge 3) {
-            Write-Log "Multiple consecutive fetch failures. Content may be HTML instead of JSON (proxy redirect page)." -Level "WARNING"
+            Write-Log "Multiple consecutive fetch failures. Possible proxy authentication or connectivity issue." -Level "WARNING"
         }
         
         $cachedData = Load-CachedContentData
