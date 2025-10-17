@@ -809,53 +809,37 @@ function Fetch-ContentData {
             $job = Start-Job -ScriptBlock {
                 param($url)
                 try {
-                    # Force TLS 1.2
+                    # Force TLS 1.2 in job context
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                     
-                    # Certificate bypass (handle if type already exists)
-                    try {
-                        add-type @"
-                            using System.Net;
-                            using System.Security.Cryptography.X509Certificates;
-                            public class TrustAllCertsPolicy : ICertificatePolicy {
-                                public bool CheckValidationResult(
-                                    ServicePoint srvPoint, X509Certificate certificate,
-                                    WebRequest request, int certificateProblem) {
-                                    return true;
-                                }
+                    # Skip certificate validation in job context
+                    add-type @"
+                        using System.Net;
+                        using System.Security.Cryptography.X509Certificates;
+                        public class TrustAllCertsPolicy : ICertificatePolicy {
+                            public bool CheckValidationResult(
+                                ServicePoint srvPoint, X509Certificate certificate,
+                                WebRequest request, int certificateProblem) {
+                                return true;
                             }
+                        }
 "@
-                        [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-                    } catch {
-                        # Type already loaded, that's fine
-                        try {
-                            [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-                        } catch {}
-                    }
+                    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
                     
-                    # Configure web request with explicit proxy credentials
-                    $webClient = New-Object System.Net.WebClient
-                    $webClient.UseDefaultCredentials = $true
+                    # Make the web request
+                    $result = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -UseDefaultCredentials -ErrorAction Stop
                     
-                    # Get system proxy
-                    $proxy = [System.Net.WebRequest]::GetSystemWebProxy()
-                    $proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-                    $webClient.Proxy = $proxy
-                    
-                    # Download content
-                    $content = $webClient.DownloadString($url)
-                    $webClient.Dispose()
-                    
-                    if (-not $content) {
+                    if (-not $result -or -not $result.Content) {
                         throw "Empty response from web request"
                     }
                     
-                    return $content
+                    return $result.Content
                 } catch {
+                    # Return error info that can be logged
                     return @{
                         Error = $true
                         Message = $_.Exception.Message
-                        InnerMessage = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { "" }
+                        Details = $_.Exception.ToString()
                     }
                 }
             } -ArgumentList $url
@@ -871,11 +855,7 @@ function Fetch-ContentData {
             
             # Check if job returned an error
             if ($result -is [hashtable] -and $result.Error) {
-                $errorMsg = "Web request failed: $($result.Message)"
-                if ($result.InnerMessage) {
-                    $errorMsg += " | Inner: $($result.InnerMessage)"
-                }
-                throw $errorMsg
+                throw "Web request failed: $($result.Message)"
             }
             
             if (-not $result) {
@@ -899,8 +879,13 @@ function Fetch-ContentData {
         $global:FailedFetchAttempts++
         Write-Log "Failed to fetch or validate content from $url (Attempt $global:FailedFetchAttempts) - $($_.Exception.Message)" -Level "ERROR"
         
+        # Log more details for troubleshooting
+        if ($_.Exception.InnerException) {
+            Write-Log "Inner exception: $($_.Exception.InnerException.Message)" -Level "ERROR"
+        }
+        
         if ($global:FailedFetchAttempts -ge 3) {
-            Write-Log "Multiple consecutive fetch failures. This may indicate proxy authentication issues. User can access URL in browser but PowerShell cannot." -Level "WARNING"
+            Write-Log "Multiple consecutive fetch failures ($global:FailedFetchAttempts). Possible causes: network connectivity, proxy authentication, firewall blocking, or TLS issues." -Level "WARNING"
         }
         
         $cachedData = Load-CachedContentData
