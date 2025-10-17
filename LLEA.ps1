@@ -809,37 +809,60 @@ function Fetch-ContentData {
             $job = Start-Job -ScriptBlock {
                 param($url)
                 try {
-                    # Force TLS 1.2 in job context
+                    # Force TLS 1.2
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                     
-                    # Skip certificate validation in job context
-                    add-type @"
-                        using System.Net;
-                        using System.Security.Cryptography.X509Certificates;
-                        public class TrustAllCertsPolicy : ICertificatePolicy {
-                            public bool CheckValidationResult(
-                                ServicePoint srvPoint, X509Certificate certificate,
-                                WebRequest request, int certificateProblem) {
-                                return true;
+                    # Certificate bypass
+                    try {
+                        add-type @"
+                            using System.Net;
+                            using System.Security.Cryptography.X509Certificates;
+                            public class TrustAllCertsPolicy : ICertificatePolicy {
+                                public bool CheckValidationResult(
+                                    ServicePoint srvPoint, X509Certificate certificate,
+                                    WebRequest request, int certificateProblem) {
+                                    return true;
+                                }
                             }
-                        }
 "@
-                    [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+                        [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+                    } catch {
+                        try {
+                            [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+                        } catch {}
+                    }
                     
-                    # Make the web request
-                    $result = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 -UseDefaultCredentials -ErrorAction Stop
+                    # Configure web request
+                    $webClient = New-Object System.Net.WebClient
+                    $webClient.Headers.Add("User-Agent", "PowerShell-EndpointAdvisor/6.0")
+                    $webClient.Encoding = [System.Text.Encoding]::UTF8
+                    $webClient.UseDefaultCredentials = $true
                     
-                    if (-not $result -or -not $result.Content) {
+                    # Get system proxy
+                    $proxy = [System.Net.WebRequest]::GetSystemWebProxy()
+                    $proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+                    $webClient.Proxy = $proxy
+                    
+                    # Download content
+                    $content = $webClient.DownloadString($url)
+                    $webClient.Dispose()
+                    
+                    if (-not $content) {
                         throw "Empty response from web request"
                     }
                     
-                    return $result.Content
+                    # Validate it looks like JSON
+                    $trimmed = $content.Trim()
+                    if (-not ($trimmed.StartsWith("{") -or $trimmed.StartsWith("["))) {
+                        throw "Response does not appear to be JSON. First 100 chars: $($trimmed.Substring(0, [Math]::Min(100, $trimmed.Length)))"
+                    }
+                    
+                    return $content
                 } catch {
-                    # Return error info that can be logged
                     return @{
                         Error = $true
                         Message = $_.Exception.Message
-                        Details = $_.Exception.ToString()
+                        InnerMessage = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { "" }
                     }
                 }
             } -ArgumentList $url
@@ -855,7 +878,11 @@ function Fetch-ContentData {
             
             # Check if job returned an error
             if ($result -is [hashtable] -and $result.Error) {
-                throw "Web request failed: $($result.Message)"
+                $errorMsg = "Web request failed: $($result.Message)"
+                if ($result.InnerMessage) {
+                    $errorMsg += " | Inner: $($result.InnerMessage)"
+                }
+                throw $errorMsg
             }
             
             if (-not $result) {
@@ -867,7 +894,14 @@ function Fetch-ContentData {
 
         Write-Log "Successfully fetched content from remote source." -Level "INFO"
         
-        $contentData = $response | ConvertFrom-Json
+        # Try to parse JSON with better error handling
+        try {
+            $contentData = $response | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            Write-Log "JSON parsing failed. Response preview: $($response.Substring(0, [Math]::Min(200, $response.Length)))" -Level "ERROR"
+            throw "Failed to parse JSON: $($_.Exception.Message)"
+        }
+        
         Validate-ContentData -Data $contentData
         Write-Log "Content data validated successfully." -Level "INFO"
         Save-CachedContentData -ContentData ([PSCustomObject]@{ Data = $contentData })
@@ -879,13 +913,8 @@ function Fetch-ContentData {
         $global:FailedFetchAttempts++
         Write-Log "Failed to fetch or validate content from $url (Attempt $global:FailedFetchAttempts) - $($_.Exception.Message)" -Level "ERROR"
         
-        # Log more details for troubleshooting
-        if ($_.Exception.InnerException) {
-            Write-Log "Inner exception: $($_.Exception.InnerException.Message)" -Level "ERROR"
-        }
-        
         if ($global:FailedFetchAttempts -ge 3) {
-            Write-Log "Multiple consecutive fetch failures ($global:FailedFetchAttempts). Possible causes: network connectivity, proxy authentication, firewall blocking, or TLS issues." -Level "WARNING"
+            Write-Log "Multiple consecutive fetch failures. Content may be HTML instead of JSON (proxy redirect page)." -Level "WARNING"
         }
         
         $cachedData = Load-CachedContentData
