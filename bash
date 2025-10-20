@@ -115,6 +115,112 @@ $adtSession = @{
     DeployAppScriptParameters = $PSBoundParameters
 }
 
+#region ===== SAP Analysis for Office (SAP AO) detection / install helpers =====
+function Get-SAPAOState {
+    [CmdletBinding()] param()
+
+    $roots = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+
+    $items = foreach ($r in $roots) {
+        if (Test-Path $r) {
+            Get-ChildItem $r -ErrorAction SilentlyContinue | ForEach-Object {
+                try { Get-ItemProperty $_.PsPath -ErrorAction Stop } catch { $null }
+            }
+        }
+    }
+
+    $regHit = $items | Where-Object {
+        ($_.DisplayName -match 'Analysis for (Microsoft )?Office' -or
+         $_.DisplayName -match 'SAP BusinessObjects Analysis' -or
+         $_.DisplayName -match 'SAP Analysis') -and
+        ($_.Publisher -match 'SAP')
+    } | Select-Object -First 1
+
+    $pf   = ${env:ProgramFiles}
+    $pf86 = ${env:ProgramFiles(x86)}
+    $paths = @(
+        Join-Path $pf   'SAP BusinessObjects\Office AddIn',
+        Join-Path $pf86 'SAP BusinessObjects\Office AddIn'
+    )
+    $folderHit = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    $arch =
+        if     ($regHit -and $regHit.DisplayName -match '(x64|64)') { 'x64' }
+        elseif ($regHit -and $regHit.DisplayName -match '(x86|32)') { 'x86' }
+        elseif ($folderHit -and $folderHit -like "$pf86*")          { 'x86' }
+        elseif ($folderHit)                                         { 'x64' }
+        else                                                        { $null }
+
+    [PSCustomObject]@{
+        Present         = [bool]($regHit -or $folderHit)
+        DisplayName     = $regHit.DisplayName
+        Version         = $regHit.DisplayVersion
+        Architecture    = $arch
+        InstallPath     = $folderHit
+        UninstallString = $regHit.UninstallString
+        RegistryPath    = if ($regHit.PSPath) { ($regHit.PSPath -split '::')[-1] }
+    }
+}
+
+function Test-SAPAOInstalled {
+    try { (Get-SAPAOState).Present } catch {
+        Write-ADTLogEntry -Message "Test-SAPAOInstalled error: $($_.Exception.Message)" -Severity 3 -Source 'Detect-SAPAO'
+        $false
+    }
+}
+
+function Get-SAPAOProductSwitch {
+    param([ValidateSet('x64','x86')] [string] $Architecture = 'x64')
+    switch ($Architecture) {
+        'x64' { 'SapCofx64' }
+        'x86' { 'SapCofx86' }
+    }
+}
+
+function Install-SAPAOIfNeeded {
+    [CmdletBinding()]
+    param(
+        [ValidateSet('x64','x86')] [string] $Architecture = 'x64',
+        [switch] $Force
+    )
+
+    $state = Get-SAPAOState
+    if ($state.Present -and -not $Force) {
+        Write-ADTLogEntry -Message "SAP AO present ($($state.DisplayName) $($state.Version)); skipping install." -Severity 1 -Source 'Install-SAPAO'
+        return
+    }
+
+    $exe = Join-Path $adtSession.DirFiles 'SAPBAO\Setup\NwSapSetup.exe'
+    if (-not (Test-Path $exe)) { throw "SAP AO installer not found: $exe" }
+
+    $prod   = Get-SAPAOProductSwitch -Architecture $Architecture
+    $params = "/product=`"$prod`" /Silent"
+
+    Write-ADTLogEntry -Message "Installing SAP AO $Architecture → $exe $params" -Severity 1 -Source 'Install-SAPAO'
+    Start-ADTProcess -Filepath $exe -Argumentlist $params
+}
+
+# Optional: quick Excel COM add-in sanity check after M365
+function Test-SAPAOExcelAddin {
+    [CmdletBinding()] param()
+    $excel = $null
+    try {
+        $excel = New-Object -ComObject Excel.Application
+        $addin = $excel.AddIns | Where-Object { $_.Name -match 'Analysis' -or $_.Title -match 'Analysis' }
+        [bool]$addin
+    } catch {
+        Write-ADTLogEntry -Message "Excel COM add-in check skipped/failed: $($_.Exception.Message)" -Severity 2 -Source 'Detect-SAPAO'
+        $false
+    } finally {
+        if ($excel) { $excel.Quit(); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($excel) }
+    }
+}
+#endregion
+
+
 function Install-ADTDeployment
 {
     ##================================================
@@ -129,18 +235,34 @@ function Install-ADTDeployment
     Show-ADTInstallationProgress -StatusMessage "Microsoft 365 Apps installation in Progress...`nThis installation may take approximately 20-30 minutes to complete. Please wait..."
 
     ## <Perform Pre-Installation tasks here>
-		#Kill Processes.  Add each process name into the processes variable.  Add as many needed.
-		$processes = @("process1", "process2", "process3")
-		foreach ($process in $processes) {
-			if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
-				Write-ADTLogEntry -Message "Stopping the process '$process'..." -Source $adtSession.InstallPhase
+        #Kill Processes.  Add each process name into the processes variable.  Add as many needed.
+        $processes = @("process1", "process2", "process3")
+        foreach ($process in $processes) {
+            if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
+                Write-ADTLogEntry -Message "Stopping the process '$process'..." -Source $adtSession.InstallPhase
                 Stop-Process -Name $process -Force -ErrorAction SilentlyContinue
-				Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
-			} else {
-				Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
-			}
-		}
+                Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
+            } else {
+                Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
+            }
+        }
 
+    # --- SAP AO pre-check: if present, flag for post-upgrade reinstall ---
+    try {
+        $ao = Get-SAPAOState
+        if ($ao.Present) {
+            Write-ADTLogEntry -Message "Pre-check: SAP AO detected ($($ao.DisplayName) $($ao.Version)); flagging for post-upgrade reinstall." -Severity 1 -Source $adtSession.InstallPhase
+            New-Item -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -Force | Out-Null
+            New-ItemProperty -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -Name 'ReinstallSAPAO' -Value 1 -PropertyType DWord -Force | Out-Null
+            if ($ao.Architecture) {
+                New-ItemProperty -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -Name 'SAPAOArch' -Value $ao.Architecture -PropertyType String -Force | Out-Null
+            }
+        } else {
+            Write-ADTLogEntry -Message "Pre-check: SAP AO not detected." -Severity 1 -Source $adtSession.InstallPhase
+        }
+    } catch {
+        Write-ADTLogEntry -Message "SAP AO pre-check failed: $($_.Exception.Message)" -Severity 2 -Source $adtSession.InstallPhase
+    }
 
     ##================================================
     ## MARK: Install
@@ -175,14 +297,38 @@ function Install-ADTDeployment
 
     ## <Perform Post-Installation tasks here>
 
-		#Remove shortcut from All Users Desktop (if found)
-		#For Example:  $DESKTOPICONPATH = "C:\Users\Public\Desktop\Google Chrome.lnk"
-		$DESKTOPICONPATH = "$envCommonDesktop\none.lnk"
-		If (Test-Path $DESKTOPICONPATH)
-		{
-			Remove-Item $DESKTOPICONPATH -Force
-			Write-ADTLogEntry -Message "$DESKTOPICONPATH found.  Removing ..." -Source $adtSession.InstallPhase
-		}
+        #Remove shortcut from All Users Desktop (if found)
+        #For Example:  $DESKTOPICONPATH = "C:\Users\Public\Desktop\Google Chrome.lnk"
+        $DESKTOPICONPATH = "$envCommonDesktop\none.lnk"
+        If (Test-Path $DESKTOPICONPATH)
+        {
+            Remove-Item $DESKTOPICONPATH -Force
+            Write-ADTLogEntry -Message "$DESKTOPICONPATH found.  Removing ..." -Source $adtSession.InstallPhase
+        }
+
+    # --- SAP AO post-check & (re)install ---
+    try {
+        $needReinstall = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -ErrorAction SilentlyContinue).ReinstallSAPAO -eq 1
+        $archPref      = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -ErrorAction SilentlyContinue).SAPAOArch
+
+        $stateAfter = Get-SAPAOState
+        $addinOk    = $false  # optional sanity check; Excel may not be ready immediately
+        try { $addinOk = Test-SAPAOExcelAddin } catch { $addinOk = $false }
+
+        if ($needReinstall -or (-not $stateAfter.Present) -or (-not $addinOk)) {
+            $archToInstall = if ($archPref) { $archPref } else { 'x64' }
+            Write-ADTLogEntry -Message "Triggering SAP AO (re)install. Present=$($stateAfter.Present) ExcelAddinOK=$addinOk Arch=$archToInstall" -Severity 1 -Source $adtSession.InstallPhase
+            Install-SAPAOIfNeeded -Architecture $archToInstall -Force
+
+            # cleanup flag
+            Remove-ItemProperty -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -Name 'ReinstallSAPAO' -ErrorAction SilentlyContinue
+            Remove-ItemProperty -Path 'HKLM:\SOFTWARE\LL\OfficeUpgrade' -Name 'SAPAOArch' -ErrorAction SilentlyContinue
+        } else {
+            Write-ADTLogEntry -Message "SAP AO OK post-upgrade; no action required." -Severity 1 -Source $adtSession.InstallPhase
+        }
+    } catch {
+        Write-ADTLogEntry -Message "SAP AO post-check failed: $($_.Exception.Message)" -Severity 2 -Source $adtSession.InstallPhase
+    }
 
     ## Display a message at the end of the install.
     #if (!$adtSession.UseDefaultMsi)
@@ -206,17 +352,17 @@ function Uninstall-ADTDeployment
 
     ## <Perform Pre-Uninstallation tasks here>
 
-		#Kill Processes.  Add each process name into the processes variable.  Add as many needed.
-		$processes = @("Chrome", "process2", "process3")
-		foreach ($process in $processes) {
-			if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
-				Write-ADTLogEntry -Message "Stopping the process '$process'..." -Source $adtSession.InstallPhase
+        #Kill Processes.  Add each process name into the processes variable.  Add as many needed.
+        $processes = @("Chrome", "process2", "process3")
+        foreach ($process in $processes) {
+            if (Get-Process -Name $process -ErrorAction SilentlyContinue) {
+                Write-ADTLogEntry -Message "Stopping the process '$process'..." -Source $adtSession.InstallPhase
                 Stop-Process -Name $process -Force -ErrorAction SilentlyContinue
-				Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
-			} else {
-				Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
-			}
-		}
+                Write-ADTLogEntry -Message "'$process' process has been stopped." -Source $adtSession.InstallPhase
+            } else {
+                Write-ADTLogEntry -Message "'$process' is not running." -Source $adtSession.InstallPhase
+            }
+        }
 
     ##================================================
     ## MARK: Uninstall
