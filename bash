@@ -1,62 +1,30 @@
-function Get-SAPAOState {
-    [CmdletBinding()] param()
+[2025-10-20 10:56:36.540] [Install] [Start-ADTProcess] [Error] :: Execution failed with exit code [-1].
+[2025-10-20 10:56:36.657] [Install] [M365_Office.ps1] [Error] :: Error Record:
+-------------
 
-    # --- Gather uninstall entries from both native and WOW6432Node ---
-    $roots = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'
-    )
+Message               : Execution failed with exit code [-1].
 
-    $items = @()
-    foreach ($r in $roots) {
-        if (Test-Path -LiteralPath $r) {
-            $items += Get-ChildItem -LiteralPath $r -ErrorAction SilentlyContinue | ForEach-Object {
-                try { Get-ItemProperty -LiteralPath $_.PsPath -ErrorAction Stop } catch { $null }
-            }
-        }
-    }
-    # Drop any $nulls that snuck in
-    $items = $items | Where-Object { $_ }
+FullyQualifiedErrorId : ProcessExitCodeError,Start-ADTProcess
+ScriptStackTrace      : at Start-ADTProcess<Process>, Z:\Microsoft\Microsoft 365\M365 and Office\PSAppDeployToolkit\PSAppDeployToolkit.psm1: line 20256
+                        at Install-ADTDeployment, Z:\Microsoft\Microsoft 365\M365 and Office\M365_Office.ps1: line 305
+                        at <ScriptBlock>, Z:\Microsoft\Microsoft 365\M365 and Office\M365_Office.ps1: line 509
+                        at <ScriptBlock>, <No file>: line 1
 
-    # --- Find a matching SAP AO entry by DisplayName/Publisher ---
-    $regHit = $items | Where-Object {
-        $_.PSObject.Properties.Match('DisplayName').Count -gt 0 -and
-        $_.PSObject.Properties.Match('Publisher').Count   -gt 0 -and
-        -not [string]::IsNullOrWhiteSpace($_.DisplayName) -and
-        -not [string]::IsNullOrWhiteSpace($_.Publisher)   -and
-        (
-            $_.DisplayName -match 'Analysis for (Microsoft )?Office' -or
-            $_.DisplayName -match 'SAP BusinessObjects Analysis'     -or
-            $_.DisplayName -match 'SAP Analysis'
-        ) -and
-        ($_.Publisher -match 'SAP')
-    } | Select-Object -First 1
+PositionMessage       : At Z:\Microsoft\Microsoft 365\M365 and Office\M365_Office.ps1:305 char:9
+                        +         Start-ADTProcess -Filepath 'Setup.exe' -Argumentlist "/config ...
+                        +         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[2025-10-20 10:56:36.720] [Install] [Show-ADTDialogBox] [Info] :: Bypassing Show-ADTDialogBox [Mode: Silent]. Text: Error Record:
+-------------
 
-    # --- Build candidate install paths safely (skip nulls) ---
-    $pf   = [Environment]::GetFolderPath('ProgramFiles')
-    $pf86 = [Environment]::GetFolderPath('ProgramFilesX86')
+Message               : Execution failed with exit code [-1].
 
-    $paths = @()
-    if ($pf   -and -not [string]::IsNullOrWhiteSpace($pf))   { $paths += (Join-Path -Path $pf   -ChildPath 'SAP BusinessObjects\Office AddIn') }
-    if ($pf86 -and -not [string]::IsNullOrWhiteSpace($pf86)) { $paths += (Join-Path -Path $pf86 -ChildPath 'SAP BusinessObjects\Office AddIn') }
+FullyQualifiedErrorId : ProcessExitCodeError,Start-ADTProcess
+ScriptStackTrace      : at Start-ADTProcess<Process>, Z:\Microsoft\Microsoft 365\M365 and Office\PSAppDeployToolkit\PSAppDeployToolkit.psm1: line 20256
+                        at Install-ADTDeployment, Z:\Microsoft\Microsoft 365\M365 and Office\M365_Office.ps1: line 305
+                        at <ScriptBlock>, Z:\Microsoft\Microsoft 365\M365 and Office\M365_Office.ps1: line 509
+                        at <ScriptBlock>, <No file>: line 1
 
-    $folderHit = $paths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-
-    # --- Infer architecture from name or folder that hit ---
-    $arch =
-        if     ($regHit -and ($regHit.DisplayName -match '(x64|64)')) { 'x64' }
-        elseif ($regHit -and ($regHit.DisplayName -match '(x86|32)')) { 'x86' }
-        elseif ($folderHit -and $pf86 -and $folderHit.StartsWith($pf86, [System.StringComparison]::OrdinalIgnoreCase)) { 'x86' }
-        elseif ($folderHit) { 'x64' }
-        else { $null }
-
-    [PSCustomObject]@{
-        Present         = [bool]($regHit -or $folderHit)
-        DisplayName     = if ($regHit) { $regHit.DisplayName } else { $null }
-        Version         = if ($regHit) { $regHit.DisplayVersion } else { $null }
-        Architecture    = $arch
-        InstallPath     = $folderHit
-        UninstallString = if ($regHit) { $regHit.UninstallString } else { $null }
-        RegistryPath    = if ($regHit -and $regHit.PSPath) { ($regHit.PSPath -split '::')[-1] } else { $null }
-    }
-}
+PositionMessage       : At Z:\Microsoft\Microsoft 365\M365 and Office\M365_Office.ps1:305 char:9
+                        +         Start-ADTProcess -Filepath 'Setup.exe' -Argumentlist "/config ...
+                        +         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[2025-10-20 10:56:36.810] [Finalization] [Close-ADTSession] [Error] :: [Microsoft_365AppsforEnterprise_16.0_x64_EN_01] install completed with exit code [-1].
