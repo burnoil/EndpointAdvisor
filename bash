@@ -2,6 +2,8 @@ exists key "HKLM\Software\Microsoft\Office\ClickToRun\Configuration" of native r
 AND
 exists value "ProductReleaseIds" whose
 (
-  (it as string) matches (regex "(?i).*(2019|2021|2024)volume.*")
+  (it as string contains "2019Volume")
+  OR (it as string contains "2021Volume")
+  OR (it as string contains "2024Volume")
 )
 of key "HKLM\Software\Microsoft\Office\ClickToRun\Configuration" of native registry
