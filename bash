@@ -15,54 +15,53 @@ Activation Relevance: Windows only
     <Relevance><![CDATA[(name of operating system as lowercase starts with "win")]]></Relevance>
     <Category>Inventory</Category>
     <Source>Timerider</Source>
-    <SourceReleaseDate>2025-10-21</SourceReleaseDate>
-    <DefaultFlag>true</DefaultFlag>
-    <Properties>
+    <SourceReleaseDate>Tue, 21 Oct 2025 00:00:00 +0000</SourceReleaseDate>
+    <Domain>Custom</Domain>
 
-      <!-- Office (C2R) core -->
-      <Property Name="Office (C2R) ProductReleaseIds" ID="1">
-        <Relevance><![CDATA[
+    <!-- Office (C2R) core -->
+    <Property Name="Office (C2R) ProductReleaseIds" ID="1">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (value "ProductReleaseIds" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string)
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Office (C2R) Version" ID="2">
-        <Relevance><![CDATA[
+    <Property Name="Office (C2R) Version" ID="2">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (value "ClientVersionToReport" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string)
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Office (C2R) Channel" ID="3">
-        <Relevance><![CDATA[
+    <Property Name="Office (C2R) Channel" ID="3">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (value "UpdateChannel" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string)
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Office (C2R) Architecture" ID="4">
-        <Relevance><![CDATA[
+    <Property Name="Office (C2R) Architecture" ID="4">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (value "Platform" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string)
 else "Unknown"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Office (C2R) InstallPath" ID="5">
-        <Relevance><![CDATA[
+    <Property Name="Office (C2R) InstallPath" ID="5">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (value "InstallPath" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string)
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <!-- Office (MSI) suites -->
-      <Property Name="Office (MSI) Suites" ID="6">
-        <Relevance><![CDATA[
+    <!-- Office (MSI) suites -->
+    <Property Name="Office (MSI) Suites" ID="6">
+      <Relevance><![CDATA[
 (if exists keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase starts with "microsoft office")) of key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" of native registry then
   ( (value "DisplayName" of it as string & " - " & (if exists value "DisplayVersion" of it then value "DisplayVersion" of it as string else "Unknown")) of keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase starts with "microsoft office")) of key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" of native registry )
 else
@@ -71,77 +70,76 @@ else
   ( (value "DisplayName" of it as string & " - " & (if exists value "DisplayVersion" of it then value "DisplayVersion" of it as string else "Unknown")) of keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase starts with "microsoft office")) of key "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" of native registry )
 else
   (nothing))
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <!-- Visio (C2R / MSI) -->
-      <Property Name="Visio (C2R) Present" ID="7">
-        <Relevance><![CDATA[
+    <!-- Visio (C2R / MSI) -->
+    <Property Name="Visio (C2R) Present" ID="7">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (exists matches (regex "(?i)\bVisio\w*\b") of (value "ProductReleaseIds" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string))
 else false
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Visio (C2R) ReleaseIds" ID="8">
-        <Relevance><![CDATA[
+    <Property Name="Visio (C2R) ReleaseIds" ID="8">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   ( (it as string) of (substrings separated by "," of (value "ProductReleaseIds" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string) whose (it as lowercase contains "visio")) )
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Visio (MSI) Version(s)" ID="9">
-        <Relevance><![CDATA[
+    <Property Name="Visio (MSI) Version(s)" ID="9">
+      <Relevance><![CDATA[
 ( ( (value "DisplayName" of it as string & " - " & (if exists value "DisplayVersion" of it then value "DisplayVersion" of it as string else "Unknown")) of keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase contains "visio")) of key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" of native registry )
 ;
   ( (value "DisplayName" of it as string & " - " & (if exists value "DisplayVersion" of it then value "DisplayVersion" of it as string else "Unknown")) of keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase contains "visio")) of key "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" of native registry ) )
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <!-- Project (C2R / MSI) -->
-      <Property Name="Project (C2R) Present" ID="10">
-        <Relevance><![CDATA[
+    <!-- Project (C2R / MSI) -->
+    <Property Name="Project (C2R) Present" ID="10">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (exists matches (regex "(?i)\bProject\w*\b") of (value "ProductReleaseIds" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string))
 else false
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Project (C2R) ReleaseIds" ID="11">
-        <Relevance><![CDATA[
+    <Property Name="Project (C2R) ReleaseIds" ID="11">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   ( (it as string) of (substrings separated by "," of (value "ProductReleaseIds" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string) whose (it as lowercase contains "project")) )
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Project (MSI) Version(s)" ID="12">
-        <Relevance><![CDATA[
+    <Property Name="Project (MSI) Version(s)" ID="12">
+      <Relevance><![CDATA[
 ( ( (value "DisplayName" of it as string & " - " & (if exists value "DisplayVersion" of it then value "DisplayVersion" of it as string else "Unknown")) of keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase contains "project")) of key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" of native registry )
 ;
   ( (value "DisplayName" of it as string & " - " & (if exists value "DisplayVersion" of it then value "DisplayVersion" of it as string else "Unknown")) of keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase contains "project")) of key "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" of native registry ) )
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <!-- Helpful rollups -->
-      <Property Name="Office Installed Type (C2R/MSI/None)" ID="13">
-        <Relevance><![CDATA[
+    <!-- Helpful rollups -->
+    <Property Name="Office Installed Type (C2R/MSI/None)" ID="13">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then "C2R"
 else if (exists keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase starts with "microsoft office")) of key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" of native registry or
          exists keys whose (exists value "DisplayName" of it and (value "DisplayName" of it as string as lowercase starts with "microsoft office")) of key "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" of native registry) then "MSI"
 else "None"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-      <Property Name="Office (C2R) CDNBaseUrl (if present)" ID="14">
-        <Relevance><![CDATA[
+    <Property Name="Office (C2R) CDNBaseUrl (if present)" ID="14">
+      <Relevance><![CDATA[
 if exists key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry and exists value "CDNBaseUrl" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry then
   (value "CDNBaseUrl" of key "HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" of native registry as string)
 else "N/A"
-        ]]></Relevance>
-      </Property>
+      ]]></Relevance>
+    </Property>
 
-    </Properties>
   </Analysis>
 </BES>
