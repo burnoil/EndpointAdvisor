@@ -1,2 +1,5 @@
-// Run PSADT directly - it should handle UI display to logged-on user
-waithidden "{pathname of client folder of current site}\__Download\M365_Office.exe"
+## Welcome / close apps / deferrals
+    Show-ADTInstallationWelcome -CloseProcesses @{ Name = 'outlook'; Description = 'Microsoft Outlook' }, @{ Name = 'winword'; Description = 'Microsoft Office Word' }, @{ Name = 'excel'; Description = 'Microsoft Office Excel' }, @{ Name = 'powerpnt'; Description = 'Microsoft PowerPoint' }, @{ Name = 'onenote'; Description = 'Microsoft OneNote' } -BlockExecution -CloseProcessesCountdown 600
+
+    ## Progress
+    Show-ADTInstallationProgress -StatusMessage "Microsoft 365 Apps installation in Progress...`nThis installation may take approximately 20-30 minutes to complete. Please wait..."
