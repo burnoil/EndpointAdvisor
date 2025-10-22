@@ -861,9 +861,17 @@
                     <input type="text" id="filePath" value="ContentData.json" placeholder="e.g., ContentData.json">
                 </div>
                 <div class="form-group">
-                    <label for="apiBase">API Base URL (Optional - for Enterprise GitHub):</label>
-                    <input type="text" id="apiBase" placeholder="https://github.company.com/api/v3 or leave empty for github.com">
-                    <p class="help-text">Leave empty for public GitHub. For Enterprise, use your GitHub API URL (usually ends with /api/v3)</p>
+                    <label for="apiBase">GitHub Instance:</label>
+                    <select id="apiBase" onchange="handleApiBaseChange()">
+                        <option value="https://api.github.com">Public GitHub (github.com)</option>
+                        <option value="https://github.company.com/api/v3" selected>Internal GitHub Enterprise</option>
+                        <option value="custom">Custom URL...</option>
+                    </select>
+                    <input type="text" id="apiBaseCustom" placeholder="Enter custom API URL (e.g., https://github.yourcompany.com/api/v3)" style="display: none; margin-top: 10px;">
+                    <p class="help-text">
+                        Select your GitHub instance. For Enterprise, the API URL format is usually: https://your-github-domain/api/v3<br>
+                        <small style="color: #999;">📝 Note: Edit the HTML to customize the dropdown options for your organization's GitHub instances</small>
+                    </p>
                 </div>
                 <div class="form-group">
                     <label for="token">GitHub Personal Access Token:</label>
@@ -1089,6 +1097,7 @@
                     
                     <p><strong>Step 1: Connect to GitHub</strong></p>
                     <ul>
+                        <li>Select your GitHub instance from the dropdown (Public or Enterprise)</li>
                         <li>Enter your repository details (owner, repo name, branch)</li>
                         <li>Create a Personal Access Token at <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings</a> with "repo" scope</li>
                         <li>Paste the token and click "Load File"</li>
@@ -1111,6 +1120,38 @@
                     <div class="tip-box">
                         <strong>💡 Pro Tip:</strong>
                         Use templates to get started quickly! Click "Load Template" for pre-made announcements.
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🏢 Customizing for Your Organization</h4>
+                    <p>To customize the GitHub instance dropdown for your organization:</p>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">1. Find the Dropdown in the HTML</div>
+                        <p>Look for the <code>&lt;select id="apiBase"&gt;</code> section around line 560</p>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">2. Add Your Organization's GitHub URLs</div>
+                        <pre style="white-space: pre-wrap;">&lt;select id="apiBase" onchange="handleApiBaseChange()"&gt;
+  &lt;option value="https://api.github.com"&gt;Public GitHub&lt;/option&gt;
+  &lt;option value="https://github.yourcompany.com/api/v3" selected&gt;Production GitHub&lt;/option&gt;
+  &lt;option value="https://github-dev.yourcompany.com/api/v3"&gt;Dev GitHub&lt;/option&gt;
+  &lt;option value="custom"&gt;Custom URL...&lt;/option&gt;
+&lt;/select&gt;</pre>
+                        <p style="margin-top: 8px;"><strong>Tips:</strong></p>
+                        <ul style="margin-left: 20px;">
+                            <li>Add <code>selected</code> attribute to the option you want as default</li>
+                            <li>Use descriptive names (Production, Dev, Staging, etc.)</li>
+                            <li>Always keep the "Custom URL..." option for flexibility</li>
+                            <li>API URL format: <code>https://your-github-domain/api/v3</code></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="tip-box">
+                        <strong>💡 For IT Administrators:</strong>
+                        Save this HTML file with your organization's pre-configured URLs and distribute it to your team. Users won't need to know the API endpoints!
                     </div>
                 </div>
                 
@@ -1558,6 +1599,14 @@ Save your work before leaving for the day.</pre>
         let autosaveTimer = null;
         let targetedAnnouncementCounter = 0;
 
+        // ========================================
+        // CONFIGURATION: Customize these URLs for your organization
+        // ========================================
+        // To add more GitHub instances, add additional <option> tags in the HTML above
+        // Example: <option value="https://git.yourcompany.com/api/v3">Dev GitHub</option>
+        // The first option is selected by default
+        // ========================================
+
         // Templates
         const templates = {
             maintenance: {
@@ -1748,12 +1797,27 @@ Save your work before leaving for the day.</pre>
         }
 
         function getApiBaseUrl() {
-            const customBase = document.getElementById('apiBase').value.trim();
-            if (customBase) {
-                // Remove trailing slash if present
-                return customBase.replace(/\/$/, '');
+            const select = document.getElementById('apiBase');
+            const customInput = document.getElementById('apiBaseCustom');
+            
+            if (select.value === 'custom') {
+                const customUrl = customInput.value.trim();
+                return customUrl ? customUrl.replace(/\/$/, '') : 'https://api.github.com';
             }
-            return 'https://api.github.com';
+            
+            return select.value;
+        }
+
+        function handleApiBaseChange() {
+            const select = document.getElementById('apiBase');
+            const customInput = document.getElementById('apiBaseCustom');
+            
+            if (select.value === 'custom') {
+                customInput.style.display = 'block';
+                customInput.focus();
+            } else {
+                customInput.style.display = 'none';
+            }
         }
 
         async function checkTokenPermissions() {
