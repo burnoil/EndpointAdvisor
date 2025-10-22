@@ -1,335 +1,477 @@
-Lincoln Laboratory Endpoint Advisor - Web Editor
-A powerful, user-friendly web-based editor for managing JSON configuration files that drive the Lincoln Laboratory Endpoint Advisor PowerShell application. Edit announcements, support information, and targeted messages with a modern interface - no JSON knowledge required!
-🌟 Features
-Dual Editing Modes
+<p align="center">
+  <h1 align="center">🎯 Lincoln Laboratory Endpoint Advisor - Web Editor</h1>
+  <p align="center">
+    A powerful, user-friendly web-based editor for managing endpoint announcements
+    <br />
+    <strong>No JSON knowledge required!</strong>
+  </p>
+</p>
+<p align="center">
+  <img alt="GitHub release" src="https://img.shields.io/badge/version-1.0-blue.svg">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green.svg">
+  <img alt="Status" src="https://img.shields.io/badge/status-active-success.svg">
+</p>
 
-📝 Form Editor (Easy Mode) - Visual interface with text fields, checkboxes, and buttons
-💻 JSON Editor (Advanced Mode) - Direct JSON editing with syntax validation
-Seamlessly switch between modes - changes sync automatically
+📋 Table of Contents
 
-Live Preview
-
-Real-time preview showing exactly how content will appear on endpoints
-Markdown rendering (bold, italic, colors, links)
-Collapsible sections matching the actual application UI
-
-Smart Content Management
-
-Auto-Save - Automatic browser-based draft saving every 2 seconds
-Diff Viewer - Side-by-side comparison before publishing to GitHub
-Templates - 6 pre-built templates for common scenarios:
-
-System Maintenance
-Security Alerts
-Patching Notices
-Training Reminders
-Holiday Schedules
-Pilot Programs
+Overview
+Features
+Quick Start
+Configuration
+Usage Guide
+Common Use Cases
+Troubleshooting
+Security
+Support
 
 
+🎯 Overview
+The Endpoint Advisor Web Editor is a single-page HTML application that provides a modern interface for managing JSON configuration files that drive the Lincoln Laboratory Endpoint Advisor PowerShell application.
+Why Use This Editor?
+BeforeAfter❌ Manual JSON editing✅ Visual form interface❌ Syntax errors✅ Automatic validation❌ No preview✅ Live preview as you type❌ Lost work on crash✅ Auto-save to browser❌ Blind commits✅ Diff viewer before saving
 
-Targeted Announcements
+✨ Features
+<table>
+<tr>
+<td width="50%">
+📝 Dual Editing Modes
 
-Create registry-based conditional messages
-Show different content to different user groups
-Built-in BigFix Action Script templates for easy deployment
-One-click copy for all scripts
+Form Editor for non-technical users
+JSON Editor for power users
+Instant sync between modes
 
-GitHub Integration
+👁️ Live Preview
 
-Direct editing of files in GitHub repositories (public or Enterprise)
-Support for multiple GitHub instances via dropdown selector
-Token permission checker to diagnose authentication issues
-Handles both classic and Enterprise GitHub with SSO
+Real-time rendering
+Markdown support
+Exact endpoint simulation
 
-Rich Text Support
+💾 Smart Saving
 
-Markdown toolbar for easy formatting
-Color tags: [green], [red], [yellow], [blue]
-Bold, italic, underline support
-Visual preview while editing
+Auto-save every 2 seconds
+Diff viewer before commits
+Restore lost work instantly
 
-Built-in Help System
+</td>
+<td width="50%">
+🎯 Targeted Announcements
 
-Comprehensive documentation
-5 tabbed help sections
-Copy-paste ready examples
-Troubleshooting guides
+Registry-based targeting
+BigFix script templates
+One-click copy buttons
+
+📋 Templates
+
+6 ready-to-use templates
+Maintenance notices
+Security alerts
+Pilot programs
+
+🔧 GitHub Integration
+
+Public & Enterprise support
+Multi-instance dropdown
+Token diagnostics
+
+</td>
+</tr>
+</table>
 
 🚀 Quick Start
 Prerequisites
-
-A GitHub account with access to your ContentData.json repository
-A Personal Access Token with "repo" scope
-Modern web browser (Chrome, Firefox, Edge, Safari)
-
+bash✅ GitHub account with repository access
+✅ Personal Access Token with "repo" scope
+✅ Modern web browser (Chrome, Firefox, Edge, Safari)
 Installation
-Option 1: Download and Open
+Option 1: Download & Open
+bash# 1. Download the HTML file
+wget https://raw.githubusercontent.com/yourusername/endpoint-advisor-editor/main/editor.html
 
-Download endpoint-advisor-editor.html from this repository
-Open the file in your web browser
-Start editing!
+# 2. Open in browser
+open editor.html
+Option 2: Host on Server
+bash# Place on your web server
+cp editor.html /var/www/html/
+# Access at: https://your-server/editor.html
+```
 
-Option 2: Host on Web Server
+### First-Time Setup
 
-Place the HTML file on your internal web server
-Access via browser at https://your-server/endpoint-advisor-editor.html
-Users can bookmark and access easily
+<details>
+<summary><b>1️⃣ Create GitHub Personal Access Token</b></summary>
 
-First Use
+1. Go to [GitHub Settings → Tokens](https://github.com/settings/tokens)
+2. Click **"Generate new token (classic)"**
+3. Check the **`repo`** scope (full control)
+4. For Enterprise with SSO: Click **"Authorize SSO"** after creation
+5. Copy the token (`ghp_...`)
 
-Select GitHub Instance
+> **⚠️ Security Note:** Never commit tokens to repositories!
 
-Choose from dropdown: Public GitHub, Enterprise, or Custom
-For Enterprise, select your pre-configured instance
+</details>
 
+<details>
+<summary><b>2️⃣ Configure Repository Connection</b></summary>
 
-Enter Repository Details
+| Field | Example | Description |
+|-------|---------|-------------|
+| **GitHub Instance** | Internal GitHub Enterprise | Select from dropdown |
+| **Repository Owner** | `your-org` | Username or organization |
+| **Repository Name** | `EndpointAdvisor` | Repository name |
+| **Branch** | `main` | Target branch |
+| **File Path** | `ContentData.json` | Path to JSON file |
+| **Token** | `ghp_xxxxx...` | Your PAT |
 
-Repository Owner: your-username-or-org
-Repository Name: EndpointAdvisor
-Branch: main
-File Path: ContentData.json
+</details>
 
-
-Create Personal Access Token
-
-Go to GitHub Settings → Developer settings → Personal access tokens
-Generate new token (classic)
-Check "repo" scope (full control)
-For Enterprise with SSO: Authorize SSO after creating token
-Copy token and paste into editor
-
-
-Load and Edit
-
-Click "Load File"
-Edit using Form Editor or JSON Editor
-View live preview on right side
-Click "Save to GitHub" when done
-
-
+<details>
+<summary><b>3️⃣ Load and Edit</b></summary>
+```
+1. Click "Load File" → File appears in editor
+2. Switch to "Form Editor (Easy)" mode
+3. Edit announcements using visual interface
+4. View live preview on right side
+5. Click "Save to GitHub" → Review diff → Confirm
+</details>
 
 🔧 Configuration
-Customizing for Your Organization
-The editor includes a dropdown for GitHub instances. To customize for your organization:
-
-Open the HTML file in a text editor
-Find the <select id="apiBase"> section (around line 560)
-Add your organization's GitHub instances:
-
+Customize GitHub Instance Dropdown
+Edit the HTML file to add your organization's GitHub instances:
 html<select id="apiBase" onchange="handleApiBaseChange()">
   <option value="https://api.github.com">Public GitHub</option>
-  <option value="https://github.ll.mit.edu/api/v3" selected>Lincoln Lab Production</option>
-  <option value="https://github-dev.ll.mit.edu/api/v3">Dev Environment</option>
-  <option value="custom">Custom URL...</option>
+  <option value="https://github.ll.mit.edu/api/v3" selected>🏢 Production</option>
+  <option value="https://github-dev.ll.mit.edu/api/v3">🧪 Development</option>
+  <option value="https://github-stage.ll.mit.edu/api/v3">🚀 Staging</option>
+  <option value="custom">✏️ Custom URL...</option>
 </select>
-Tips:
 
-Add selected attribute to your default instance
-API URL format: https://your-github-domain/api/v3
-Use descriptive names (Production, Dev, Staging)
-Keep "Custom URL..." option for flexibility
+💡 Tip: Add selected to your most-used instance. API format: https://your-domain/api/v3
 
-Default Values
-You can pre-fill repository details by editing the HTML:
-html<input type="text" id="repoOwner" value="your-org" placeholder="e.g., burnoil">
-<input type="text" id="repoName" value="EndpointAdvisor" placeholder="e.g., EndpointAdvisor">
-<input type="text" id="branch" value="main" placeholder="e.g., main">
-<input type="text" id="filePath" value="ContentData.json" placeholder="e.g., ContentData.json">
-📖 Usage Guide
-Editing Announcements
-Using Form Editor:
+Pre-fill Default Values
+html<input type="text" id="repoOwner" value="your-org">
+<input type="text" id="repoName" value="EndpointAdvisor">
+<input type="text" id="branch" value="main">
+<input type="text" id="filePath" value="ContentData.json">
+```
 
-Switch to "Form Editor (Easy)" mode
-Type announcement text in the text box
-Use toolbar buttons for formatting (Bold, Italic, Colors)
-Add optional details in the Details field
-Add links using "+ Add Link" button
-Preview updates automatically on the right
+---
 
-Markdown Formatting:
+## 📖 Usage Guide
 
-**bold text** → bold text
-*italic text* → italic text
-__underlined__ → underlined
-[green]success[/green] → green text
-[red]error[/red] → red text
+### Editing Announcements
 
-Creating Targeted Announcements
-Targeted announcements appear only on computers with specific registry keys.
-Steps:
+#### Using Form Editor (Recommended)
+```
+1. Switch to "📝 Form Editor (Easy)" mode
+2. Type announcement text
+3. Use toolbar for formatting: [B] [I] [🟢] [🔴] [🟡]
+4. Add optional details
+5. Add links with "+ Add Link" button
+6. Preview updates automatically
+```
 
-Scroll to "Targeted Announcements" section
-Click "+ Add Targeted Announcement"
-Check "Enabled" to activate
-Enter text and details (supports markdown)
-Configure registry condition:
+#### Markdown Formatting
 
-Registry Path: HKLM:\SOFTWARE\MITLL\Targeting
-Value Name: Group
-Expected Value: Pilot
+| Syntax | Result |
+|--------|--------|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `__underline__` | <u>underline</u> |
+| `[green]text[/green]` | <span style="color:green">text</span> |
+| `[red]warning[/red]` | <span style="color:red">warning</span> |
+| `[yellow]caution[/yellow]` | <span style="color:gold">caution</span> |
 
+### Creating Targeted Announcements
 
-Choose "Append to Default" or replace entirely
+> **Targeted announcements** appear only on computers with specific registry keys
 
-Deploying Registry Keys (BigFix):
-The editor includes ready-to-use BigFix Action Scripts. Click the Help button → Targeted Announcements tab → BigFix Action Script Templates section.
-Example script:
+<details>
+<summary><b>📊 Step-by-Step Setup</b></summary>
+
+#### In the Editor:
+
+1. Scroll to **"🎯 Targeted Announcements"** section
+2. Click **"+ Add Targeted Announcement"**
+3. Configure:
+   - ✅ Check **"Enabled"**
+   - ✅ Check **"Append to Default"** (or uncheck to replace)
+   - 📝 Enter announcement text
+   - 🔗 Add links if needed
+   
+4. Set **Registry Condition**:
+```
+   Registry Path:    HKLM:\SOFTWARE\MITLL\Targeting
+   Value Name:       Group
+   Expected Value:   Pilot
+Deploy Registry Keys (BigFix):
+Copy from Help → Targeted Announcements → BigFix Scripts:
 actionscriptregset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"="Pilot"
-```
+Deploy to target computers using BigFix Actions.
+Verify on Endpoint:
+powershellGet-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting"
+</details>
+Using Templates
+mermaidgraph LR
+    A[Click Load Template] --> B[Choose Template]
+    B --> C[Edit Content]
+    C --> D[Preview]
+    D --> E[Save to GitHub]
+Available Templates:
+TemplateUse CaseColors🔧 System MaintenanceScheduled downtimeYellow cautions🔒 Security AlertCritical updatesRed warnings⚙️ Patching NoticeMonthly patchesBlue info📚 Training ReminderRequired trainingGreen highlights🎉 Holiday ScheduleHoliday hoursGreen/Yellow🚀 Pilot ProgramTargeted testingGreen success
 
-Deploy this to target computers before the announcement will appear.
-
-### Using Templates
-
-1. Click "📋 Load Template" button
-2. Choose from 6 pre-built templates
-3. Customize the loaded content
-4. Save to GitHub
-
-Templates include:
-- System Maintenance announcements
-- Security alerts
-- Patching notices
-- Training reminders
-- Holiday schedules
-- Pilot program messages
-
-### Saving Changes
-
-1. Click "💾 Save to GitHub" button
-2. Review changes in the diff viewer
-   - Left: Current GitHub version
-   - Right: Your changes
-3. Click "Confirm & Save to GitHub"
-4. Enter commit message
-5. Changes are published!
-
-## 🎯 Common Use Cases
-
-### Monthly Patch Announcements
-```
-Template: Patching Notice
+🎯 Common Use Cases
+Example 1: Monthly Patch Announcement
+jsonTemplate: Patching Notice
+---
 Text: **Monthly Patch Deployment** - Windows and Office updates available
-Details: Updates will be installed overnight. Computers will reboot automatically.
-```
 
-### Emergency Security Alert
-```
-Template: Security Alert
+Details: 
+**Starting today at 3pm** patches will be deployed.
+Updates install overnight. [yellow]**Computers will reboot automatically.**[/yellow]
+
+Daytime patching begins [red]tomorrow[/red] for computers still pending updates.
+Example 2: Emergency Security Alert
+jsonTemplate: Security Alert
+---
 Text: [red]**SECURITY ALERT**[/red] - Action Required
-Details: Critical security update available. Install immediately.
-```
 
-### Pilot Program for Select Users
-```
-Targeted Announcement:
-- Text: [green]**Pilot Program**[/green] - You've been selected!
-- Enabled: ✓
-- Append to Default: ✓
-- Registry Condition: Group = "Pilot"
+Details:
+A critical security update has been released.
+
+**Action Required:**
+- Update your system immediately
+- Restart when prompted
+- Contact IT if issues occur
+Example 3: Pilot Program (Targeted)
+jsonTargeted Announcement
+---
+Text: [green]**Pilot Program**[/green] - You've been selected!
+
+Details:
+You're part of the VPN 2.0 pilot group.
+
+**Next Steps:**
+- Install pilot software by Friday
+- Review documentation
+- Submit feedback survey
+
+Registry Condition:
+- Path: HKLM:\SOFTWARE\MITLL\Targeting
+- Name: Group
+- Value: VPN-Pilot
+
+Append to Default: ✅ Yes
+
 🔍 Troubleshooting
-"GitHub API error: 401" when saving
+Common Issues
+<details>
+<summary><b>❌ "GitHub API error: 401" when saving</b></summary>
+Possible Causes:
+
+Token missing "repo" scope
+Token expired
+SSO not authorized (Enterprise)
+Wrong GitHub instance selected
+
 Solutions:
 
-Click "🔑 Check Token Permissions" to diagnose
+Click "🔑 Check Token Permissions" button to diagnose
 Verify token has "repo" scope checked
-For Enterprise GitHub: Authorize SSO
+For Enterprise: Settings → Personal Access Tokens → Configure SSO → Authorize
+Create fresh token
+Verify GitHub instance dropdown selection
 
-Settings → Personal Access Tokens → Configure SSO → Authorize
-
-
-Try creating a new token
-Check GitHub instance dropdown is correct
-
-Changes not appearing on endpoints
-Wait Time: The Endpoint Advisor app refreshes every 10-20 minutes. Wait a bit!
+</details>
+<details>
+<summary><b>❌ Changes not appearing on endpoints</b></summary>
+Timeline:
+The Endpoint Advisor refreshes every 10-20 minutes
 Verify:
+bash# 1. Check GitHub commit history
+git log --oneline -5
 
-File was saved to GitHub (check commit history)
-Endpoint can reach GitHub (not blocked by firewall)
-PowerShell script URL matches your repository
+# 2. Verify endpoint can reach GitHub
+Test-NetConnection github.yourcompany.com -Port 443
 
-Targeted announcement not showing
+# 3. Check PowerShell script URL matches
+Get-Content C:\Path\To\LLEA_tabs.ps1 | Select-String "ContentDataUrl"
+</details>
+<details>
+<summary><b>❌ Targeted announcement not showing</b></summary>
 Checklist:
 
-✓ Announcement is marked "Enabled" in editor
-✓ Registry key exists on target computer
-✓ Registry path, name, and value match exactly (case-sensitive)
-✓ BigFix Action was deployed successfully
+ Announcement marked "Enabled" in editor
+ Registry key exists on target computer
+ Registry path, name, value match exactly (case-sensitive)
+ BigFix Action deployed successfully
 
-Verify registry on endpoint:
-powershellGet-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting"
-Lost work / browser crashed
-Click "💾 Restore Auto-save" button! The editor automatically saves drafts every 2 seconds.
-📚 Documentation
-Help System
-Click the ❓ Help button or floating help button (bottom right) to access:
+Verify on endpoint:
+powershellGet-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting" -ErrorAction SilentlyContinue
+Debug:
+powershell# Check all properties
+Get-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting" | Format-List
 
-Getting Started guide
-Markdown formatting reference
-Targeted announcements setup
-Best practices
-Troubleshooting tips
+# Expected output:
+# Group      : Pilot
+# Department : Engineering
+```
 
-JSON Structure
-The editor supports both flat and Dashboard structures:
-Flat Structure (Legacy):
-json{
+</details>
+
+<details>
+<summary><b>💾 Lost work / browser crashed</b></summary>
+
+#### Recovery:
+1. Reopen the editor
+2. Click **"💾 Restore Auto-save"** button
+3. Editor saves drafts every 2 seconds automatically!
+
+> **Note:** Auto-save is browser-specific and computer-specific
+
+</details>
+
+---
+
+## 🛡️ Security
+
+### Best Practices
+
+| ✅ Do | ❌ Don't |
+|-------|----------|
+| Use tokens with minimum permissions | Share tokens with others |
+| Enable SSO and MFA | Store tokens in repositories |
+| Rotate tokens regularly | Use admin tokens for routine edits |
+| Use HTTPS for hosted editors | Expose editor on public internet |
+| Clear auto-save after publishing | Leave sensitive data in browser |
+
+### Token Storage
+```
+✅ Stored in browser memory only (not saved to disk)
+✅ Automatically cleared when browser closes
+✅ Never transmitted except to GitHub API
+```
+
+### Enterprise Security
+```
+✅ Supports SSO authorization
+✅ Respects branch protection rules
+✅ Audit trail via GitHub commits
+✅ No external dependencies (single HTML file)
+```
+
+---
+
+## 📚 Additional Resources
+
+### Built-in Help System
+
+The editor includes comprehensive documentation:
+```
+❓ Help Button → 5 Tabbed Sections:
+  📖 Getting Started
+  📝 Markdown Formatting  
+  🎯 Targeted Announcements
+  ✨ Best Practices
+  🔍 Troubleshooting
+JSON Structure Reference
+<details>
+<summary><b>View JSON Schema</b></summary>
+````json
+{
   "Announcements": {
-    "Default": { "Text": "...", "Details": "...", "Links": [] },
-    "Targeted": []
+    "Default": {
+      "Text": "Main announcement text",
+      "Details": "Optional detailed information",
+      "Links": [
+        { "Name": "Link text", "Url": "https://..." }
+      ]
+    },
+    "Targeted": [
+      {
+        "Text": "Targeted message",
+        "Details": "Details for specific group",
+        "Links": [],
+        "Enabled": true,
+        "AppendToDefault": true,
+        "Condition": {
+          "Type": "Registry",
+          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+          "Name": "Group",
+          "Value": "Pilot"
+        }
+      }
+    ]
   },
-  "Support": { "Text": "...", "Links": [] }
-}
-Dashboard Structure (New):
-json{
-  "Dashboard": {
-    "Announcements": { ... },
-    "Support": { ... }
+  "Support": {
+    "Text": "Contact IT Support at...",
+    "Links": [
+      { "Name": "Knowledge Base", "Url": "https://..." }
+    ]
   }
 }
-🛡️ Security Considerations
-GitHub Token Security
-
-Never commit tokens to repositories
-Tokens are stored in browser memory only (not saved to disk)
-Use tokens with minimum required permissions ("repo" scope)
-Rotate tokens regularly
-For Enterprise: Enable SSO and MFA
-
-Browser Storage
-
-Auto-save uses localStorage (stays on local machine)
-Clear auto-save data after publishing: Done automatically
-Use HTTPS when hosting on web servers
+````
+</details>
 
 🤝 Contributing
-Contributions are welcome! Areas for improvement:
+We welcome contributions! Areas for improvement:
 
-Additional templates
-More markdown formatting options
-Dark mode support
-Keyboard shortcuts
-Multi-language support
+ Additional templates
+ Dark mode support
+ Keyboard shortcuts (Ctrl+S to save, etc.)
+ Multi-language support
+ Export/import JSON files
+ Version history browser
 
-📄 License
+Development Setup
+bash# Clone repository
+git clone https://github.com/yourusername/endpoint-advisor-editor.git
+
+# Edit HTML file
+code editor.html
+
+# Test locally
+open editor.html
+```
+
+---
+
+## 📞 Support
+
+### Getting Help
+
+| Resource | Link |
+|----------|------|
+| 📖 Documentation | Click **❓ Help** in editor |
+| 🐛 Issues | [GitHub Issues](https://github.com/yourusername/endpoint-advisor-editor/issues) |
+| 📧 Email | endpointengineering@ll.mit.edu |
+
+### System Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Browser | Chrome 90+, Firefox 88+, Edge 90+, Safari 14+ |
+| JavaScript | Must be enabled |
+| localStorage | Required for auto-save |
+| Network | HTTPS access to GitHub |
+
+---
+
+## 📄 License
+
 This project is part of the Lincoln Laboratory Endpoint Advisor suite.
+```
+Copyright (c) 2025 Lincoln Laboratory
+Licensed under MIT License
+
 🙏 Acknowledgments
 
-Built for Lincoln Laboratory IT operations
+Built for Lincoln Laboratory IT Operations
 Integrates with BigFix endpoint management
 Designed for PowerShell-based endpoint agents
-
-📞 Support
-For questions or issues:
-
-Check the built-in Help documentation
-Review troubleshooting section
-Contact: endpointengineering@ll.mit.edu
+Community feedback and contributions
 
 
-Version: 1.0
-Last Updated: 2025-01-15
-Compatibility: Chrome 90+, Firefox 88+, Edge 90+, Safari 14+
+<p align="center">
+  <sub>Version 1.0 | Last Updated: January 2025</sub><br>
+  <sub>Made with ❤️ for endpoint administrators</sub>
+</p>
