@@ -242,7 +242,8 @@
             padding: 12px;
             border-radius: 6px;
             margin-top: 15px;
-            font-size: 14px;
+            font-size: 13px;
+            line-height: 1.6;
         }
         
         .status.success {
@@ -667,6 +668,169 @@
             font-size: 13px;
             color: #666;
         }
+        
+        .help-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #0078D7;
+            color: white;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,120,215,0.4);
+            z-index: 999;
+            transition: all 0.3s;
+            border: none;
+            padding: 0;
+        }
+        
+        .help-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,120,215,0.6);
+            background: #0055A4;
+        }
+        
+        @media (max-width: 768px) {
+            .help-button {
+                bottom: 20px;
+                right: 20px;
+                width: 50px;
+                height: 50px;
+                font-size: 24px;
+            }
+        }
+        
+        .help-modal .modal-content {
+            max-width: 1000px;
+        }
+        
+        .help-section {
+            margin-bottom: 30px;
+        }
+        
+        .help-section h4 {
+            color: #0078D7;
+            margin-bottom: 10px;
+            font-size: 18px;
+            border-left: 4px solid #0078D7;
+            padding-left: 10px;
+        }
+        
+        .help-section p, .help-section ul {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .help-section ul {
+            margin-left: 20px;
+        }
+        
+        .help-example {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+        
+        .help-example pre {
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+            overflow-x: auto;
+            margin: 5px 0;
+        }
+        
+        .help-example code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .help-example-title {
+            font-weight: 600;
+            color: #0078D7;
+            margin-bottom: 8px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .help-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .help-tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .help-tab:hover {
+            color: #0078D7;
+            transform: none;
+        }
+        
+        .help-tab.active {
+            color: #0078D7;
+            border-bottom-color: #0078D7;
+        }
+        
+        .help-content {
+            display: none;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .help-content.active {
+            display: block;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 10px 0;
+            color: #856404;
+        }
+        
+        .warning-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .tip-box {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 10px 0;
+            color: #0c5460;
+        }
+        
+        .tip-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
@@ -682,7 +846,7 @@
                 <h3>GitHub Authentication</h3>
                 <div class="form-group">
                     <label for="repoOwner">Repository Owner:</label>
-                    <input type="text" id="repoOwner" value="OwnerName" placeholder="e.g., burnoil">
+                    <input type="text" id="repoOwner" value="burnoil" placeholder="e.g., burnoil">
                 </div>
                 <div class="form-group">
                     <label for="repoName">Repository Name:</label>
@@ -709,6 +873,8 @@
                     <button class="btn-primary" onclick="loadFile()">Load File</button>
                     <button class="btn-secondary" onclick="loadTemplate()">📋 Load Template</button>
                     <button class="btn-secondary" onclick="restoreAutosave()">💾 Restore Auto-save</button>
+                    <button class="btn-secondary" onclick="checkTokenPermissions()">🔑 Check Token Permissions</button>
+                    <button class="btn-secondary" onclick="openHelpModal()">❓ Help</button>
                 </div>
                 <div id="authStatus"></div>
             </div>
@@ -826,6 +992,7 @@
                     <button class="btn-secondary" onclick="validateJson()">✓ Validate JSON</button>
                     <button class="btn-warning" onclick="formatJson()">✨ Format/Prettify</button>
                     <button class="btn-secondary" onclick="resetEditor()">🔄 Reload from GitHub</button>
+                    <button class="btn-secondary" onclick="openHelpModal()">❓ Help</button>
                 </div>
                 
                 <div id="editorStatus"></div>
@@ -891,6 +1058,491 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal help-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>❓ Help & Documentation</h3>
+                <button class="close-modal" onclick="closeHelpModal()">×</button>
+            </div>
+            
+            <div class="help-tabs">
+                <button class="help-tab active" onclick="showHelpTab('getting-started')">Getting Started</button>
+                <button class="help-tab" onclick="showHelpTab('markdown')">Markdown Formatting</button>
+                <button class="help-tab" onclick="showHelpTab('targeted')">Targeted Announcements</button>
+                <button class="help-tab" onclick="showHelpTab('best-practices')">Best Practices</button>
+                <button class="help-tab" onclick="showHelpTab('troubleshooting')">Troubleshooting</button>
+            </div>
+            
+            <!-- Getting Started Tab -->
+            <div id="help-getting-started" class="help-content active">
+                <div class="help-section">
+                    <h4>🚀 Quick Start Guide</h4>
+                    <p>Welcome to the Endpoint Advisor Content Editor! This tool helps you manage announcements and support information that appear on user endpoints.</p>
+                    
+                    <p><strong>Step 1: Connect to GitHub</strong></p>
+                    <ul>
+                        <li>Enter your repository details (owner, repo name, branch)</li>
+                        <li>Create a Personal Access Token at <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings</a> with "repo" scope</li>
+                        <li>Paste the token and click "Load File"</li>
+                    </ul>
+                    
+                    <p><strong>Step 2: Edit Your Content</strong></p>
+                    <ul>
+                        <li><strong>Form Editor (Easy):</strong> Use the friendly form interface to edit content without touching JSON</li>
+                        <li><strong>JSON Editor (Advanced):</strong> Edit the raw JSON for full control</li>
+                        <li>Changes are auto-saved to your browser every 2 seconds</li>
+                    </ul>
+                    
+                    <p><strong>Step 3: Preview & Save</strong></p>
+                    <ul>
+                        <li>View live preview on the right side as you type</li>
+                        <li>Click "Save to GitHub" to review changes in diff viewer</li>
+                        <li>Confirm and enter a commit message to publish</li>
+                    </ul>
+                    
+                    <div class="tip-box">
+                        <strong>💡 Pro Tip:</strong>
+                        Use templates to get started quickly! Click "Load Template" for pre-made announcements.
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🔧 Key Features</h4>
+                    <ul>
+                        <li><strong>Auto-Save:</strong> Your work is automatically saved to browser storage</li>
+                        <li><strong>Diff Viewer:</strong> Review all changes before publishing to GitHub</li>
+                        <li><strong>Live Preview:</strong> See exactly how content will appear to users</li>
+                        <li><strong>Templates:</strong> Pre-built announcements for common scenarios</li>
+                        <li><strong>Markdown Support:</strong> Rich text formatting with simple syntax</li>
+                        <li><strong>Targeted Announcements:</strong> Show messages to specific user groups</li>
+                        <li><strong>BigFix Scripts:</strong> Ready-to-use action scripts for registry setup (see Targeted Announcements tab)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Markdown Tab -->
+            <div id="help-markdown" class="help-content">
+                <div class="help-section">
+                    <h4>📝 Markdown Formatting Guide</h4>
+                    <p>Use these simple codes to format your text:</p>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Bold Text:</div>
+                        <code>**This text is bold**</code>
+                        <div style="margin-top: 8px;">Result: <strong>This text is bold</strong></div>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Italic Text:</div>
+                        <code>*This text is italic*</code>
+                        <div style="margin-top: 8px;">Result: <em>This text is italic</em></div>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Underlined Text:</div>
+                        <code>__This text is underlined__</code>
+                        <div style="margin-top: 8px;">Result: <u>This text is underlined</u></div>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Colored Text:</div>
+                        <code>[green]Success message[/green]</code><br>
+                        <code>[red]Error or warning[/red]</code><br>
+                        <code>[yellow]Caution message[/yellow]</code><br>
+                        <code>[blue]Information[/blue]</code>
+                        <div style="margin-top: 8px;">
+                            Result: <span style="color: green;">Success message</span> / 
+                            <span style="color: red;">Error or warning</span> / 
+                            <span style="color: #b8860b;">Caution message</span> / 
+                            <span style="color: blue;">Information</span>
+                        </div>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Combining Styles:</div>
+                        <code>[red]**Important:**[/red] Please restart your computer.</code>
+                        <div style="margin-top: 8px;">Result: <span style="color: red;"><strong>Important:</strong></span> Please restart your computer.</div>
+                    </div>
+                    
+                    <div class="tip-box">
+                        <strong>💡 Quick Tip:</strong>
+                        Use the toolbar buttons above text fields to insert formatting automatically!
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>📋 Real-World Example</h4>
+                    <div class="help-example">
+                        <div class="help-example-title">Input:</div>
+                        <pre style="white-space: pre-wrap;">**Starting today at 3pm** the Windows monthly patches will be made available.
+
+[yellow]**Important:**[/yellow] Computers will reboot after installing updates.
+
+Daytime patching begins [red]October 22nd[/red] for any computers still needing updates.</pre>
+                    </div>
+                    
+                    <p style="margin-top: 15px;"><strong>Output:</strong></p>
+                    <div style="padding: 15px; background: white; border: 1px solid #ddd; border-radius: 6px;">
+                        <strong>Starting today at 3pm</strong> the Windows monthly patches will be made available.<br><br>
+                        <span style="color: #b8860b;"><strong>Important:</strong></span> Computers will reboot after installing updates.<br><br>
+                        Daytime patching begins <span style="color: red;">October 22nd</span> for any computers still needing updates.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Targeted Announcements Tab -->
+            <div id="help-targeted" class="help-content">
+                <div class="help-section">
+                    <h4>🎯 What are Targeted Announcements?</h4>
+                    <p>Targeted announcements allow you to show different messages to specific groups of users based on registry values on their computers.</p>
+                    
+                    <div class="tip-box">
+                        <strong>📋 Quick Workflow:</strong>
+                        <ol style="margin-left: 20px; margin-top: 5px;">
+                            <li>Create BigFix Action to set registry key on target computers (see templates below)</li>
+                            <li>Deploy BigFix Action to specific computer group</li>
+                            <li>Create targeted announcement in this editor with matching registry condition</li>
+                            <li>Save and publish - announcement appears only on computers with registry key</li>
+                        </ol>
+                    </div>
+                    
+                    <p><strong>Use Cases:</strong></p>
+                    <ul>
+                        <li>Show pilot program instructions only to pilot participants</li>
+                        <li>Display Windows 11-specific messages only to Windows 11 users</li>
+                        <li>Communicate department-specific information</li>
+                        <li>Provide VPN instructions only to remote users</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h4>⚙️ How Registry Conditions Work</h4>
+                    <p>The Endpoint Advisor script checks the Windows registry on each computer. If the registry matches your condition, the targeted announcement is displayed.</p>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Example Registry Condition:</div>
+                        <strong>Registry Path:</strong> <code>HKLM:\SOFTWARE\MITLL\Targeting</code><br>
+                        <strong>Value Name:</strong> <code>Group</code><br>
+                        <strong>Expected Value:</strong> <code>VPN-Pilot</code>
+                    </div>
+                    
+                    <p>This means: "Show this announcement only on computers where the registry key <code>HKLM:\SOFTWARE\MITLL\Targeting\Group</code> has a value of <code>VPN-Pilot</code>"</p>
+                    
+                    <div class="warning-box">
+                        <strong>⚠️ Important:</strong>
+                        You (or your IT team) must create and set these registry values on target computers. The editor doesn't create them automatically.
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🔧 Creating Targeted Announcements</h4>
+                    <ol>
+                        <li>In the Form Editor, scroll to "Targeted Announcements"</li>
+                        <li>Click "+ Add Targeted Announcement"</li>
+                        <li>Check "Enabled" to activate it</li>
+                        <li>Choose "Append to Default" to show it alongside the default announcement, or uncheck to replace it</li>
+                        <li>Enter your text, details, and links</li>
+                        <li>Set the registry condition (path, value name, expected value)</li>
+                    </ol>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Example: Pilot Program Announcement</div>
+                        <strong>Text:</strong> <code>[green]**Pilot Program**[/green] - You've been selected!</code><br>
+                        <strong>Details:</strong> <code>Install the pilot software by Friday...</code><br>
+                        <strong>Enabled:</strong> ✓ Checked<br>
+                        <strong>Append to Default:</strong> ✓ Checked<br>
+                        <strong>Registry Path:</strong> <code>HKLM:\SOFTWARE\MITLL\Targeting</code><br>
+                        <strong>Value Name:</strong> <code>Group</code><br>
+                        <strong>Expected Value:</strong> <code>Pilot</code>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>📊 Append vs Replace</h4>
+                    <ul>
+                        <li><strong>Append to Default (checked):</strong> Shows both the default announcement AND the targeted announcement</li>
+                        <li><strong>Replace Default (unchecked):</strong> Shows ONLY the targeted announcement (hides default)</li>
+                    </ul>
+                    
+                    <div class="tip-box">
+                        <strong>💡 Best Practice:</strong>
+                        Use "Append" for additional information (pilot instructions). Use "Replace" when the targeted message is completely different (maintenance window specific to one building).
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🔧 BigFix Action Script Templates</h4>
+                    <p>Use these BigFix Action scripts to create the registry keys that trigger targeted announcements. Deploy these to specific computer groups.</p>
+                    
+                    <div class="warning-box">
+                        <strong>⚠️ Important:</strong>
+                        These scripts must be deployed BEFORE the targeted announcement will appear. Test on a small group first!
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Template 1: Using regset (Preferred Method)</div>
+                        <pre style="white-space: pre-wrap;">// Create the registry key path if it doesn't exist
+regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL]" "Targeting"=""
+
+// Set the targeting value
+regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"="Pilot"</pre>
+                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL&quot;] &quot;Targeting&quot;=&quot;&quot;\n\nregset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Group&quot;=&quot;Pilot&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Template 2: Using reg.exe (Alternative Method)</div>
+                        <pre style="white-space: pre-wrap;">// Create registry key and set value
+waithidden reg.exe add "HKLM\SOFTWARE\MITLL\Targeting" /v Group /t REG_SZ /d "Pilot" /f</pre>
+                        <button class="btn-secondary small" onclick="copyToClipboard('waithidden reg.exe add &quot;HKLM\\SOFTWARE\\MITLL\\Targeting&quot; /v Group /t REG_SZ /d &quot;Pilot&quot; /f')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <p style="margin-top: 20px;"><strong>Common Use Case Examples:</strong></p>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Example 1: VPN Pilot Group</div>
+                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"="VPN-Pilot"</pre>
+                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Expected Value to: <code>VPN-Pilot</code></p>
+                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Group&quot;=&quot;VPN-Pilot&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Example 2: Windows 11 Computers</div>
+                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "OS_Version"="Win11"</pre>
+                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Value Name to: <code>OS_Version</code> and Expected Value to: <code>Win11</code></p>
+                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;OS_Version&quot;=&quot;Win11&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Example 3: Department-Specific (Engineering)</div>
+                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Department"="Engineering"</pre>
+                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Value Name to: <code>Department</code> and Expected Value to: <code>Engineering</code></p>
+                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Department&quot;=&quot;Engineering&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Example 4: Building/Location-Specific</div>
+                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Building"="Bldg-32"</pre>
+                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Value Name to: <code>Building</code> and Expected Value to: <code>Bldg-32</code></p>
+                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Building&quot;=&quot;Bldg-32&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <div class="tip-box" style="margin-top: 20px;">
+                        <strong>💡 Pro Tips:</strong>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Use descriptive value names that make sense: "Group", "Department", "Building", "OS_Version"</li>
+                            <li>Keep values simple and consistent: "Pilot" not "Pilot-Program-2024"</li>
+                            <li>Document which BigFix fixlets set which registry values</li>
+                            <li>You can use multiple registry values for different targeting scenarios</li>
+                            <li>Test on a single computer first before deploying widely</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Verification Script (PowerShell)</div>
+                        <p>Use this to verify the registry key was created correctly:</p>
+                        <pre style="white-space: pre-wrap;">Get-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting" -ErrorAction SilentlyContinue</pre>
+                        <button class="btn-secondary small" onclick="copyToClipboard('Get-ItemProperty -Path &quot;HKLM:\\SOFTWARE\\MITLL\\Targeting&quot; -ErrorAction SilentlyContinue')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">Removal Script (If needed)</div>
+                        <p>To remove the targeting registry value:</p>
+                        <pre style="white-space: pre-wrap;">regdelete "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"</pre>
+                        <button class="btn-secondary small" onclick="copyToClipboard('regdelete [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Group&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Best Practices Tab -->
+            <div id="help-best-practices" class="help-content">
+                <div class="help-section">
+                    <h4>✨ Writing Effective Announcements</h4>
+                    
+                    <p><strong>Keep it Clear and Concise:</strong></p>
+                    <ul>
+                        <li>Use short, simple sentences</li>
+                        <li>Put the most important information first</li>
+                        <li>Use bullet points for lists of actions</li>
+                        <li>Avoid technical jargon when possible</li>
+                    </ul>
+                    
+                    <p><strong>Use Formatting Strategically:</strong></p>
+                    <ul>
+                        <li><span style="color: red;">Red</span> for urgent warnings or deadlines</li>
+                        <li><span style="color: green;">Green</span> for positive news or success messages</li>
+                        <li><span style="color: #b8860b;">Yellow</span> for cautions or important notices</li>
+                        <li><strong>Bold</strong> for key terms and action items</li>
+                    </ul>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">❌ Not Great:</div>
+                        <pre style="white-space: pre-wrap;">The IT department will be performing necessary system maintenance on the network infrastructure components which may result in intermittent connectivity issues.</pre>
+                    </div>
+                    
+                    <div class="help-example">
+                        <div class="help-example-title">✅ Better:</div>
+                        <pre style="white-space: pre-wrap;">**Network Maintenance** - [yellow]Brief outages expected[/yellow]
+
+**When:** Tonight, 11 PM - 2 AM
+**Impact:** Network may be unavailable for 5-10 minutes
+
+Save your work before leaving for the day.</pre>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🗓️ Timing & Updates</h4>
+                    <ul>
+                        <li>Post announcements at least 24-48 hours in advance when possible</li>
+                        <li>Update deadlines regularly (don't leave expired dates)</li>
+                        <li>Clear old announcements after events are complete</li>
+                        <li>The app refreshes every 10-20 minutes, so changes appear quickly</li>
+                    </ul>
+                    
+                    <div class="tip-box">
+                        <strong>💡 Pro Tip:</strong>
+                        Use commit messages to track what you changed: "Updated patch date to Oct 22" or "Added pilot program announcement"
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🔗 Links Best Practices</h4>
+                    <ul>
+                        <li>Use descriptive link names: "Training Portal" not "Click Here"</li>
+                        <li>Test all links before publishing</li>
+                        <li>Use internal knowledge base articles when available</li>
+                        <li>Keep the number of links manageable (3-5 maximum)</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h4>✅ Validation Checklist</h4>
+                    <p>Before saving, verify:</p>
+                    <ul>
+                        <li>☑️ Dates and times are correct</li>
+                        <li>☑️ Contact information is accurate</li>
+                        <li>☑️ All links work</li>
+                        <li>☑️ Spelling and grammar are correct</li>
+                        <li>☑️ Formatting displays correctly in preview</li>
+                        <li>☑️ Targeted announcements have correct registry paths</li>
+                        <li>☑️ JSON validates without errors</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Troubleshooting Tab -->
+            <div id="help-troubleshooting" class="help-content">
+                <div class="help-section">
+                    <h4>🔍 Common Issues & Solutions</h4>
+                    
+                    <p><strong>Problem: "GitHub API error: 401" even with "repo" scope</strong></p>
+                    <div class="warning-box">
+                        <strong>Solution:</strong>
+                        If your token has "repo" checked but still getting 401 errors:
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li><strong>For Enterprise GitHub with SSO:</strong>
+                                <ol style="margin-left: 20px; margin-top: 5px;">
+                                    <li>Go to GitHub Settings → Personal access tokens</li>
+                                    <li>Find your token in the list</li>
+                                    <li>Click "Configure SSO" or "Authorize SSO" next to it</li>
+                                    <li>Select your organization and authorize</li>
+                                    <li>This is required even if the token has "repo" scope!</li>
+                                </ol>
+                            </li>
+                            <li><strong>Check organization restrictions:</strong> Your organization may have additional access controls</li>
+                            <li><strong>Verify you're not using a fine-grained token:</strong> Use "classic" tokens with full "repo" scope</li>
+                            <li><strong>Check branch protection:</strong> Use "Check Token Permissions" button - protected branches may block direct commits</li>
+                            <li><strong>Try the browser console:</strong> Open DevTools (F12), try to save, and look at the Network tab for the exact error response</li>
+                            <li><strong>Token might be expired:</strong> Even if it shows in settings, regenerate a fresh one</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Problem: "GitHub API error: 404"</strong></p>
+                    <div class="warning-box">
+                        <strong>Solution:</strong>
+                        Check that your repository owner, name, branch, and file path are correct. The file must exist in the repository.
+                    </div>
+                    
+                    <p><strong>Problem: "Invalid JSON" error</strong></p>
+                    <div class="warning-box">
+                        <strong>Solution:</strong>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Click "Validate JSON" to see the specific error</li>
+                            <li>Switch to JSON Editor mode to see the raw JSON</li>
+                            <li>Common issues: missing commas, unclosed quotes, unmatched brackets</li>
+                            <li>Click "Format/Prettify" to auto-fix formatting</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Problem: Changes not appearing on endpoints</strong></p>
+                    <div class="warning-box">
+                        <strong>Solution:</strong>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Wait 10-20 minutes - the app refreshes periodically</li>
+                            <li>Verify the file was saved to GitHub (check commit history)</li>
+                            <li>Ensure the URL in the PowerShell script matches your repository</li>
+                            <li>Check that endpoints can reach GitHub (not blocked by firewall)</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Problem: Targeted announcement not showing</strong></p>
+                    <div class="warning-box">
+                        <strong>Solution:</strong>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Verify "Enabled" is checked in the editor</li>
+                            <li>Confirm the registry key exists on the target computer</li>
+                            <li>Check registry path, value name, and expected value match exactly (case-sensitive)</li>
+                            <li>Use PowerShell to verify: <code>Get-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting"</code></li>
+                            <li>See the "Targeted Announcements" tab for BigFix scripts to create registry keys</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Problem: Markdown formatting not displaying</strong></p>
+                    <div class="warning-box">
+                        <strong>Solution:</strong>
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Check that markdown syntax is correct (see Markdown tab)</li>
+                            <li>Ensure opening and closing tags match: <code>[red]...[/red]</code></li>
+                            <li>Verify no extra spaces in color tags</li>
+                            <li>Check the live preview to see how it will appear</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4>💾 Auto-Save Issues</h4>
+                    <p><strong>Problem: Auto-save not working</strong></p>
+                    <ul>
+                        <li>Ensure browser cookies/storage are enabled</li>
+                        <li>Check browser console for errors (F12)</li>
+                        <li>Try a different browser</li>
+                        <li>Auto-save is stored locally - it won't sync between computers</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h4>🆘 Getting Help</h4>
+                    <p>If you continue to experience issues:</p>
+                    <ul>
+                        <li>Use the "Check Token Permissions" button to diagnose authentication issues</li>
+                        <li>Check the browser console (F12) for error messages</li>
+                        <li>Try the JSON Editor mode to see raw data</li>
+                        <li>Export your JSON and test it in a JSON validator</li>
+                        <li>Verify you have write access to the repository in GitHub</li>
+                        <li>Contact your IT support team</li>
+                        <li>Email: endpointengineering@ll.mit.edu</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Button -->
+    <div class="help-button" onclick="openHelpModal()" title="Help & Documentation">
+        ❓
     </div>
 
     <script>
@@ -1090,6 +1742,119 @@
             }
         }
 
+        async function checkTokenPermissions() {
+            const token = document.getElementById('token').value;
+            const owner = document.getElementById('repoOwner').value;
+            const repo = document.getElementById('repoName').value;
+            const branch = document.getElementById('branch').value;
+
+            if (!token || !owner || !repo) {
+                showStatus('authStatus', 'Please fill in repository details and token first', 'error');
+                return;
+            }
+
+            showStatus('authStatus', 'Checking token permissions...', 'info');
+
+            try {
+                // First check if token is valid by checking user
+                const userResponse = await fetch('https://api.github.com/user', {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!userResponse.ok) {
+                    throw new Error('Token is invalid or expired');
+                }
+
+                const userData = await userResponse.json();
+
+                // Check repository permissions
+                const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!repoResponse.ok) {
+                    throw new Error('Cannot access repository - check owner/repo name');
+                }
+
+                const repoData = await repoResponse.json();
+                const permissions = repoData.permissions || {};
+
+                // Check branch protection
+                let branchProtected = false;
+                let branchInfo = '';
+                try {
+                    const branchResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${branch}`, {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (branchResponse.ok) {
+                        const branchData = await branchResponse.json();
+                        branchProtected = branchData.protected || false;
+                        branchInfo = branchProtected ? '⚠️ PROTECTED' : '✓ Not Protected';
+                    }
+                } catch (e) {
+                    branchInfo = '(Unable to check)';
+                }
+
+                // Check token scopes
+                const scopesHeader = userResponse.headers.get('X-OAuth-Scopes');
+                const scopes = scopesHeader ? scopesHeader.split(', ') : [];
+
+                let statusMessage = `<strong>✓ Token is valid</strong><br>`;
+                statusMessage += `User: ${userData.login}<br><br>`;
+                
+                statusMessage += `<strong>Token Scopes:</strong><br>`;
+                statusMessage += scopes.length > 0 ? scopes.join(', ') : 'None found';
+                statusMessage += `<br><br>`;
+                
+                statusMessage += `<strong>Repository Permissions:</strong><br>`;
+                statusMessage += `• Read: ${permissions.pull ? '✓ Yes' : '✗ No'}<br>`;
+                statusMessage += `• Write: ${permissions.push ? '✓ Yes' : '✗ No'}<br>`;
+                statusMessage += `• Admin: ${permissions.admin ? '✓ Yes' : '✗ No'}<br><br>`;
+                
+                statusMessage += `<strong>Branch Status (${branch}):</strong><br>`;
+                statusMessage += branchInfo + '<br><br>';
+
+                // Check if it's an Enterprise instance
+                const isEnterprise = !window.location.hostname.includes('github.com') && repoData.html_url && !repoData.html_url.includes('github.com');
+                if (isEnterprise) {
+                    statusMessage += `<strong>⚠️ Enterprise GitHub Detected</strong><br>`;
+                    statusMessage += `Make sure SSO is authorized for this token!<br><br>`;
+                }
+
+                if (!permissions.push) {
+                    statusMessage += `<strong>⚠️ WARNING: No WRITE permission!</strong><br>`;
+                    statusMessage += `Your token lacks write access to this repository.`;
+                    showStatus('authStatus', statusMessage, 'error');
+                } else if (branchProtected) {
+                    statusMessage += `<strong>⚠️ WARNING: Protected Branch!</strong><br>`;
+                    statusMessage += `The branch "${branch}" is protected. You may need:<br>`;
+                    statusMessage += `• Bypass branch protection permissions<br>`;
+                    statusMessage += `• Or commit to a different branch`;
+                    showStatus('authStatus', statusMessage, 'error');
+                } else if (!scopes.includes('repo')) {
+                    statusMessage += `<strong>⚠️ WARNING: Missing "repo" scope!</strong><br>`;
+                    statusMessage += `Token doesn't explicitly show "repo" scope. Create a new token.`;
+                    showStatus('authStatus', statusMessage, 'error');
+                } else {
+                    statusMessage += `<strong>✓ Everything looks good!</strong><br>`;
+                    statusMessage += `Your token should be able to save files.`;
+                    showStatus('authStatus', statusMessage, 'success');
+                }
+
+            } catch (error) {
+                showStatus('authStatus', `Error checking permissions: ${error.message}`, 'error');
+            }
+        }
+
         // Template functionality
         function loadTemplate() {
             document.getElementById('templateModal').classList.add('active');
@@ -1097,6 +1862,63 @@
 
         function closeTemplateModal() {
             document.getElementById('templateModal').classList.remove('active');
+        }
+
+        function openHelpModal() {
+            document.getElementById('helpModal').classList.add('active');
+        }
+
+        function closeHelpModal() {
+            document.getElementById('helpModal').classList.remove('active');
+        }
+
+        function showHelpTab(tabName) {
+            // Hide all help content
+            document.querySelectorAll('.help-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.help-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected content
+            document.getElementById('help-' + tabName).classList.add('active');
+            
+            // Activate selected tab
+            event.target.classList.add('active');
+        }
+
+        function copyToClipboard(text) {
+            // Create a temporary textarea element
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                // Show success feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = '✓ Copied!';
+                button.style.background = '#28a745';
+                button.style.color = 'white';
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '';
+                    button.style.color = '';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard. Please copy manually.');
+            } finally {
+                document.body.removeChild(textarea);
+            }
         }
 
         function applyTemplate(templateName) {
@@ -1595,6 +2417,15 @@
 
             try {
                 const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+                
+                console.log('Save attempt details:', {
+                    url,
+                    branch,
+                    path,
+                    hasSha: !!currentSha,
+                    contentLength: content.length
+                });
+                
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -1604,15 +2435,61 @@
                     },
                     body: JSON.stringify({
                         message: commitMessage,
-                        content: btoa(content),
+                        content: btoa(unescape(encodeURIComponent(content))),
                         sha: currentSha,
                         branch: branch
                     })
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`GitHub API error: ${response.status} - ${errorData.message || response.statusText}`);
+                    let errorDetails = `Status: ${response.status} ${response.statusText}<br>`;
+                    
+                    // Try to get detailed error message
+                    try {
+                        const errorData = await response.json();
+                        console.error('GitHub API Error:', errorData);
+                        
+                        errorDetails += `Message: ${errorData.message || 'Unknown error'}<br>`;
+                        
+                        if (errorData.errors) {
+                            errorDetails += `Details: ${JSON.stringify(errorData.errors)}<br>`;
+                        }
+                        
+                        if (errorData.documentation_url) {
+                            errorDetails += `<a href="${errorData.documentation_url}" target="_blank">Documentation</a><br>`;
+                        }
+                    } catch (e) {
+                        errorDetails += 'Could not parse error details<br>';
+                    }
+                    
+                    if (response.status === 401) {
+                        errorDetails += `<br><strong>Authentication Failed (401)</strong><br>`;
+                        errorDetails += `Possible causes:<br>`;
+                        errorDetails += `• Token doesn't have "repo" scope<br>`;
+                        errorDetails += `• Token is expired<br>`;
+                        errorDetails += `• SSO not authorized (Enterprise GitHub)<br>`;
+                        errorDetails += `• Organization restrictions blocking access<br><br>`;
+                        errorDetails += `Try:<br>`;
+                        errorDetails += `1. Click "Check Token Permissions" button<br>`;
+                        errorDetails += `2. Verify SSO authorization if using Enterprise<br>`;
+                        errorDetails += `3. Create a new token with full "repo" scope`;
+                    } else if (response.status === 403) {
+                        errorDetails += `<br><strong>Forbidden (403)</strong><br>`;
+                        errorDetails += `Possible causes:<br>`;
+                        errorDetails += `• Branch is protected<br>`;
+                        errorDetails += `• Repository is archived<br>`;
+                        errorDetails += `• Organization rules blocking write access<br>`;
+                        errorDetails += `• Rate limit exceeded`;
+                    } else if (response.status === 404) {
+                        errorDetails += `<br><strong>Not Found (404)</strong><br>`;
+                        errorDetails += `Check: owner, repo name, branch, and file path are correct`;
+                    } else if (response.status === 409) {
+                        errorDetails += `<br><strong>Conflict (409)</strong><br>`;
+                        errorDetails += `The file has been modified since you loaded it.<br>`;
+                        errorDetails += `Click "Reload from GitHub" and try again.`;
+                    }
+                    
+                    throw new Error(errorDetails);
                 }
 
                 const data = await response.json();
@@ -1625,8 +2502,8 @@
 
                 showStatus('editorStatus', '✓ File saved successfully to GitHub!', 'success');
             } catch (error) {
-                showStatus('editorStatus', `Error: ${error.message}`, 'error');
-                console.error(error);
+                showStatus('editorStatus', `<strong>Error saving file:</strong><br>${error.message}`, 'error');
+                console.error('Save error details:', error);
             }
         }
 
@@ -1689,7 +2566,9 @@
 
         function showStatus(elementId, message, type) {
             const statusDiv = document.getElementById(elementId);
-            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+            // Convert newlines to <br> for proper display
+            const formattedMessage = message.replace(/\n/g, '<br>');
+            statusDiv.innerHTML = `<div class="status ${type}">${formattedMessage}</div>`;
         }
 
         window.addEventListener('beforeunload', (e) => {
