@@ -861,6 +861,11 @@
                     <input type="text" id="filePath" value="ContentData.json" placeholder="e.g., ContentData.json">
                 </div>
                 <div class="form-group">
+                    <label for="apiBase">API Base URL (Optional - for Enterprise GitHub):</label>
+                    <input type="text" id="apiBase" placeholder="https://github.company.com/api/v3 or leave empty for github.com">
+                    <p class="help-text">Leave empty for public GitHub. For Enterprise, use your GitHub API URL (usually ends with /api/v3)</p>
+                </div>
+                <div class="form-group">
                     <label for="token">GitHub Personal Access Token:</label>
                     <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxx">
                     <p class="help-text">
@@ -1742,11 +1747,21 @@ Save your work before leaving for the day.</pre>
             }
         }
 
+        function getApiBaseUrl() {
+            const customBase = document.getElementById('apiBase').value.trim();
+            if (customBase) {
+                // Remove trailing slash if present
+                return customBase.replace(/\/$/, '');
+            }
+            return 'https://api.github.com';
+        }
+
         async function checkTokenPermissions() {
             const token = document.getElementById('token').value;
             const owner = document.getElementById('repoOwner').value;
             const repo = document.getElementById('repoName').value;
             const branch = document.getElementById('branch').value;
+            const apiBase = getApiBaseUrl();
 
             if (!token || !owner || !repo) {
                 showStatus('authStatus', 'Please fill in repository details and token first', 'error');
@@ -1756,22 +1771,8 @@ Save your work before leaving for the day.</pre>
             showStatus('authStatus', 'Checking token permissions...', 'info');
 
             try {
-                // First check if token is valid by checking user
-                const userResponse = await fetch('https://api.github.com/user', {
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
-
-                if (!userResponse.ok) {
-                    throw new Error('Token is invalid or expired');
-                }
-
-                const userData = await userResponse.json();
-
-                // Check repository permissions
-                const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+                // Check repository permissions (this endpoint should work since loading the file works)
+                const repoResponse = await fetch(`${apiBase}/repos/${owner}/${repo}`, {
                     headers: {
                         'Authorization': `token ${token}`,
                         'Accept': 'application/vnd.github.v3+json'
@@ -1779,17 +1780,37 @@ Save your work before leaving for the day.</pre>
                 });
 
                 if (!repoResponse.ok) {
-                    throw new Error('Cannot access repository - check owner/repo name');
+                    throw new Error(`Cannot access repository (${repoResponse.status}) - check owner/repo name and token`);
                 }
 
                 const repoData = await repoResponse.json();
                 const permissions = repoData.permissions || {};
 
+                // Try to check user (might not work on Enterprise)
+                let userName = 'Unknown';
+                let scopes = [];
+                try {
+                    const userResponse = await fetch(`${apiBase}/user`, {
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (userResponse.ok) {
+                        const userData = await userResponse.json();
+                        userName = userData.login || userData.name || 'Unknown';
+                        const scopesHeader = userResponse.headers.get('X-OAuth-Scopes');
+                        scopes = scopesHeader ? scopesHeader.split(', ') : [];
+                    }
+                } catch (e) {
+                    // User endpoint might not be available on some Enterprise instances
+                }
+
                 // Check branch protection
                 let branchProtected = false;
                 let branchInfo = '';
                 try {
-                    const branchResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches/${branch}`, {
+                    const branchResponse = await fetch(`${apiBase}/repos/${owner}/${repo}/branches/${branch}`, {
                         headers: {
                             'Authorization': `token ${token}`,
                             'Accept': 'application/vnd.github.v3+json'
@@ -1804,16 +1825,16 @@ Save your work before leaving for the day.</pre>
                     branchInfo = '(Unable to check)';
                 }
 
-                // Check token scopes
-                const scopesHeader = userResponse.headers.get('X-OAuth-Scopes');
-                const scopes = scopesHeader ? scopesHeader.split(', ') : [];
-
-                let statusMessage = `<strong>✓ Token is valid</strong><br>`;
-                statusMessage += `User: ${userData.login}<br><br>`;
+                let statusMessage = `<strong>✓ Token can access repository</strong><br>`;
+                if (userName !== 'Unknown') {
+                    statusMessage += `User: ${userName}<br>`;
+                }
+                statusMessage += `API Base: ${apiBase}<br><br>`;
                 
-                statusMessage += `<strong>Token Scopes:</strong><br>`;
-                statusMessage += scopes.length > 0 ? scopes.join(', ') : 'None found';
-                statusMessage += `<br><br>`;
+                if (scopes.length > 0) {
+                    statusMessage += `<strong>Token Scopes:</strong><br>`;
+                    statusMessage += scopes.join(', ') + '<br><br>';
+                }
                 
                 statusMessage += `<strong>Repository Permissions:</strong><br>`;
                 statusMessage += `• Read: ${permissions.pull ? '✓ Yes' : '✗ No'}<br>`;
@@ -1823,26 +1844,16 @@ Save your work before leaving for the day.</pre>
                 statusMessage += `<strong>Branch Status (${branch}):</strong><br>`;
                 statusMessage += branchInfo + '<br><br>';
 
-                // Check if it's an Enterprise instance
-                const isEnterprise = !window.location.hostname.includes('github.com') && repoData.html_url && !repoData.html_url.includes('github.com');
-                if (isEnterprise) {
-                    statusMessage += `<strong>⚠️ Enterprise GitHub Detected</strong><br>`;
-                    statusMessage += `Make sure SSO is authorized for this token!<br><br>`;
-                }
-
                 if (!permissions.push) {
                     statusMessage += `<strong>⚠️ WARNING: No WRITE permission!</strong><br>`;
-                    statusMessage += `Your token lacks write access to this repository.`;
+                    statusMessage += `Your token lacks write access to this repository.<br>`;
+                    statusMessage += `Check with your admin or create a new token with "repo" scope.`;
                     showStatus('authStatus', statusMessage, 'error');
                 } else if (branchProtected) {
                     statusMessage += `<strong>⚠️ WARNING: Protected Branch!</strong><br>`;
                     statusMessage += `The branch "${branch}" is protected. You may need:<br>`;
-                    statusMessage += `• Bypass branch protection permissions<br>`;
+                    statusMessage += `• Admin/bypass permissions<br>`;
                     statusMessage += `• Or commit to a different branch`;
-                    showStatus('authStatus', statusMessage, 'error');
-                } else if (!scopes.includes('repo')) {
-                    statusMessage += `<strong>⚠️ WARNING: Missing "repo" scope!</strong><br>`;
-                    statusMessage += `Token doesn't explicitly show "repo" scope. Create a new token.`;
                     showStatus('authStatus', statusMessage, 'error');
                 } else {
                     statusMessage += `<strong>✓ Everything looks good!</strong><br>`;
@@ -1852,6 +1863,7 @@ Save your work before leaving for the day.</pre>
 
             } catch (error) {
                 showStatus('authStatus', `Error checking permissions: ${error.message}`, 'error');
+                console.error('Permission check error:', error);
             }
         }
 
@@ -2346,6 +2358,7 @@ Save your work before leaving for the day.</pre>
             const branch = document.getElementById('branch').value;
             const path = document.getElementById('filePath').value;
             const token = document.getElementById('token').value;
+            const apiBase = getApiBaseUrl();
 
             if (!owner || !repo || !branch || !path || !token) {
                 showStatus('authStatus', 'Please fill in all fields', 'error');
@@ -2355,7 +2368,9 @@ Save your work before leaving for the day.</pre>
             showStatus('authStatus', 'Loading file from GitHub...', 'info');
 
             try {
-                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+                const url = `${apiBase}/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+                console.log('Loading from:', url);
+                
                 const response = await fetch(url, {
                     headers: {
                         'Authorization': `token ${token}`,
@@ -2395,6 +2410,7 @@ Save your work before leaving for the day.</pre>
             const path = document.getElementById('filePath').value;
             const token = document.getElementById('token').value;
             const content = document.getElementById('jsonEditorText').value;
+            const apiBase = getApiBaseUrl();
 
             try {
                 JSON.parse(content);
@@ -2416,14 +2432,15 @@ Save your work before leaving for the day.</pre>
             showStatus('editorStatus', 'Saving to GitHub...', 'info');
 
             try {
-                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+                const url = `${apiBase}/repos/${owner}/${repo}/contents/${path}`;
                 
                 console.log('Save attempt details:', {
                     url,
                     branch,
                     path,
                     hasSha: !!currentSha,
-                    contentLength: content.length
+                    contentLength: content.length,
+                    apiBase
                 });
                 
                 const response = await fetch(url, {
@@ -2468,18 +2485,21 @@ Save your work before leaving for the day.</pre>
                         errorDetails += `• Token doesn't have "repo" scope<br>`;
                         errorDetails += `• Token is expired<br>`;
                         errorDetails += `• SSO not authorized (Enterprise GitHub)<br>`;
-                        errorDetails += `• Organization restrictions blocking access<br><br>`;
+                        errorDetails += `• Organization restrictions blocking access<br>`;
+                        errorDetails += `• Wrong API Base URL for Enterprise GitHub<br><br>`;
                         errorDetails += `Try:<br>`;
                         errorDetails += `1. Click "Check Token Permissions" button<br>`;
-                        errorDetails += `2. Verify SSO authorization if using Enterprise<br>`;
-                        errorDetails += `3. Create a new token with full "repo" scope`;
+                        errorDetails += `2. Verify API Base URL is correct for Enterprise<br>`;
+                        errorDetails += `3. Verify SSO authorization if using Enterprise<br>`;
+                        errorDetails += `4. Create a new token with full "repo" scope`;
                     } else if (response.status === 403) {
                         errorDetails += `<br><strong>Forbidden (403)</strong><br>`;
                         errorDetails += `Possible causes:<br>`;
                         errorDetails += `• Branch is protected<br>`;
                         errorDetails += `• Repository is archived<br>`;
                         errorDetails += `• Organization rules blocking write access<br>`;
-                        errorDetails += `• Rate limit exceeded`;
+                        errorDetails += `• Rate limit exceeded<br>`;
+                        errorDetails += `• Token needs additional permissions`;
                     } else if (response.status === 404) {
                         errorDetails += `<br><strong>Not Found (404)</strong><br>`;
                         errorDetails += `Check: owner, repo name, branch, and file path are correct`;
@@ -2487,6 +2507,13 @@ Save your work before leaving for the day.</pre>
                         errorDetails += `<br><strong>Conflict (409)</strong><br>`;
                         errorDetails += `The file has been modified since you loaded it.<br>`;
                         errorDetails += `Click "Reload from GitHub" and try again.`;
+                    } else if (response.status === 422) {
+                        errorDetails += `<br><strong>Unprocessable Entity (422)</strong><br>`;
+                        errorDetails += `The request was invalid. This could mean:<br>`;
+                        errorDetails += `• Invalid SHA (file was modified)<br>`;
+                        errorDetails += `• Invalid branch name<br>`;
+                        errorDetails += `• Invalid file content<br>`;
+                        errorDetails += `Try reloading the file first.`;
                     }
                     
                     throw new Error(errorDetails);
