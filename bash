@@ -1,2 +1,1 @@
-(name of it) of folders whose(name as lowercase starts with "slacktechnologies.slack_") of folder "C:\Program Files\WindowsApps"
-(preceding text of first "_" of following text of first "_" of (name of it)) of folders whose(name as lowercase starts with "slacktechnologies.slack_") of folder "C:\Program Files\WindowsApps"
+(exists regapp "slack.exe") OR (exists key "HKLM\SOFTWARE\Classes\AppX*" whose (value "DisplayName" of it as string contains "Slack") of x32 registry) OR (exists key "HKCU\SOFTWARE\Classes\AppX*" whose (value "DisplayName" of it as string contains "Slack") of registry) OR (exists regapp "slack.exe" whose (version of it < "4.46.104.0"))
