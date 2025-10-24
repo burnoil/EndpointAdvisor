@@ -1,1 +1,1 @@
-(exists file "slack.exe" of folder "Slack" of folder "Program Files") OR (exists file "slack.exe" whose (version of it < "4.46.104.0") of folders whose (name of it starts with "Slack") of folder "WindowsApps" of folder "Program Files")
+C:\Program Files\WindowsApps\com.tinyspeck.slackdesktop_4.46.104.0_x64__8yrtsj140pw4g\app
