@@ -1,9 +1,7 @@
-/* Windows 10/11 (MSIX-capable) */
 (version of operating system >= "10.0.15063")
-
 AND
 (
-  /* A) MSI Slack present (either hive) */
+  /* MSI Slack present */
   (
     exists keys whose(
       exists value "DisplayName" of it
@@ -21,9 +19,8 @@ AND
       and (value "WindowsInstaller" of it as string = "1")
     ) of keys "HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" of native registry
   )
-
-  /* B) OR MSIX Slack installed but version < target */
   OR
+  /* MSIX Slack present AND version < target */
   (
     exists folder whose (name as lowercase starts with "slacktechnologies.slack_")
       of folder "C:\Program Files\WindowsApps"
