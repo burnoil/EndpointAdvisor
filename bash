@@ -1,1 +1,1 @@
-(exists file "slack.exe" of folder "Slack" of folder "C:\Program Files") OR (exists file "slack.exe" whose (version of it < "4.46.104.0") of folder "app" of folders whose (name of it contains "slackdesktop") of folder "C:\Program Files\WindowsApps")
+(exists file "slack.exe" of folders "Slack" of folder "C:\Program Files") OR (exists file "slack.exe" whose (version of it < "4.46.104.0") of folders "app" of folders whose (name of it contains "slackdesktop") of folder "C:\Program Files\WindowsApps")
