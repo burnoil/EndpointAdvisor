@@ -1,1 +1,11 @@
-(exists file "slack.exe" of folders "Slack" of folder "C:\Program Files") OR (exists file "slack.exe" whose (version of it < "4.46.104.0") of folders "app" of folders whose (name of it contains "slackdesktop") of folder "C:\Program Files\WindowsApps")
+# Check for provisioned packages
+Get-AppxProvisionedPackage -Online | Where-Object {$_.DisplayName -like "*slack*"}
+
+# Check with the exact package name
+Get-AppxPackage -AllUsers -Name "com.tinyspeck.slackdesktop"
+
+# List ALL packages and search for slack
+Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*slack*" -or $_.PackageFullName -like "*slack*"}
+
+# Check what's actually in WindowsApps
+Get-ChildItem "C:\Program Files\WindowsApps" | Where-Object {$_.Name -like "*slack*"}
