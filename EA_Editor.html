@@ -1509,7 +1509,12 @@ Save your work before leaving for the day.</pre>
                     <p><strong>Problem: "GitHub API error: 404"</strong></p>
                     <div class="warning-box">
                         <strong>Solution:</strong>
-                        Check that your repository owner, name, branch, and file path are correct. The file must exist in the repository.
+                        <ul style="margin-left: 20px; margin-top: 5px;">
+                            <li>Verify the GitHub Instance dropdown is set to the correct environment</li>
+                            <li>Check that your repository owner, name, branch, and file path are correct</li>
+                            <li>The file must exist in the repository</li>
+                            <li>For Enterprise GitHub, ensure the API URL is correct</li>
+                        </ul>
                     </div>
                     
                     <p><strong>Problem: "Invalid JSON" error</strong></p>
@@ -2380,18 +2385,41 @@ Save your work before leaving for the day.</pre>
                     }
                     
                     if (announcements.Targeted && announcements.Targeted.length > 0) {
-                        announcements.Targeted.forEach(targeted => {
-                            if (targeted.Enabled && targeted.AppendToDefault) {
-                                announcementContent += '<hr style="margin: 10px 0; border: 1px solid #ddd;">';
-                                announcementContent += `<div style="margin-top: 10px;">${parseMarkdown(targeted.Text)}</div>`;
+                        const enabledTargeted = announcements.Targeted.filter(t => t.Enabled);
+                        
+                        if (enabledTargeted.length > 0) {
+                            announcementContent += '<hr style="margin: 10px 0; border: 1px solid #ddd;">';
+                            announcementContent += '<div style="background: #fff9e6; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107; margin-bottom: 10px;">';
+                            announcementContent += '<strong style="color: #856404;">📍 TARGETED ANNOUNCEMENTS PREVIEW</strong><br>';
+                            announcementContent += '<small style="color: #856404;">In production, only ONE message shows based on registry condition. Previewing all enabled:</small>';
+                            announcementContent += '</div>';
+                            
+                            enabledTargeted.forEach((targeted, index) => {
+                                const conditionLabel = `${targeted.Condition?.Name || 'N/A'} = ${targeted.Condition?.Value || 'N/A'}`;
+                                const modeLabel = targeted.AppendToDefault ? 'APPEND MODE' : 'REPLACE MODE (hides default)';
+                                
+                                announcementContent += `<div style="background: ${targeted.AppendToDefault ? '#f0f8ff' : '#fff3cd'}; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 2px solid ${targeted.AppendToDefault ? '#0078D7' : '#ffc107'};">`;
+                                announcementContent += `<div style="margin-bottom: 8px;">`;
+                                announcementContent += `<strong style="color: ${targeted.AppendToDefault ? '#0055A4' : '#856404'};">Target #${index + 1}: ${modeLabel}</strong><br>`;
+                                announcementContent += `<small style="color: #666;"><strong>Condition:</strong> ${conditionLabel}</small>`;
+                                announcementContent += `</div>`;
+                                
+                                if (!targeted.AppendToDefault) {
+                                    announcementContent += `<div style="background: #fff; padding: 8px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #ffc107;">`;
+                                    announcementContent += `<small style="color: #856404;"><strong>⚠️ Note:</strong> In Replace mode, the default announcement above will NOT show for users matching this condition.</small>`;
+                                    announcementContent += `</div>`;
+                                }
+                                
+                                announcementContent += `<div style="margin-top: 8px;">${parseMarkdown(targeted.Text)}</div>`;
                                 
                                 if (targeted.Details) {
                                     announcementContent += `<div style="margin-top: 5px; color: #555;">${parseMarkdown(targeted.Details)}</div>`;
                                 }
                                 
                                 announcementContent += renderLinks(targeted.Links);
-                            }
-                        });
+                                announcementContent += '</div>';
+                            });
+                        }
                     }
                     
                     html += createSection('Announcements', announcementContent, true);
