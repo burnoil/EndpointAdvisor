@@ -1,5 +1,5 @@
 # Lincoln Laboratory Endpoint Advisor
-# Version 6.0.0 (Definitive stability and compatibility release)
+# Version 6.0.2 (No restart checks)
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +9,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.0.1"
+$ScriptVersion = "6.0.2"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -43,9 +43,10 @@ try {
 # Global flag to prevent recursive logging during rotation
 $global:IsRotatingLog = $false
 
-# Global flag to track pending restart state
-$global:PendingRestart = $false
-$global:RestartAlertAcknowledged = $false
+# Global flag to track pending restart state - REMOVED
+# Pending restart checking has been disabled
+# $global:PendingRestart = $false
+# $global:RestartAlertAcknowledged = $false
 
 # Global flag to track pending update state
 $global:UpdatesPending = $false
@@ -215,7 +216,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -447,7 +448,7 @@ $xamlString = @"
             <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
           </StackPanel>
           
-          <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,10,0,2"/>
+          
           
           <Grid Margin="0,2,0,2">
             <Grid.ColumnDefinitions>
@@ -983,42 +984,9 @@ function Update-CertificateInfo {
 }
 
 function Get-PendingRestartStatus {
-    $rebootKeys = @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired',
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress',
-        'HKLM:\SOFTWARE\Wow6432Node\BigFix\EnterpriseClient\BESPendingRestart',
-        'HKLM:\SOFTWARE\BigFix\EnterpriseClient\BESPendingRestart'
-    )
-    
-    # -- DIAGNOSTIC LOGGING: Find which key is triggering the alert --
-    $foundKey = $null
-    foreach ($key in $rebootKeys) {
-        if (Test-Path $key) {
-            $foundKey = $key
-            break # Stop after finding the first one
-        }
-    }
-
-    if ($foundKey) {
-        Write-Log "Pending restart DETECTED. Triggering key: $foundKey" -Level "WARNING"
-    }
-    # -- END DIAGNOSTIC LOGGING --
-
-    $wasPending = $global:PendingRestart
-    $isNowPending = [bool]$foundKey
-    
-    $global:PendingRestart = $isNowPending
-    
-    if ($global:PendingRestart -and -not $wasPending) {
-        $global:RestartAlertAcknowledged = $false
-    }
-    
-    if ($global:PendingRestart) { 
-        "System restart required." 
-    } else { 
-        "No system restart required." 
-    }
+    # REMOVED: Pending restart checking has been disabled
+    # This function now always returns "No system restart required."
+    return "No system restart required."
 }
 
 function Get-WindowsBuildNumber {
@@ -1387,14 +1355,9 @@ function Update-PatchingAndSystem {
     
     # --- Update the UI ---
     $window.Dispatcher.Invoke({
-        # Conditionally display the restart panel
-        if ($global:PendingRestart) {
-            $global:PendingRestartPanel.Visibility = "Visible"
-            $global:PendingRestartStatusText.Text = $restartStatusText
-            $global:PendingRestartStatusText.Foreground = [System.Windows.Media.Brushes]::Red
-        } else {
-            $global:PendingRestartPanel.Visibility = "Collapsed"
-        }
+        # REMOVED: Pending restart panel display has been disabled
+        # The restart status panel will always be hidden
+        $global:PendingRestartPanel.Visibility = "Collapsed"
         
         $global:WindowsBuildText.Text = $windowsBuild
         $global:FooterText.Text = "(C) 2025 Lincoln Laboratory v$ScriptVersion"
@@ -1840,7 +1803,8 @@ function Update-TrayIcon {
     $supportAlert = $global:SupportAlertIcon -and $global:SupportAlertIcon.Visibility -eq "Visible"
     $patchingAlert = $global:PatchingAlertIcon -and $global:PatchingAlertIcon.Visibility -eq "Visible"
 
-    $hasAnyAlert = $announcementAlert -or $supportAlert -or ($global:PendingRestart -and -not $global:RestartAlertAcknowledged) -or $patchingAlert
+    # REMOVED: Pending restart check has been disabled
+    $hasAnyAlert = $announcementAlert -or $supportAlert -or $patchingAlert
 
     $global:TrayIcon.Icon = if ($hasAnyAlert) { $global:WarningIcon } else { $global:MainIcon }
     $global:TrayIcon.Text = if ($hasAnyAlert) { "Endpoint Advisor v$ScriptVersion - Alerts Pending" } else { "Lincoln Laboratory Endpoint Advisor v$ScriptVersion" }
@@ -1910,10 +1874,7 @@ function Toggle-WindowVisibility {
             $window.Hide()
             Update-TrayIcon
         } else {
-            # If a restart is pending, opening the window acknowledges the alert for the tray icon
-            if ($global:PendingRestart) {
-                $global:RestartAlertAcknowledged = $true
-            }
+            # REMOVED: Pending restart acknowledgment has been disabled
             $window.Show()
             $global:BlinkingTimer.Stop()
             Update-TrayIcon
