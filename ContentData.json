@@ -7,6 +7,7 @@
     },
     "Targeted": [
       {
+        "Platform": "Windows",
         "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
         "Details": "- EPI message only.",
         "Links": [],
@@ -20,6 +21,7 @@
         }
       },
       {
+        "Platform": "Windows",
         "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
         "Details": "- CS message only.",
         "Links": [],
@@ -33,6 +35,7 @@
         }
       },
       {
+        "Platform": "Windows",
         "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
         "Details": "- Cyber message only.",
         "Links": [],
