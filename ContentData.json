@@ -54,13 +54,13 @@
         }
       },
       {
-        "Platform": "All",
-        "Text": "[red]**Critical:** VPN certificates expiring soon[/red]",
-        "Details": "All users must renew VPN certificates by end of month. Follow the instructions in the knowledge base.",
+        "Platform": "Mac",
+        "Text": "**Mac Users:** macOS Sequoia now available",
+        "Details": "Visit Self Service to upgrade to macOS Sequoia 15.2. Backup your data before upgrading.",
         "Links": [
           {
-            "Name": "VPN Certificate Renewal",
-            "Url": "https://kb.example.com/vpn-renewal"
+            "Name": "macOS Upgrade Guide",
+            "Url": "https://internal.example.com/macos-upgrade"
           }
         ],
         "Enabled": true,
