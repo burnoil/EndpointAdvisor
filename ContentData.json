@@ -13,7 +13,7 @@
         ]
       },
       {
-        "Platform": "Windows",
+        "Platform": "Mac",
         "Text": "**Mac Users:** macOS Sequoia now available",
         "Details": "Visit Self Service to upgrade to macOS Sequoia 15.2. Backup your data before upgrading.",
         "Links": [
@@ -40,7 +40,7 @@
         }
       },
       {
-        "Platform": "Mac",
+        "Platform": "Windows",
         "Text": "**[green]New Software Available[/green]**: Xcode 15 is now available for developers.",
         "Details": "- EPI developers only.",
         "Links": [],
