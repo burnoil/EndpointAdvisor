@@ -40,7 +40,7 @@
         }
       },
       {
-        "Platform": "Windows",
+        "Platform": "Mac",
         "Text": "**[green]New Software Available[/green]**: Xcode 15 is now available for developers.",
         "Details": "- EPI developers only.",
         "Links": [],
