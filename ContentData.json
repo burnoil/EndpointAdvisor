@@ -1,115 +1,129 @@
 {
-  "Announcements": {
-    "Default": [
+  "schemaVersion": "1.1.0",
+  "contentVersion": "2025.11.06.2",
+  "Data": {
+    "Support": [
       {
+        "id": "support-win-001",
         "Platform": "Windows",
-        "Text": "**Windows Users:** Your system will receive updates this weekend",
-        "Details": "Windows security patches and Windows 11 25H2 will be deployed. Please save your work before leaving Friday.",
+        "Text": "Contact the ISD Support Center (Windows).",
+        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
         "Links": [
-          {
-            "Name": "Windows Update Schedule",
-            "Url": "https://internal.example.com/windows-updates"
-          }
-        ]
+          { "Name": "Windows Knowledge Base", "Url": "https://kb.ll.mit.edu/windows" },
+          { "Name": "Self-Service Portal", "Url": "https://intra.ll.mit.edu/selfservice" }
+        ],
+        "updatedAt": "2025-11-06T17:20:00Z"
       },
       {
+        "id": "support-mac-001",
         "Platform": "Mac",
-        "Text": "**Mac Users:** macOS Sequoia now available",
-        "Details": "Visit Self Service to upgrade to macOS Sequoia 15.2. Backup your data before upgrading.",
+        "Text": "Contact the ISD Support Center (macOS).",
+        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
         "Links": [
-          {
-            "Name": "macOS Upgrade Guide",
-            "Url": "https://internal.example.com/macos-upgrade"
-          }
-        ]
+          { "Name": "macOS Knowledge Base", "Url": "https://kb.ll.mit.edu/mac" },
+          { "Name": "Self-Service (Mac)", "Url": "https://intra.ll.mit.edu/selfservice-mac" }
+        ],
+        "updatedAt": "2025-11-06T17:20:00Z"
+      },
+      {
+        "id": "support-all-001",
+        "Platform": "All",
+        "Text": "General ISD support is available to all users.",
+        "Details": "- Status updates: https://status.ll.mit.edu\n- Support email: support@ll.mit.edu"
       }
     ],
-    "Targeted": [
-      {
-        "Platform": "Windows",
-        "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
-        "Details": "- EPI group only.",
-        "Links": [],
-        "Enabled": true,
-        "AppendToDefault": true,
-        "Condition": {
-          "Type": "Registry",
-          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-          "Name": "Group",
-          "Value": "EPI"
+
+    "Announcements": {
+      "Default": [
+        {
+          "id": "def-all-001",
+          "Platform": "All",
+          "Enabled": true,
+          "Title": "Endpoint Advisor",
+          "Text": "Welcome to Endpoint Advisor.",
+          "Details": "No action required today.",
+          "Links": [
+            { "Name": "FAQ", "Url": "https://kb.ll.mit.edu/ea-faq" }
+          ]
+        },
+        {
+          "id": "def-win-001",
+          "Platform": "Windows",
+          "Enabled": true,
+          "Title": "Windows Update Reminder",
+          "Text": "Please check Settings → Windows Update.",
+          "Details": "Reboot after installation completes."
+        },
+        {
+          "id": "def-mac-001",
+          "Platform": "Mac",
+          "Enabled": true,
+          "Title": "macOS Updates Available",
+          "Text": "Go to System Settings → General → Software Update.",
+          "Details": "Save your work before installing updates."
         }
-      },
-      {
-        "Platform": "Windows",
-        "Text": "**[green]New Software Available[/green]**: Xcode 15 is now available for developers.",
-        "Details": "- EPI developers only.",
-        "Links": [],
-        "Enabled": true,
-        "AppendToDefault": true,
-        "Condition": {
-          "Type": "Registry",
-          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-          "Name": "Group",
-          "Value": "EPI"
-        }
-      },
-      {
-        "Platform": "Mac",
-        "Text": "**Mac Users:** macOS Sequoia now available",
-        "Details": "Visit Self Service to upgrade to macOS Sequoia 15.2. Backup your data before upgrading.",
-        "Links": [
-          {
-            "Name": "macOS Upgrade Guide",
-            "Url": "https://internal.example.com/macos-upgrade"
+      ],
+
+      "Targeted": [
+        {
+          "id": "tg-win-epi-001",
+          "Platform": "Windows",
+          "Enabled": true,
+          "AppendToDefault": true,
+          "Title": "EPI Tools (Windows)",
+          "Text": "Extra tools are enabled for EPI group systems.",
+          "Condition": {
+            "Type": "Registry",
+            "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+            "Name": "Group",
+            "Value": "EPI"
           }
-        ],
-        "Enabled": true,
-        "AppendToDefault": true,
-        "Condition": {
-          "Type": "Registry",
-          "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-          "Name": "VPNRenewalAlert",
-          "Value": "1"
-        }
-      }
-    ]
-  },
-  "Support": [
-    {
-      "Platform": "Windows",
-      "Text": "**Windows Support:** Call the ISD Support Center at 781-981-4357 (HELP).",
-      "Links": [
-        {
-          "Name": "ISD Knowledge Base",
-          "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
         },
         {
-          "Name": "Windows Troubleshooting Guide",
-          "Url": "https://kb.example.com/windows"
+          "id": "tg-mac-epi-001",
+          "Platform": "Mac",
+          "Enabled": true,
+          "AppendToDefault": true,
+          "Title": "EPI Tools (macOS)",
+          "Text": "Extra tools are enabled for EPI group systems.",
+          "Condition": {
+            "Type": "Plist",
+            "Path": "/Library/LL/Targeting/Enrollment.plist",
+            "Key": "Group",
+            "Value": "EPI"
+          }
         },
         {
-          "Name": "Service Portal",
-          "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
-        }
-      ]
-    },
-    {
-      "Platform": "Mac",
-      "Text": "**Mac Support:** Call the ISD Support Center at 781-981-4357 (HELP).",
-      "Links": [
-        {
-          "Name": "ISD Knowledge Base",
-          "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
+          "id": "tg-win-pilot-001",
+          "Platform": "Windows",
+          "Enabled": true,
+          "AppendToDefault": false,
+          "Title": "LLEA Pilot Program (Windows)",
+          "Text": "You are currently enrolled in the LLEA Pilot group.",
+          "Details": "Feedback is encouraged. Submit issues to endpointengineering@ll.mit.edu.",
+          "Condition": {
+            "Type": "Registry",
+            "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+            "Name": "Program",
+            "Value": "Pilot"
+          }
         },
         {
-          "Name": "Mac Troubleshooting Guide",
-          "Url": "https://kb.example.com/mac"
-        },
-        {
-          "Name": "Service Portal",
-          "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+          "id": "tg-mac-pilot-001",
+          "Platform": "Mac",
+          "Enabled": true,
+          "AppendToDefault": false,
+          "Title": "LLEA Pilot Program (macOS)",
+          "Text": "You are currently enrolled in the LLEA Pilot group.",
+          "Details": "Feedback is encouraged. Submit issues to endpointengineering@ll.mit.edu.",
+          "Condition": {
+            "Type": "Plist",
+            "Path": "/Library/LL/Targeting/Enrollment.plist",
+            "Key": "Program",
+            "Value": "Pilot"
+          }
         }
       ]
     }
-  ]
+  }
 }
