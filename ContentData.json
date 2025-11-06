@@ -1,15 +1,34 @@
 {
   "Announcements": {
-    "Default": {
-      "Text": "**Coming soon:** [red]**Windows 11 25H2**[/red] is currently in testing and will begin deployment when ready. An announcement will be made when it becomes available to the lab.",
-      "Details": " ",
-      "Links": []
-    },
+    "Default": [
+      {
+        "Platform": "Windows",
+        "Text": "**Windows Users:** Your system will receive updates this weekend",
+        "Details": "Windows security patches and Windows 11 25H2 will be deployed. Please save your work before leaving Friday.",
+        "Links": [
+          {
+            "Name": "Windows Update Schedule",
+            "Url": "https://internal.example.com/windows-updates"
+          }
+        ]
+      },
+      {
+        "Platform": "Mac",
+        "Text": "**Mac Users:** macOS Sequoia now available",
+        "Details": "Visit Self Service to upgrade to macOS Sequoia 15.2. Backup your data before upgrading.",
+        "Links": [
+          {
+            "Name": "macOS Upgrade Guide",
+            "Url": "https://internal.example.com/macos-upgrade"
+          }
+        ]
+      }
+    ],
     "Targeted": [
       {
         "Platform": "Windows",
         "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
-        "Details": "- EPI message only.",
+        "Details": "- EPI group only.",
         "Links": [],
         "Enabled": true,
         "AppendToDefault": true,
@@ -22,8 +41,8 @@
       },
       {
         "Platform": "Windows",
-        "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
-        "Details": "- CS message only.",
+        "Text": "**[green]New Software Available[/green]**: Xcode 15 is now available for developers.",
+        "Details": "- EPI developers only.",
         "Links": [],
         "Enabled": true,
         "AppendToDefault": true,
@@ -31,40 +50,66 @@
           "Type": "Registry",
           "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
           "Name": "Group",
-          "Value": "CS"
+          "Value": "EPI"
         }
       },
       {
-        "Platform": "Windows",
-        "Text": "**[red]Attention[/red]**: Microsoft 365 Apps for Enterprise (Office) is available in the BigFix Self-Service application.",
-        "Details": "- Cyber message only.",
-        "Links": [],
+        "Platform": "All",
+        "Text": "[red]**Critical:** VPN certificates expiring soon[/red]",
+        "Details": "All users must renew VPN certificates by end of month. Follow the instructions in the knowledge base.",
+        "Links": [
+          {
+            "Name": "VPN Certificate Renewal",
+            "Url": "https://kb.example.com/vpn-renewal"
+          }
+        ],
         "Enabled": true,
         "AppendToDefault": true,
         "Condition": {
           "Type": "Registry",
           "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-          "Name": "Group",
-          "Value": "Cyber"
+          "Name": "VPNRenewalAlert",
+          "Value": "1"
         }
       }
     ]
   },
-  "Support": {
-    "Text": "Computer problems? Call the ISD Support Center at 781-981-4357 (HELP).",
-    "Links": [
-      {
-        "Name": "ISD Knowledge Base",
-        "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
-      },
-      {
-        "Name": "ISD Support Center Info (Location, Hours, etc.)",
-        "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
-      },
-      {
-        "Name": "Service Portal",
-        "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
-      }
-    ]
-  }
+  "Support": [
+    {
+      "Platform": "Windows",
+      "Text": "**Windows Support:** Call the ISD Support Center at 781-981-4357 (HELP).",
+      "Links": [
+        {
+          "Name": "ISD Knowledge Base",
+          "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
+        },
+        {
+          "Name": "Windows Troubleshooting Guide",
+          "Url": "https://kb.example.com/windows"
+        },
+        {
+          "Name": "Service Portal",
+          "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+        }
+      ]
+    },
+    {
+      "Platform": "Mac",
+      "Text": "**Mac Support:** Call the ISD Support Center at 781-981-4357 (HELP).",
+      "Links": [
+        {
+          "Name": "ISD Knowledge Base",
+          "Url": "https://llesm.servicenowservices.com/sp?id=kb_view2"
+        },
+        {
+          "Name": "Mac Troubleshooting Guide",
+          "Url": "https://kb.example.com/mac"
+        },
+        {
+          "Name": "Service Portal",
+          "Url": "https://llesm.servicenowservices.com/sp?sysparm_stack=no"
+        }
+      ]
+    }
+  ]
 }
