@@ -9,8 +9,8 @@
           "Platform": "All",
           "Enabled": true,
           "Title": "Welcome",
-          "Text": "**Endpoint Advisor is running and your go-to hub for comms and alerts!**",
-          "Details": "Dual editing modes.",
+          "Text": "**Endpoint Advisor is running and your go-to hub for comms and alerts!**\nThis app is currently in BETA. Please submit feedback to endpointengineering@test.com. Thank you.",
+          "Details": "Windows OS Updates will start deploying on **[red]October 15[/red]**. Please make sure your computer is plugged into power and connected to the network. A computer restart will be required.",
           "Links": [
             {
               "Name": "FAQ",
