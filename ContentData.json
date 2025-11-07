@@ -39,7 +39,7 @@
         {
           "id": "tg-win-epi-001",
           "Platform": "Windows",
-          "Enabled": true,
+          "Enabled": false,
           "AppendToDefault": true,
           "Title": "EPI Tools (Windows)",
           "Text": "Extra tools are enabled for EPI group systems.",
