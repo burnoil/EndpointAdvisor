@@ -1,38 +1,7 @@
 {
   "schemaVersion": "1.1.0",
-  "contentVersion": "2025.11.06.2",
+  "contentVersion": "2025.11.07.1",
   "Data": {
-    "Support": [
-      {
-        "id": "support-win-001",
-        "Platform": "Windows",
-        "Text": "Contact the ISD Support Center (Windows).",
-        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
-        "Links": [
-          { "Name": "Windows Knowledge Base", "Url": "https://kb.ll.mit.edu/windows" },
-          { "Name": "Self-Service Portal", "Url": "https://intra.ll.mit.edu/selfservice" }
-        ],
-        "updatedAt": "2025-11-06T17:20:00Z"
-      },
-      {
-        "id": "support-mac-001",
-        "Platform": "Mac",
-        "Text": "Contact the ISD Support Center (macOS).",
-        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
-        "Links": [
-          { "Name": "macOS Knowledge Base", "Url": "https://kb.ll.mit.edu/mac" },
-          { "Name": "Self-Service (Mac)", "Url": "https://intra.ll.mit.edu/selfservice-mac" }
-        ],
-        "updatedAt": "2025-11-06T17:20:00Z"
-      },
-      {
-        "id": "support-all-001",
-        "Platform": "All",
-        "Text": "General ISD support is available to all users.",
-        "Details": "- Status updates: https://status.ll.mit.edu\n- Support email: support@ll.mit.edu"
-      }
-    ],
-
     "Announcements": {
       "Default": [
         {
@@ -124,6 +93,37 @@
           }
         }
       ]
-    }
+    },
+
+    "Support": [
+      {
+        "id": "support-win-001",
+        "Platform": "Windows",
+        "Text": "Contact the ISD Support Center (Windows).",
+        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
+        "Links": [
+          { "Name": "Windows Knowledge Base", "Url": "https://kb.ll.mit.edu/windows" },
+          { "Name": "Self-Service Portal", "Url": "https://intra.ll.mit.edu/selfservice" }
+        ],
+        "updatedAt": "2025-11-06T17:20:00Z"
+      },
+      {
+        "id": "support-mac-001",
+        "Platform": "Mac",
+        "Text": "Contact the ISD Support Center (macOS).",
+        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
+        "Links": [
+          { "Name": "macOS Knowledge Base", "Url": "https://kb.ll.mit.edu/mac" },
+          { "Name": "Self-Service (Mac)", "Url": "https://intra.ll.mit.edu/selfservice-mac" }
+        ],
+        "updatedAt": "2025-11-06T17:20:00Z"
+      },
+      {
+        "id": "support-all-001",
+        "Platform": "All",
+        "Text": "General ISD support is available to all users.",
+        "Details": "- Status updates: https://status.ll.mit.edu\n- Support email: support@ll.mit.edu"
+      }
+    ]
   }
 }
