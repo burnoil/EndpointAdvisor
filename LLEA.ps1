@@ -1,5 +1,154 @@
-# Lincoln Laboratory Endpoint Advisor
-# Version 6.0.2 (No restart checks)
+# ===== LLEA CORE HELPERS (added) =====
+# Version: 6.2.1 (Fixed GitHub JSON processing and targeted announcements)
+
+
+function Test-IsJson {
+    param([string]$s)
+    if ([string]::IsNullOrWhiteSpace($s)) { return $false }
+    $t = $s.Trim()
+    if (-not ($t.StartsWith('{') -or $t.StartsWith('['))) { return $false }
+    try { $null = $t | ConvertFrom-Json -Depth 64; return $true } catch { return $false }
+}
+
+function Get-RemoteContentData {
+    param(
+        [Parameter(Mandatory)] [string]$Url,
+        [int]$MaxAttempts = 3
+    )
+    $headers = @{
+        'User-Agent'    = 'LLEA/1.0'
+        'Accept'        = 'application/json'
+        'Cache-Control' = 'no-cache'
+        'Pragma'        = 'no-cache'
+    }
+    for ($i=1; $i -le $MaxAttempts; $i++) {
+        try {
+            $resp = Invoke-WebRequest -Uri $Url -Headers $headers -UseBasicParsing -MaximumRedirection 5 -TimeoutSec 20
+            $body = [string]$resp.Content
+            if (Test-IsJson $body) {
+                $obj = $body | ConvertFrom-Json -Depth 64
+                $dataNode = $null
+                if ($obj -and ($obj.PSObject.Properties.Name -contains 'Data') -and $obj.Data) {
+                    $dataNode = $obj.Data
+                } else {
+                    $dataNode = $obj
+                }
+                $keys = ($dataNode | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name) -join ','
+                Write-Log (\"Fetched content keys: {0}\" -f $keys) -Level \"INFO\"
+                return @{
+                    Data      = $dataNode
+                    Source    = $Url
+                    Retrieved = (Get-Date).ToString('s')
+                }
+            } else {
+                $first200 = if ($body.Length -gt 200) { $body.Substring(0,200) + '...' } else { $body }
+                Write-Log ('Response does not appear to be JSON. First 200 chars: {0}' -f $first200) -Level 'WARNING'
+            }
+        } catch {
+            Write-Log (\"Fetch attempt {0} failed - {1}\" -f $i, $_.Exception.Message) -Level 'ERROR'
+        }
+        Start-Sleep -Seconds ([Math]::Min(2*$i, 6))
+    }
+    return $null
+}
+
+function Load-ContentDataFromCache {
+    param([string]$Path = 'C:\ Program Files\ LLEA\ ContentData.cache.json')
+    try {
+        if (Test-Path -LiteralPath $Path) {
+            $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+            if (Test-IsJson $raw) {
+                $o = $raw | ConvertFrom-Json -Depth 64
+                $dataNode = $null
+                if ($o -and ($o.PSObject.Properties.Name -contains 'Data') -and $o.Data) {
+                    $dataNode = $o.Data
+                } else {
+                    $dataNode = $o
+                }
+                $keys = ($dataNode | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name) -join ','
+                Write-Log (\"Cached content keys: {0}\" -f $keys) -Level \"INFO\"
+                return @{ Data = $dataNode; Source = \"cache:$Path\"; Retrieved = (Get-Date).ToString('s') }
+            }
+        }
+    } catch {
+        Write-Log (\"Cache load failed: {0}\" -f $_) -Level \"WARNING\"
+    }
+    return $null
+}
+
+function Normalize-TextStable {
+    param([string]$s)
+    if ($null -eq $s) { return '' }
+    $t = [string]$s
+    $t = $t -replace "`r`n","`n"
+    $t = $t -replace "`r","`n"
+    $t = $t -replace "[ \t]+`n","`n"
+    $t = $t.Trim()
+    return $t
+}
+
+function Normalize-UrlStable {
+    param([string]$u)
+    if ([string]::IsNullOrWhiteSpace($u)) { return '' }
+    try {
+        $uri = [System.Uri]$u
+        $schemeHost = ($uri.Scheme + '://' + $uri.Host).ToLowerInvariant()
+        if ($uri.IsDefaultPort) { $portPart = '' } else { $portPart = ':' + $uri.Port }
+        $pathQuery = $uri.PathAndQuery + $uri.Fragment
+        return $schemeHost + $portPart + $pathQuery
+    } catch { return $u.Trim() }
+}
+
+function Get-TextSha256 {
+    param([string]$Text)
+    if ($null -eq $Text) { $Text = '' }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $b = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        return ($sha.ComputeHash($b) | ForEach-Object { $_.ToString('x2') }) -join ''
+    } finally { $sha.Dispose() }
+}
+
+function Ensure-SectionStateStore {
+    if (-not $script:config) { $script:config = @{} }
+    if (-not $script:config.SectionStates) { $script:config.SectionStates = @{} }
+}
+
+function Test-SectionChanged {
+    param(
+        [Parameter(Mandatory)][string]$SectionKey,
+        [Parameter(Mandatory)][string]$NewStateJson
+    )
+    Ensure-SectionStateStore
+    $prev = $script:config.SectionStates[$SectionKey]
+    $prevHash = if ($prev) { Get-TextSha256 $prev } else { '(none)' }
+    $newHash  = Get-TextSha256 $NewStateJson
+    Write-Log ("{0}: prevSHA={1} newSHA={2}" -f $SectionKey, $prevHash, $newHash) -Level "INFO"
+
+    if ([string]::IsNullOrEmpty($prev)) {
+        Write-Log ("{0}: first run; baselining without alert." -f $SectionKey) -Level "INFO"
+        return $false
+    }
+    if ($prev -ne $NewStateJson) {
+        Write-Log ("{0}: content changed; alerting." -f $SectionKey) -Level "INFO"
+        return $true
+    }
+    Write-Log ("{0}: content unchanged; no alert." -f $SectionKey) -Level "INFO"
+    return $false
+}
+
+function Save-SectionBaseline {
+    param(
+        [Parameter(Mandatory)][string]$SectionKey,
+        [Parameter(Mandatory)][string]$NewStateJson
+    )
+    Ensure-SectionStateStore
+    $script:config.SectionStates[$SectionKey] = $NewStateJson
+    Write-Log ("{0}: baseline saved (SHA={1})." -f $SectionKey, (Get-TextSha256 $NewStateJson)) -Level "INFO"
+    if ($SectionKey -eq 'Support') { $script:config.SupportLastState = $NewStateJson }
+    if ($SectionKey -eq 'Announcements') { $script:config.AnnouncementsLastState = $NewStateJson }
+}
+# ===== END CORE HELPERS =====
 
 # Ensure $PSScriptRoot is defined for older versions
 if ($MyInvocation.MyCommand.Path) {
@@ -9,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.0.2"
+$ScriptVersion = "6.2.1"
 
 # --- START OF SINGLE-INSTANCE CHECK ---
 # Single-Instance Check: Prevents multiple copies of the application from running.
@@ -292,6 +441,16 @@ $defaultContentData = @{
     Announcements = @{ 
         Default = @{ Text = "No announcements at this time."; Details = ""; Links = @() }
         Targeted = @()
+        # Example of platform-targeted announcement (not active by default):
+        # @{
+        #     Platform = "Windows"  # Can be "Windows", "Mac", or "All"
+        #     Enabled = $true
+        #     AppendToDefault = $false
+        #     Text = "Windows-specific message"
+        #     Details = "Additional details"
+        #     Links = @()
+        #     Condition = @{ Type = "Registry"; Path = "HKLM:\..."; Name = "..."; Value = "..." }
+        # }
     }
     Support = @{ Text = "Contact IT Support."; Links = @() }
 }
@@ -347,7 +506,7 @@ $xamlString = @"
     WindowStartupLocation="Manual" 
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
-    MaxWidth="400" MaxHeight="550"
+    MaxWidth="600" MaxHeight="750"
     ResizeMode="CanResizeWithGrip" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
     Background="#f0f0f0">
   <Window.Resources>
@@ -448,7 +607,7 @@ $xamlString = @"
             <TextBlock x:Name="PendingRestartStatusText" FontSize="11" FontWeight="Bold" TextWrapping="Wrap"/>
           </StackPanel>
           
-          
+          <TextBlock Text="Available Updates:" FontSize="11" FontWeight="Bold" Margin="0,10,0,2"/>
           
           <Grid Margin="0,2,0,2">
             <Grid.ColumnDefinitions>
@@ -508,6 +667,7 @@ $xamlString = @"
       <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
         <StackPanel>
           <TextBlock x:Name="SupportText" FontSize="11" TextWrapping="Wrap"/>
+          <TextBlock x:Name="SupportDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
           <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
           <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
         </StackPanel>
@@ -550,7 +710,7 @@ try {
     $uiElements = @(
     "HeaderIcon", "AnnouncementsExpander", "AnnouncementsAlertIcon", "AnnouncementsText", "AnnouncementsDetailsText",
     "AnnouncementsLinksPanel", "AnnouncementsSourceText", "PatchingExpander", "PatchingDescriptionText",
-    "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportLinksPanel",
+    "PendingRestartPanel", "PendingRestartStatusText", "SupportExpander", "SupportAlertIcon", "SupportText", "SupportDetailsText", "SupportLinksPanel",
     "SupportSourceText", "WindowsBuildText", "ClearAlertsButton",
     "FooterText", "ClearAlertsPanel", "ClearAlertsDot", "BigFixStatusText", "BigFixLaunchButton", "ECMStatusText", "ECMLaunchButton",
     "PatchingAlertIcon", "AppendedAnnouncementsPanel",
@@ -600,7 +760,12 @@ try {
         if ($global:AnnouncementsExpander) {
             $global:AnnouncementsExpander.IsExpanded = $true
             $global:AnnouncementsExpander.Add_Expanded({ 
-                if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
+                if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" 
+$script:UIReady = $true
+Write-Log "UI initialized; running first update cycle." -Level "INFO"
+Main-UpdateCycle
+}
+
                 Update-TrayIcon
             })
         }
@@ -609,7 +774,7 @@ try {
             $global:SupportExpander.Add_Expanded({ 
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
                 # Save the state when user views it
-                $config.SupportLastState = ($global:contentData.Data.Support | ConvertTo-Json -Compress -Depth 10)
+                $config.SupportLastState = Get-StableSupportStateJson (Get-CurrentSupportObject $global:contentData.Data.Support)
                 Save-Configuration -Config $config
                 Update-TrayIcon
             })
@@ -673,7 +838,7 @@ if ($global:DriverUpdateButton) {
 				Write-Log "Clear Alerts button clicked by user to clear new alerts (red dots)." -Level "INFO"
         
 			$config.AnnouncementsLastState = $global:LastAnnouncementState
-			$config.SupportLastState = ($global:contentData.Data.Support | ConvertTo-Json -Compress -Depth 10)
+			$config.SupportLastState = Get-StableSupportStateJson (Get-CurrentSupportObject $global:contentData.Data.Support)
                 
                 $window.Dispatcher.Invoke({
                     if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Hidden" }
@@ -702,38 +867,207 @@ catch {
 # ============================================================
 function Get-ActiveAnnouncement {
     param($AnnouncementsObject)
-    $base = $AnnouncementsObject.Default
+    
+    Write-Log "Get-ActiveAnnouncement starting..." -Level "INFO"
+    
+    # Determine current platform
+    $currentPlatform = "Windows"
+    
+    # Initialize result
+    $base = $null
     $appended = @()
-    foreach ($targeted in $AnnouncementsObject.Targeted) {
-        if ($targeted.Enabled -ne $true) { continue } # Skip if not enabled
-        if ($targeted.Condition.Type -eq "Registry") {
-            $path = $targeted.Condition.Path
-            $name = $targeted.Condition.Name
-            $value = $targeted.Condition.Value
-            try {
-                $reg = Get-ItemProperty -Path $path -Name $name -ErrorAction Stop
-                if ($reg.$name -eq $value) {
-                    if ($targeted.AppendToDefault) {
-                        $appended += $targeted
-                    } else {
-                        return @{
-                            Base = $targeted
-                            Appended = @()
-                        }
-                    }
+    
+    # Handle Default announcements
+    if ($AnnouncementsObject.Default) {
+        Write-Log "Processing Default announcements (Type: $($AnnouncementsObject.Default.GetType().Name))" -Level "INFO"
+        
+        if ($AnnouncementsObject.Default -is [System.Array]) {
+            Write-Log "Default is an array with $($AnnouncementsObject.Default.Count) items" -Level "INFO"
+            
+            foreach ($defaultItem in $AnnouncementsObject.Default) {
+                $itemPlatform = $defaultItem.Platform
+                Write-Log "Checking default item with Platform: $itemPlatform" -Level "INFO"
+                
+                if (-not $itemPlatform -or $itemPlatform -eq "All" -or $itemPlatform -eq $currentPlatform) {
+                    $base = $defaultItem
+                    Write-Log "Found matching default announcement: $($defaultItem.Text)" -Level "INFO"
+                    break
                 }
-            } catch {
-                # Fail silently if registry check fails
+            }
+            
+            # Fallback to first if no platform match
+            if (-not $base -and $AnnouncementsObject.Default.Count -gt 0) {
+                $base = $AnnouncementsObject.Default[0]
+                Write-Log "No platform match, using first default announcement" -Level "INFO"
+            }
+        } else {
+            # Single default object
+            $base = $AnnouncementsObject.Default
+            Write-Log "Default is a single object" -Level "INFO"
+            
+            if ($base.Platform -and $base.Platform -ne "All" -and $base.Platform -ne $currentPlatform) {
+                Write-Log "Platform mismatch but using anyway: $($base.Platform)" -Level "WARNING"
             }
         }
+    } else {
+        Write-Log "No Default announcements found!" -Level "WARNING"
     }
+    
+    # Handle Targeted announcements
+    if ($AnnouncementsObject.Targeted) {
+        Write-Log "Processing Targeted announcements (Type: $($AnnouncementsObject.Targeted.GetType().Name))" -Level "INFO"
+        
+        # Ensure Targeted is treated as array
+        $targetedArray = @()
+        if ($AnnouncementsObject.Targeted -is [System.Array]) {
+            $targetedArray = $AnnouncementsObject.Targeted
+        } else {
+            # Wrap single object in array
+            $targetedArray = @($AnnouncementsObject.Targeted)
+        }
+        
+        Write-Log "Found $($targetedArray.Count) targeted announcements" -Level "INFO"
+        
+        foreach ($targeted in $targetedArray) {
+            Write-Log "Checking targeted: Platform=$($targeted.Platform), Enabled=$($targeted.Enabled), Text=$($targeted.Text)" -Level "INFO"
+            
+            # Check if enabled
+            if ($targeted.Enabled -ne $true) {
+                Write-Log "  Skipping - not enabled" -Level "INFO"
+                continue
+            }
+            
+            # Platform check
+            if ($targeted.Platform -and $targeted.Platform -ne "All" -and $targeted.Platform -ne $currentPlatform) {
+                Write-Log "  Skipping - platform mismatch (needs: $($targeted.Platform))" -Level "INFO"
+                continue
+            }
+            
+            # Condition check
+            $conditionMet = $false
+            
+            if ($targeted.Condition) {
+                if ($targeted.Condition.Type -eq "Registry") {
+                    $path = $targeted.Condition.Path
+                    $name = $targeted.Condition.Name
+                    $value = $targeted.Condition.Value
+                    
+                    Write-Log "  Checking registry: $path\$name = $value" -Level "INFO"
+                    
+                    try {
+                        $reg = Get-ItemProperty -Path $path -Name $name -ErrorAction Stop
+                        if ($reg.$name -eq $value) {
+                            Write-Log "  Registry condition MET!" -Level "INFO"
+                            $conditionMet = $true
+                        } else {
+                            Write-Log "  Registry value mismatch: Expected=$value, Actual=$($reg.$name)" -Level "INFO"
+                        }
+                    } catch {
+                        Write-Log "  Registry not found: $_" -Level "INFO"
+                    }
+                }
+            } else {
+                # No condition means always show
+                Write-Log "  No condition - always show" -Level "INFO"
+                $conditionMet = $true
+            }
+            
+            if ($conditionMet) {
+                if ($targeted.AppendToDefault) {
+                    Write-Log "  Adding to appended list" -Level "INFO"
+                    $appended += $targeted
+                } else {
+                    Write-Log "  Replacing default announcement" -Level "INFO"
+                    return @{
+                        Base = $targeted
+                        Appended = @()
+                    }
+                }
+            }
+        }
+    } else {
+        Write-Log "No Targeted announcements found" -Level "INFO"
+    }
+    
+    Write-Log "Returning: Base=$($base -ne $null), Appended=$($appended.Count)" -Level "INFO"
+    
     return @{
         Base = $base
         Appended = $appended
     }
-  
-    Write-Log "Finished processing targeted announcements. Found $($appendedMessages.Count) messages to append." -Level "INFO"
-    return @{ Base = $finalBaseMessage; Appended = $appendedMessages }
+}
+
+
+# ============================================================
+# JSON State Helper Functions
+# ============================================================
+function Get-StableAnnouncementStateJson {
+    param($AnnouncementResult)
+    
+    # Create a stable JSON representation of the announcement state
+    # This is used for comparison to detect changes
+    $stateObj = @{
+        Base = if ($AnnouncementResult.Base) { 
+            @{
+                Text = $AnnouncementResult.Base.Text
+                Details = $AnnouncementResult.Base.Details
+                Links = $AnnouncementResult.Base.Links
+            }
+        } else { $null }
+        Appended = @()
+    }
+    
+    foreach ($item in $AnnouncementResult.Appended) {
+        $stateObj.Appended += @{
+            Text = $item.Text
+            Details = $item.Details
+            Links = $item.Links
+        }
+    }
+    
+    return ($stateObj | ConvertTo-Json -Compress -Depth 10)
+}
+
+function Get-StableSupportStateJson {
+    param($SupportObject)
+    
+    # Create a stable JSON representation of the support state
+    # This is used for comparison to detect changes
+    if (-not $SupportObject) { return "{}" }
+    
+    $stateObj = @{
+        Text = $SupportObject.Text
+        Details = $SupportObject.Details
+        Links = $SupportObject.Links
+    }
+    
+    return ($stateObj | ConvertTo-Json -Compress -Depth 10)
+}
+
+function Get-CurrentSupportObject {
+    param($SupportData)
+    
+    # Extract the current platform-specific support object
+    $currentPlatform = "Windows"
+    
+    if ($SupportData -is [System.Array]) {
+        # New format: Array of platform-specific support sections
+        foreach ($supportItem in $SupportData) {
+            $itemPlatform = $supportItem.Platform
+            if (-not $itemPlatform -or $itemPlatform -eq "All" -or $itemPlatform -eq $currentPlatform) {
+                return $supportItem
+            }
+        }
+        # If no platform match found, use first entry as fallback
+        if ($SupportData.Count -gt 0) {
+            return $SupportData[0]
+        }
+    } else {
+        # Old format: Single support object
+        return $SupportData
+    }
+    
+    return $null
 }
 
 function New-HyperlinkBlock {
@@ -749,11 +1083,34 @@ function New-HyperlinkBlock {
 
 function Validate-ContentData {
     param($Data)
-    # This check needs to be flexible for both the old and new JSON structure.
-    if (-not $Data.PSObject.Properties.Match('Announcements') -or -not $Data.PSObject.Properties.Match('Support')) {
-        throw "JSON data is missing 'Announcements' or 'Support' top-level property."
+    # Handle new structure with schemaVersion and nested Data
+    if ($Data.PSObject.Properties.Match('schemaVersion') -and $Data.PSObject.Properties.Match('Data')) {
+        # New structure - check nested Data object
+        if (-not $Data.Data.PSObject.Properties.Match('Announcements') -or -not $Data.Data.PSObject.Properties.Match('Support')) {
+            throw "JSON data is missing 'Announcements' or 'Support' in Data property."
+        }
+    } else {
+        # Old structure - check top level
+        if (-not $Data.PSObject.Properties.Match('Announcements') -or -not $Data.PSObject.Properties.Match('Support')) {
+            throw "JSON data is missing 'Announcements' or 'Support' top-level property."
+        }
     }
     return $true
+}
+
+
+# Function to normalize content data to handle both old and new JSON structures
+function Normalize-ContentData {
+    param($Data)
+    
+    # If this is the new structure with schemaVersion, extract the nested Data
+    if ($Data.PSObject.Properties.Match('schemaVersion') -and $Data.PSObject.Properties.Match('Data')) {
+        Write-Log "Detected new JSON structure with schemaVersion: $($Data.schemaVersion)" -Level "INFO"
+        return $Data.Data
+    }
+    
+    # Otherwise return as-is (old structure)
+    return $Data
 }
 
 function Save-CachedContentData {
@@ -778,7 +1135,7 @@ function Load-CachedContentData {
             $lastWriteTime = (Get-Item $Path).LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
             Write-Log "Loaded cached content data from $Path (Last updated: $lastWriteTime)" -Level "INFO"
             return [PSCustomObject]@{
-                Data = $contentData
+                Data = (Normalize-ContentData -Data $contentData)
                 Source = "Cached ($lastWriteTime)"
             }
         } else {
@@ -799,7 +1156,7 @@ function Fetch-ContentData {
         if ($cachedData) {
             return $cachedData
         }
-        return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
+        return [PSCustomObject]@{ Data = (Normalize-ContentData -Data $defaultContentData); Source = "Default" }
     }
     $url = $config.ContentDataUrl
 
@@ -852,7 +1209,7 @@ function Fetch-ContentData {
         Save-CachedContentData -ContentData ([PSCustomObject]@{ Data = $contentData })
         $global:FailedFetchAttempts = 0
 
-        return [PSCustomObject]@{ Data = $contentData; Source = "Remote" }
+        return [PSCustomObject]@{ Data = (Normalize-ContentData -Data $contentData); Source = "Remote" }
     }
     catch {
         $global:FailedFetchAttempts++
@@ -873,7 +1230,7 @@ function Fetch-ContentData {
         }
         
         Write-Log "No cached data available, using default content." -Level "WARNING"
-        return [PSCustomObject]@{ Data = $defaultContentData; Source = "Default" }
+        return [PSCustomObject]@{ Data = (Normalize-ContentData -Data $defaultContentData); Source = "Default" }
     }
 }
 
@@ -1652,128 +2009,170 @@ function Process-InnerMarkdown {
 
 function Update-Announcements {
     Write-Log "Updating Announcements section..." -Level "INFO"
-    
-    $announcementData = Get-ActiveAnnouncement -AnnouncementsObject $global:contentData.Data.Announcements
-    if (-not $announcementData) {
-        Write-Log "Could not determine an active announcement. Section will not be updated." -Level "WARNING"
-        return
-    }
-    
-    $baseMessage = $announcementData.Base
-    $appendedMessages = $announcementData.Appended
+    if (-not $global:contentData -or -not $global:contentData.Data) { Write-Log "No contentData available; skipping Announcements." -Level "WARNING"; return }
+    $annObj = $global:contentData.Data.Announcements
+    if (-not $annObj) { Write-Log "No Announcements object found; skipping." -Level "WARNING"; return }
 
-    # We build a temporary composite object to check if the *final displayed content* is new.
-    $compositeObjectForStateCheck = @{
-        Base = $baseMessage
-        Appended = $appendedMessages
-    }
-    
-    $global:LastAnnouncementState = $compositeObjectForStateCheck | ConvertTo-Json -Compress
-    $isNew = $false
-    if ($config.AnnouncementsLastState -ne $global:LastAnnouncementState) {
-        Write-Log "New announcement content detected." -Level "INFO"
-        $isNew = $true
-    }
+    $result = Get-ActiveAnnouncement -AnnouncementsObject $annObj
+    if ($null -eq $result) { Write-Log "Could not determine an active announcement. Section will not be updated." -Level "WARNING"; return }
+
+    $newJsonState = Get-StableAnnouncementStateJson $result
+    $shouldAlert  = Test-SectionChanged -SectionKey "Announcements" -NewStateJson $newJsonState
+
+    $title   = if ($result.Base.Title)   { [string]$result.Base.Title }   else { '' }
+    $textMd  = if ($result.Base.Text)    { [string]$result.Base.Text }    else { '' }
+    $detailMd= if ($result.Base.Details) { [string]$result.Base.Details } else { '' }
+    $links   = @(); if ($result.Base.Links) { $links = @($result.Base.Links) }
+
+    Write-Log ("Announcements chosen: Title='{0}', Platform='{1}', Appended={2}" -f $title, $result.Base.Platform, $result.Appended.Count) -Level "INFO"
 
     $window.Dispatcher.Invoke({
-        # --- Handle Alerts ---
-        if ($isNew) {
-            if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
-            if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
-        }
-
-        # --- Render Base Message ---
-        Convert-MarkdownToTextBlock -Text $baseMessage.Text -TargetTextBlock $global:AnnouncementsText
-        Convert-MarkdownToTextBlock -Text $baseMessage.Details -TargetTextBlock $global:AnnouncementsDetailsText
-
-        # --- Render Appended Messages ---
-        $global:AppendedAnnouncementsPanel.Children.Clear()
-        if ($appendedMessages.Count -gt 0) {
-            $global:AppendedAnnouncementsPanel.Visibility = "Visible"
-            foreach ($message in $appendedMessages) {
-                # Add a separator before each appended block
-                $separator = New-Object System.Windows.Controls.Separator
-                $separator.Margin = [System.Windows.Thickness]::new(0,10,0,10)
-                $global:AppendedAnnouncementsPanel.Children.Add($separator)
-
-                # Add Text block if it exists
-                if (-not [string]::IsNullOrEmpty($message.Text)) {
-                    $appendedText = New-Object System.Windows.Controls.TextBlock
-                    $appendedText.FontSize = 11
-                    $appendedText.TextWrapping = "Wrap"
-                    Convert-MarkdownToTextBlock -Text $message.Text -TargetTextBlock $appendedText
-                    $global:AppendedAnnouncementsPanel.Children.Add($appendedText)
-                }
-
-                # Add Details block if it exists
-                if (-not [string]::IsNullOrEmpty($message.Details)) {
-                    $appendedDetails = New-Object System.Windows.Controls.TextBlock
-                    $appendedDetails.FontSize = 11
-                    $appendedDetails.TextWrapping = "Wrap"
-                    $appendedDetails.Margin = [System.Windows.Thickness]::new(0,5,0,0)
-                    Convert-MarkdownToTextBlock -Text $message.Details -TargetTextBlock $appendedDetails
-                    $global:AppendedAnnouncementsPanel.Children.Add($appendedDetails)
+        try {
+            if ($shouldAlert) {
+                if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
+                if ($global:ClearAlertsDot)        { $global:ClearAlertsDot.Visibility        = "Visible" }
+            }
+            if ($global:AnnouncementsTitle)   { $global:AnnouncementsTitle.Text = $title }
+            if ($global:AnnouncementsText)    {
+                if ([string]::IsNullOrWhiteSpace($textMd)) { $global:AnnouncementsText.Text = '' }
+                else { Convert-MarkdownToTextBlock -Text $textMd -TargetTextBlock $global:AnnouncementsText }
+            }
+            if ($global:AnnouncementsDetailsText) {
+                if ([string]::IsNullOrWhiteSpace($detailMd)) { $global:AnnouncementsDetailsText.Text = '' }
+                else { Convert-MarkdownToTextBlock -Text $detailMd -TargetTextBlock $global:AnnouncementsDetailsText }
+            }
+            if ($global:AnnouncementsLinksPanel) {
+                $global:AnnouncementsLinksPanel.Children.Clear()
+                if ($links.Count -gt 0) {
+                    foreach ($link in $links) {
+                        $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
+                    }
                 }
             }
-        } else {
-            $global:AppendedAnnouncementsPanel.Visibility = "Collapsed"
-        }
-
-        # --- Combine and Render All Links ---
-        $allLinks = [System.Collections.Generic.List[object]]::new()
-        if ($baseMessage.Links) { $allLinks.AddRange($baseMessage.Links) }
-        if ($appendedMessages) {
-            foreach ($message in $appendedMessages) {
-                if ($message.Links) { $allLinks.AddRange($message.Links) }
+            if ($global:AnnouncementsSourceText) { $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)" }
+            
+            # Display appended targeted announcements
+            if ($global:AppendedAnnouncementsPanel) {
+                $global:AppendedAnnouncementsPanel.Children.Clear()
+                
+                if ($result.Appended -and $result.Appended.Count -gt 0) {
+                    foreach ($appendedItem in $result.Appended) {
+                        # Create separator
+                        $separator = New-Object System.Windows.Controls.Border
+                        $separator.BorderThickness = "0,1,0,0"
+                        $separator.BorderBrush = "LightGray"
+                        $separator.Margin = "0,10,0,10"
+                        $global:AppendedAnnouncementsPanel.Children.Add($separator)
+                        
+                        # Title
+                        if ($appendedItem.Title) {
+                            $titleBlock = New-Object System.Windows.Controls.TextBlock
+                            $titleBlock.Text = $appendedItem.Title
+                            $titleBlock.FontWeight = "Bold"
+                            $titleBlock.FontSize = 11
+                            $titleBlock.Foreground = "#00008B"
+                            $global:AppendedAnnouncementsPanel.Children.Add($titleBlock)
+                        }
+                        
+                        # Text
+                        if ($appendedItem.Text) {
+                            $textBlock = New-Object System.Windows.Controls.TextBlock
+                            $textBlock.FontSize = 11
+                            $textBlock.TextWrapping = "Wrap"
+                            $textBlock.Margin = "0,3,0,0"
+                            Convert-MarkdownToTextBlock -Text $appendedItem.Text -TargetTextBlock $textBlock
+                            $global:AppendedAnnouncementsPanel.Children.Add($textBlock)
+                        }
+                        
+                        # Details
+                        if ($appendedItem.Details) {
+                            $detailsBlock = New-Object System.Windows.Controls.TextBlock
+                            $detailsBlock.FontSize = 11
+                            $detailsBlock.TextWrapping = "Wrap"
+                            $detailsBlock.Margin = "0,3,0,0"
+                            Convert-MarkdownToTextBlock -Text $appendedItem.Details -TargetTextBlock $detailsBlock
+                            $global:AppendedAnnouncementsPanel.Children.Add($detailsBlock)
+                        }
+                        
+                        # Links
+                        if ($appendedItem.Links -and $appendedItem.Links.Count -gt 0) {
+                            foreach ($link in $appendedItem.Links) {
+                                $hyperlinkBlock = New-HyperlinkBlock -Name $link.Name -Url $link.Url
+                                $hyperlinkBlock.Margin = "0,3,0,0"
+                                $global:AppendedAnnouncementsPanel.Children.Add($hyperlinkBlock)
+                            }
+                        }
+                    }
+                    
+                    $global:AppendedAnnouncementsPanel.Visibility = "Visible"
+                    Write-Log "Displayed $($result.Appended.Count) appended announcement(s) - Panel visibility set to Visible" -Level "INFO"
+                } else {
+                    $global:AppendedAnnouncementsPanel.Visibility = "Collapsed"
+                }
+            } else {
+                Write-Log "AppendedAnnouncementsPanel global variable is null!" -Level "ERROR"
             }
-        }
-
-        $global:AnnouncementsLinksPanel.Children.Clear()
-        if ($allLinks.Count -gt 0) {
-            foreach ($link in $allLinks) {
-                $global:AnnouncementsLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
-            }
-        }
-
-        if ($global:AnnouncementsSourceText) {
-            $global:AnnouncementsSourceText.Text = "Source: $($global:contentData.Source)"
+        } catch {
+            Write-Log ("Announcements render failed: {0}" -f $_) -Level "ERROR"
         }
     })
+    Save-SectionBaseline -SectionKey "Announcements" -NewStateJson $newJsonState
 }
 
 function Update-Support {
     Write-Log "Updating Support section..." -Level "INFO"
-    $newSupportObject = $global:contentData.Data.Support
+    if (-not $global:contentData -or -not $global:contentData.Data) { return }
+    $supportData = $global:contentData.Data.Support
+    if (-not $supportData) { return }
+
+    $currentPlatform = "Windows"
+    $newSupportObject = $null
+    if ($supportData -is [System.Array]) {
+        foreach ($supportItem in $supportData) {
+            $p = $supportItem.Platform
+            if (-not $p -or $p -eq "All" -or $p -eq $currentPlatform) { $newSupportObject = $supportItem; Write-Log "Using platform-specific support for: $currentPlatform" -Level "INFO"; break }
+        }
+        if (-not $newSupportObject -and $supportData.Count -gt 0) { $newSupportObject = $supportData[0]; Write-Log "No platform-specific support found, using first support entry" -Level "INFO" }
+    } else {
+        $newSupportObject = $supportData
+        if ($newSupportObject.Platform -and $newSupportObject.Platform -ne "All" -and $newSupportObject.Platform -ne $currentPlatform) {
+            Write-Log "Support section Platform mismatch (Expected: $($newSupportObject.Platform), Current: $currentPlatform)" -Level "WARNING"
+        }
+    }
     if (-not $newSupportObject) { return }
 
-    $newJsonState = $newSupportObject | ConvertTo-Json -Compress -Depth 10
+    Write-Log ("Support chosen: Platform='{0}', Links={1}" -f $newSupportObject.Platform, (@($newSupportObject.Links).Count)) -Level "INFO"
 
-    $isNew = $false
-    if ($config.SupportLastState -ne $newJsonState) {
-        Write-Log "New support content detected." -Level "INFO"
-        $isNew = $true
-    }
+    $newJsonState = Get-StableSupportStateJson $newSupportObject
+    Write-Log ("Support state SHA (new): {0}" -f (Get-TextSha256 $newJsonState)) -Level "INFO"
+    $shouldAlert  = Test-SectionChanged -SectionKey "Support" -NewStateJson $newJsonState
 
     $window.Dispatcher.Invoke({
-        if ($isNew) {
-            if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Visible" }
-            if ($global:ClearAlertsDot) { $global:ClearAlertsDot.Visibility = "Visible" }
-        }
-        if ($global:SupportText) {
-            Convert-MarkdownToTextBlock -Text $newSupportObject.Text -TargetTextBlock $global:SupportText
-        }
-        if ($global:SupportLinksPanel) {
-            $global:SupportLinksPanel.Children.Clear()
-            if ($newSupportObject.Links) {
-                foreach ($link in $newSupportObject.Links) {
-                    $global:SupportLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url))
-                }
+        try {
+            if ($shouldAlert) {
+                if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Visible" }
+                if ($global:ClearAlertsDot)   { $global:ClearAlertsDot.Visibility   = "Visible" }
             }
-        }
-        if ($global:SupportSourceText) {
-            $global:SupportSourceText.Text = "Source: $($global:contentData.Source)"
+            if ($global:SupportText) {
+                $txt = if ($newSupportObject.Text) { [string]$newSupportObject.Text } else { '' }
+                if ([string]::IsNullOrWhiteSpace($txt)) { $global:SupportText.Text = '' }
+                else { Convert-MarkdownToTextBlock -Text $txt -TargetTextBlock $global:SupportText }
+            }
+            if ($global:SupportDetailsText) {
+                $details = if ($newSupportObject.Details) { [string]$newSupportObject.Details } else { '' }
+                if ([string]::IsNullOrWhiteSpace($details)) { $global:SupportDetailsText.Text = '' }
+                else { Convert-MarkdownToTextBlock -Text $details -TargetTextBlock $global:SupportDetailsText }
+            }
+            if ($global:SupportLinksPanel) {
+                $global:SupportLinksPanel.Children.Clear()
+                if ($newSupportObject.Links) { foreach ($link in $newSupportObject.Links) { $global:SupportLinksPanel.Children.Add((New-HyperlinkBlock -Name $link.Name -Url $link.Url)) } }
+            }
+            if ($global:SupportSourceText) { $global:SupportSourceText.Text = "Source: $($global:contentData.Source)" }
+        } catch {
+            Write-Log ("Support render failed: {0}" -f $_) -Level "ERROR"
         }
     })
+    Save-SectionBaseline -SectionKey "Support" -NewStateJson $newJsonState
 }
 
 # ============================================================
@@ -1965,9 +2364,24 @@ catch {
     Handle-Error "A critical error occurred during startup: $($_.Exception.Message)" -Source "Startup"
 }
 finally {
-    Write-Log "--- Lincoln Laboratory Endpoint Advisor Script Exiting ---"
+    Write-Log '--- Lincoln Laboratory Endpoint Advisor Script Exiting ---'
     if ($global:DispatcherTimer) { $global:DispatcherTimer.Stop() }
     if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
+
+    try {
+        foreach ($run in $runs) {
+            $TargetTextBlock.Inlines.Add($run)
+            Write-Log ("Added run to TextBlock: {0} (FontWeight: {1}, FontStyle: {2}, Foreground: {3})" -f $run.Text,$run.FontWeight,$run.FontStyle,$run.Foreground) -Level "INFO"
+        }
+        Write-Log ("Successfully parsed Markdown for text: {0}" -f $Text) -Level "INFO"
+    }
+    catch {
+        Write-Log ("Failed to parse Markdown for text: {0} - {1}" -f $Text, $_.Exception.Message) -Level "ERROR"
+        if ($TargetTextBlock -and $TargetTextBlock.Inlines) {
+            $TargetTextBlock.Inlines.Clear()
+            $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run(($Text -as [string]))))
+        }
+    }
 }
