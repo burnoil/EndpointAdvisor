@@ -55,6 +55,33 @@
             margin-bottom: 20px;
         }
         
+        .preset-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .preset-btn {
+            padding: 8px 16px;
+            background: #0078D7;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .preset-btn:hover {
+            background: #0055A4;
+            transform: translateY(-2px);
+        }
+        
+        .preset-btn.active {
+            background: #28a745;
+        }
+        
         .editor-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -98,22 +125,26 @@
         }
         
         .autosave-indicator {
-            font-size: 11px;
-            color: #666;
-            font-weight: normal;
+            margin-left: auto;
+            font-size: 12px;
+            color: #28a745;
+            opacity: 0;
+            transition: opacity 0.3s;
         }
         
         .autosave-indicator.saving {
+            opacity: 1;
             color: #ffc107;
         }
         
         .autosave-indicator.saved {
+            opacity: 1;
             color: #28a745;
         }
         
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+            50% { opacity: 0.5; }
         }
         
         .form-group {
@@ -122,154 +153,30 @@
         
         label {
             display: block;
-            font-weight: 600;
             margin-bottom: 5px;
             color: #333;
+            font-weight: 500;
         }
         
-        input[type="text"],
-        input[type="password"],
-        textarea,
-        select {
+        input[type="text"], input[type="password"], textarea, select {
             width: 100%;
             padding: 10px;
-            border: 2px solid #ddd;
+            border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
-            transition: border-color 0.3s;
+            font-family: inherit;
         }
         
-        input[type="text"]:focus,
-        input[type="password"]:focus,
-        textarea:focus,
-        select:focus {
+        input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:focus {
             outline: none;
             border-color: #0078D7;
+            box-shadow: 0 0 0 3px rgba(0,120,215,0.1);
         }
         
         textarea {
-            resize: vertical;
-            line-height: 1.4;
-        }
-        
-        textarea.code-editor {
-            font-family: 'Consolas', 'Monaco', monospace;
-            min-height: 500px;
-        }
-        
-        textarea.form-textarea {
-            min-height: 80px;
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 15px;
-        }
-        
-        button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        button.small {
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-        
-        .btn-primary {
-            background: #0078D7;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #0055A4;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,120,215,0.4);
-        }
-        
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-        
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(40,167,69,0.4);
-        }
-        
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-        
-        .btn-warning {
-            background: #ffc107;
-            color: #000;
-        }
-        
-        .btn-warning:hover {
-            background: #e0a800;
-        }
-        
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background: #c82333;
-        }
-        
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-        
-        .status {
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 15px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 13px;
-            line-height: 1.6;
-        }
-        
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        
-        .editor-section {
-            display: none;
-        }
-        
-        .editor-section.active {
-            display: block;
+            resize: vertical;
         }
         
         .help-text {
@@ -287,280 +194,325 @@
             text-decoration: underline;
         }
         
-        .preview-window {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            min-height: 500px;
-            max-height: 700px;
-            overflow-y: auto;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
         }
         
-        .preview-header {
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
             background: #0078D7;
             color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0055A4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,120,215,0.3);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .status-message {
+            margin-top: 10px;
             padding: 10px;
             border-radius: 6px;
-            margin-bottom: 15px;
-            text-align: center;
-            font-weight: bold;
+            font-size: 14px;
         }
         
-        .preview-section {
-            border: 1px solid #00008B;
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 10px;
-            background: white;
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
         }
         
-        .preview-section-title {
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: #0078D7;
-            cursor: pointer;
-            user-select: none;
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         
-        .preview-section-title:before {
-            content: '▼ ';
-            display: inline-block;
-            transition: transform 0.3s;
+        .status-message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
         }
         
-        .preview-section-title.collapsed:before {
-            transform: rotate(-90deg);
-        }
-        
-        .preview-section-content {
-            font-size: 11px;
-            line-height: 1.5;
-        }
-        
-        .preview-section-content.collapsed {
+        .editor-section {
             display: none;
         }
         
-        .preview-link {
-            color: #0078D7;
-            text-decoration: underline;
-            cursor: pointer;
+        .editor-section.active {
             display: block;
-            margin-top: 5px;
-        }
-        
-        .preview-alert {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            background: red;
-            border-radius: 50%;
-            margin-left: 5px;
-        }
-        
-        .text-green { color: green; }
-        .text-red { color: red; }
-        .text-yellow { color: #b8860b; }
-        .text-blue { color: blue; }
-        
-        .info-box {
-            background: #d1ecf1;
-            border: 1px solid #bee5eb;
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-            color: #0c5460;
-            font-size: 13px;
-        }
-        
-        .info-box code {
-            background: rgba(0,0,0,0.1);
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
         }
         
         .edit-mode-toggle {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 2px;
+            margin-bottom: 15px;
             background: #e9ecef;
-            padding: 10px;
+            padding: 4px;
             border-radius: 8px;
         }
         
         .edit-mode-toggle button {
             flex: 1;
+            padding: 10px;
+            background: transparent;
+            color: #666;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
         }
         
         .edit-mode-toggle button.active {
-            background: #0078D7;
-            color: white;
-        }
-        
-        .form-editor {
-            display: none;
-        }
-        
-        .form-editor.active {
-            display: block;
-        }
-        
-        .json-editor {
-            display: none;
-        }
-        
-        .json-editor.active {
-            display: block;
-        }
-        
-        .section-card {
             background: white;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        
-        .section-card h4 {
             color: #0078D7;
-            margin-bottom: 15px;
-            font-size: 18px;
-            border-bottom: 2px solid #0078D7;
-            padding-bottom: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
-        .markdown-toolbar {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 5px;
-            flex-wrap: wrap;
+        #formEditor {
+            display: block;
         }
         
-        .markdown-toolbar button {
-            padding: 4px 8px;
-            font-size: 12px;
-            background: #e9ecef;
-            color: #333;
+        #jsonEditor {
+            display: none;
         }
         
-        .markdown-toolbar button:hover {
-            background: #dee2e6;
-            transform: none;
+        .json-editor-area {
+            width: 100%;
+            min-height: 500px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
         }
         
-        .link-item {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 6px;
-        }
-        
-        .link-item input {
-            flex: 1;
-        }
-        
-        .link-item button {
-            padding: 8px 12px;
-        }
-        
-        .add-link-btn {
-            margin-top: 10px;
-        }
-        
-        .form-scroll {
-            max-height: 650px;
+        .form-editor-content {
+            max-height: 600px;
             overflow-y: auto;
             padding-right: 10px;
         }
         
-        .targeted-announcement {
-            border: 2px solid #ffc107;
+        .form-section {
+            background: white;
             padding: 15px;
             margin-bottom: 15px;
             border-radius: 6px;
-            background: #fff9e6;
-            position: relative;
+            border: 1px solid #ddd;
         }
         
-        .targeted-announcement h5 {
-            color: #856404;
+        .form-section h4 {
+            color: #0078D7;
             margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            font-size: 16px;
         }
         
         .checkbox-group {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             margin-bottom: 10px;
         }
         
         .checkbox-group input[type="checkbox"] {
             width: auto;
+            margin: 0;
         }
         
-        .condition-editor {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 10px;
+        .info-box {
+            background: #e7f3ff;
+            padding: 12px;
             border-radius: 6px;
-            margin-top: 10px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            border-left: 4px solid #0078D7;
         }
         
-        .condition-editor label {
-            font-size: 12px;
-            margin-bottom: 3px;
+        .preview-window {
+            background: white;
+            border-radius: 6px;
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
         }
         
-        .condition-editor input {
+        .preview-section {
+            border: 2px solid #00008B;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: white;
+        }
+        
+        .preview-section-header {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #00008B;
+        }
+        
+        .preview-content {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .preview-link {
+            display: inline-block;
+            color: #0078D7;
+            text-decoration: none;
+            margin: 5px 10px 5px 0;
             font-size: 12px;
-            padding: 6px;
+        }
+        
+        .preview-link:hover {
+            text-decoration: underline;
+        }
+        
+        .markdown-toolbar {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .markdown-btn {
+            padding: 5px 10px;
+            background: #e9ecef;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .markdown-btn:hover {
+            background: #dee2e6;
+        }
+        
+        .diff-viewer {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .diff-line {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 2px 5px;
+            white-space: pre-wrap;
+        }
+        
+        .diff-line.added {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .diff-line.removed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .diff-line.unchanged {
+            color: #666;
+        }
+        
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .template-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 2px solid #ddd;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .template-card:hover {
+            border-color: #0078D7;
+            box-shadow: 0 4px 12px rgba(0,120,215,0.2);
+            transform: translateY(-2px);
+        }
+        
+        .template-card h4 {
+            color: #0078D7;
+            margin-bottom: 8px;
+        }
+        
+        .template-card p {
+            font-size: 13px;
+            color: #666;
         }
         
         .modal {
             display: none;
             position: fixed;
-            z-index: 1000;
-            left: 0;
             top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             background: rgba(0,0,0,0.5);
-            animation: fadeIn 0.3s;
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
         }
         
         .modal.active {
             display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
         }
         
         .modal-content {
             background: white;
-            border-radius: 12px;
             padding: 30px;
-            max-width: 900px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
             max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            animation: slideUp 0.3s;
-        }
-        
-        @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
         }
         
         .modal-header {
@@ -568,15 +520,13 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-            border-bottom: 2px solid #0078D7;
-            padding-bottom: 10px;
         }
         
         .modal-header h3 {
             color: #0078D7;
         }
         
-        .close-modal {
+        .close-btn {
             background: none;
             border: none;
             font-size: 24px;
@@ -587,249 +537,43 @@
             height: 30px;
         }
         
-        .close-modal:hover {
+        .close-btn:hover {
             color: #000;
         }
         
-        .diff-view {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 20px;
-        }
-        
-        .diff-panel {
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            background: #f8f9fa;
-        }
-        
-        .diff-panel h4 {
-            margin-bottom: 10px;
-            color: #0078D7;
-        }
-        
-        .diff-content {
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 12px;
-            white-space: pre-wrap;
-            max-height: 400px;
-            overflow-y: auto;
-            background: white;
-            padding: 10px;
-            border-radius: 6px;
-        }
-        
-        .diff-line {
-            padding: 2px 5px;
-            border-radius: 3px;
-        }
-        
-        .diff-added {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .diff-removed {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .template-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .template-card {
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: white;
-        }
-        
-        .template-card:hover {
-            border-color: #0078D7;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,120,215,0.2);
-        }
-        
-        .template-card h4 {
-            color: #0078D7;
-            margin-bottom: 8px;
-            font-size: 16px;
-        }
-        
-        .template-card p {
-            font-size: 13px;
-            color: #666;
-        }
-        
-        .help-button {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: #0078D7;
-            color: white;
-            font-size: 28px;
+        .config-item {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,120,215,0.4);
-            z-index: 999;
-            transition: all 0.3s;
-            border: none;
-            padding: 0;
-        }
-        
-        .help-button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(0,120,215,0.6);
-            background: #0055A4;
-        }
-        
-        @media (max-width: 768px) {
-            .help-button {
-                bottom: 20px;
-                right: 20px;
-                width: 50px;
-                height: 50px;
-                font-size: 24px;
-            }
-        }
-        
-        .help-modal .modal-content {
-            max-width: 1000px;
-        }
-        
-        .help-section {
-            margin-bottom: 30px;
-        }
-        
-        .help-section h4 {
-            color: #0078D7;
-            margin-bottom: 10px;
-            font-size: 18px;
-            border-left: 4px solid #0078D7;
-            padding-left: 10px;
-        }
-        
-        .help-section p, .help-section ul {
-            margin-bottom: 10px;
-            line-height: 1.6;
-        }
-        
-        .help-section ul {
-            margin-left: 20px;
-        }
-        
-        .help-example {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 10px 0;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 13px;
-        }
-        
-        .help-example pre {
-            background: #ffffff;
             padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #e0e0e0;
-            overflow-x: auto;
-            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 10px;
         }
         
-        .help-example code {
-            background: #e9ecef;
-            padding: 2px 6px;
-            border-radius: 3px;
+        .config-item-info {
+            flex: 1;
+        }
+        
+        .config-item-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .config-item-details {
             font-size: 12px;
-        }
-        
-        .help-example-title {
-            font-weight: 600;
-            color: #0078D7;
-            margin-bottom: 8px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .help-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #ddd;
-        }
-        
-        .help-tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            background: none;
-            border: none;
-            border-bottom: 3px solid transparent;
-            font-size: 14px;
-            font-weight: 600;
             color: #666;
-            transition: all 0.3s;
+            margin-top: 4px;
         }
         
-        .help-tab:hover {
-            color: #0078D7;
-            transform: none;
+        .config-item-actions {
+            display: flex;
+            gap: 8px;
         }
         
-        .help-tab.active {
-            color: #0078D7;
-            border-bottom-color: #0078D7;
-        }
-        
-        .help-content {
-            display: none;
-            max-height: 500px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
-        
-        .help-content.active {
-            display: block;
-        }
-        
-        .warning-box {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 10px 0;
-            color: #856404;
-        }
-        
-        .warning-box strong {
-            display: block;
-            margin-bottom: 5px;
-        }
-        
-        .tip-box {
-            background: #d1ecf1;
-            border: 1px solid #bee5eb;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 10px 0;
-            color: #0c5460;
-        }
-        
-        .tip-box strong {
-            display: block;
-            margin-bottom: 5px;
+        .icon-btn {
+            padding: 6px 12px;
+            font-size: 12px;
         }
     </style>
 </head>
@@ -843,14 +587,37 @@
         <div class="content">
             <!-- Authentication Section -->
             <div id="authSection" class="auth-section">
-                <h3>GitHub Authentication</h3>
+                <h3>GitHub Connection</h3>
+                
+                <!-- Repository Presets -->
+                <div class="preset-buttons">
+                    <button class="preset-btn" onclick="loadPreset('prod')">🏢 Production</button>
+                    <button class="preset-btn" onclick="loadPreset('staging')">🧪 Staging</button>
+                    <button class="preset-btn" onclick="loadPreset('dev')">💻 Development</button>
+                    <button class="preset-btn" onclick="loadPreset('custom')">⚙️ Custom</button>
+                    <button class="preset-btn" onclick="showSavedConfigs()">💾 Saved Configs</button>
+                </div>
+                
+                <!-- GitHub Instance Selection -->
+                <div class="form-group">
+                    <label for="githubInstance">GitHub Instance:</label>
+                    <select id="githubInstance" onchange="handleInstanceChange()">
+                        <option value="https://github.ll.mit.edu/api/v3">Lincoln Lab Production (github.ll.mit.edu)</option>
+                        <option value="https://github-stage.ll.mit.edu/api/v3">Lincoln Lab Staging (github-stage.ll.mit.edu)</option>
+                        <option value="https://github-dev.ll.mit.edu/api/v3">Lincoln Lab Development (github-dev.ll.mit.edu)</option>
+                        <option value="https://api.github.com">Public GitHub (github.com)</option>
+                        <option value="custom">Custom URL...</option>
+                    </select>
+                    <input type="text" id="customApiUrl" placeholder="Enter custom API URL (e.g., https://github.company.com/api/v3)" style="display: none; margin-top: 10px;">
+                </div>
+                
                 <div class="form-group">
                     <label for="repoOwner">Repository Owner:</label>
-                    <input type="text" id="repoOwner" value="burnoil" placeholder="e.g., burnoil">
+                    <input type="text" id="repoOwner" placeholder="e.g., burnoil">
                 </div>
                 <div class="form-group">
                     <label for="repoName">Repository Name:</label>
-                    <input type="text" id="repoName" value="EndpointAdvisor" placeholder="e.g., EndpointAdvisor">
+                    <input type="text" id="repoName" placeholder="e.g., EndpointAdvisor">
                 </div>
                 <div class="form-group">
                     <label for="branch">Branch:</label>
@@ -861,33 +628,18 @@
                     <input type="text" id="filePath" value="ContentData.json" placeholder="e.g., ContentData.json">
                 </div>
                 <div class="form-group">
-                    <label for="apiBase">GitHub Instance:</label>
-                    <select id="apiBase" onchange="handleApiBaseChange()">
-                        <option value="https://api.github.com">Public GitHub (github.com)</option>
-                        <option value="https://github.company.com/api/v3" selected>Internal GitHub Enterprise</option>
-                        <option value="custom">Custom URL...</option>
-                    </select>
-                    <input type="text" id="apiBaseCustom" placeholder="Enter custom API URL (e.g., https://github.yourcompany.com/api/v3)" style="display: none; margin-top: 10px;">
-                    <p class="help-text">
-                        Select your GitHub instance. For Enterprise, the API URL format is usually: https://your-github-domain/api/v3<br>
-                        <small style="color: #999;">📝 Note: Edit the HTML to customize the dropdown options for your organization's GitHub instances</small>
-                    </p>
-                </div>
-                <div class="form-group">
                     <label for="token">GitHub Personal Access Token:</label>
                     <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxx">
                     <p class="help-text">
-                        Need a token? Create one at 
-                        <a href="https://github.com/settings/tokens/new" target="_blank" class="help-link">GitHub Settings</a>
-                        with "repo" scope
+                        Need a token? Create one at your GitHub Settings → Tokens with "repo" scope
                     </p>
                 </div>
+                
                 <div class="button-group">
-                    <button class="btn-primary" onclick="loadFile()">Load File</button>
+                    <button class="btn-primary" onclick="loadFile()">📂 Load File</button>
+                    <button class="btn-secondary" onclick="saveCurrentConfig()">💾 Save Config</button>
                     <button class="btn-secondary" onclick="loadTemplate()">📋 Load Template</button>
-                    <button class="btn-secondary" onclick="restoreAutosave()">💾 Restore Auto-save</button>
-                    <button class="btn-secondary" onclick="checkTokenPermissions()">🔑 Check Token Permissions</button>
-                    <button class="btn-secondary" onclick="openHelpModal()">❓ Help</button>
+                    <button class="btn-secondary" onclick="restoreAutosave()">🔄 Restore Auto-save</button>
                 </div>
                 <div id="authStatus"></div>
             </div>
@@ -910,1242 +662,346 @@
                 </div>
                 
                 <div class="editor-container">
-                    <!-- Form Editor Panel -->
+                    <!-- Editor Panel -->
                     <div class="editor-panel">
-                        <div class="panel-title">📝 Editor</div>
+                        <div class="panel-title">Editor</div>
                         
                         <!-- Form Editor -->
-                        <div id="formEditor" class="form-editor active">
-                            <div class="form-scroll">
+                        <div id="formEditor">
+                            <div class="form-editor-content">
                                 <!-- Announcements Section -->
-                                <div class="section-card">
-                                    <h4>📢 Announcements</h4>
+                                <div class="form-section">
+                                    <h4>📢 Default Announcements</h4>
                                     <div class="form-group">
-                                        <label>Main Text:</label>
+                                        <label for="annPlatform">Platform:</label>
+                                        <select id="annPlatform" onchange="updateJsonFromForm()">
+                                            <option value="All">All Platforms</option>
+                                            <option value="Windows">Windows Only</option>
+                                            <option value="Mac">Mac Only</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="annTitle">Title:</label>
+                                        <input type="text" id="annTitle" oninput="updateJsonFromForm()">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="annText">Message Text:</label>
                                         <div class="markdown-toolbar">
-                                            <button onclick="insertMarkdown('announcementText', '**', '**')"><b>B</b></button>
-                                            <button onclick="insertMarkdown('announcementText', '*', '*')"><i>I</i></button>
-                                            <button onclick="insertMarkdown('announcementText', '__', '__')"><u>U</u></button>
-                                            <button onclick="insertMarkdown('announcementText', '[green]', '[/green]')">🟢</button>
-                                            <button onclick="insertMarkdown('announcementText', '[red]', '[/red]')">🔴</button>
-                                            <button onclick="insertMarkdown('announcementText', '[yellow]', '[/yellow]')">🟡</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '**', '**')">Bold</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '*', '*')">Italic</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '__', '__')">Underline</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '[green]', '[/green]')">Green</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '[red]', '[/red]')">Red</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '[yellow]', '[/yellow]')">Yellow</button>
+                                            <button class="markdown-btn" onclick="insertMarkdown('annText', '[blue]', '[/blue]')">Blue</button>
                                         </div>
-                                        <textarea id="announcementText" class="form-textarea" oninput="updateFromForm()"></textarea>
+                                        <textarea id="annText" rows="3" oninput="updateJsonFromForm()"></textarea>
                                     </div>
                                     <div class="form-group">
-                                        <label>Details (Optional):</label>
-                                        <div class="markdown-toolbar">
-                                            <button onclick="insertMarkdown('announcementDetails', '**', '**')"><b>B</b></button>
-                                            <button onclick="insertMarkdown('announcementDetails', '*', '*')"><i>I</i></button>
-                                            <button onclick="insertMarkdown('announcementDetails', '__', '__')"><u>U</u></button>
-                                        </div>
-                                        <textarea id="announcementDetails" class="form-textarea" oninput="updateFromForm()"></textarea>
+                                        <label for="annDetails">Details (Optional):</label>
+                                        <textarea id="annDetails" rows="2" oninput="updateJsonFromForm()"></textarea>
                                     </div>
                                     <div class="form-group">
-                                        <label>Links:</label>
-                                        <div id="announcementLinks"></div>
-                                        <button class="btn-secondary small add-link-btn" onclick="addLink('announcementLinks')">+ Add Link</button>
+                                        <label for="annLinks">Links (One per line: Name|URL):</label>
+                                        <textarea id="annLinks" rows="3" placeholder="FAQ|https://kb.ll.mit.edu/faq&#10;Support|https://support.ll.mit.edu" oninput="updateJsonFromForm()"></textarea>
                                     </div>
-                                </div>
-                                
-                                <!-- Targeted Announcements Section -->
-                                <div class="section-card">
-                                    <h4>🎯 Targeted Announcements</h4>
-                                    <p class="help-text" style="margin-bottom: 15px;">Create conditional announcements that appear only for specific users (based on registry keys)</p>
-                                    <div id="targetedAnnouncementsContainer"></div>
-                                    <button class="btn-secondary small" onclick="addTargetedAnnouncement()">+ Add Targeted Announcement</button>
                                 </div>
                                 
                                 <!-- Support Section -->
-                                <div class="section-card">
-                                    <h4>🆘 Support</h4>
+                                <div class="form-section">
+                                    <h4>🛠️ Support Information</h4>
                                     <div class="form-group">
-                                        <label>Support Text:</label>
-                                        <div class="markdown-toolbar">
-                                            <button onclick="insertMarkdown('supportText', '**', '**')"><b>B</b></button>
-                                            <button onclick="insertMarkdown('supportText', '*', '*')"><i>I</i></button>
-                                            <button onclick="insertMarkdown('supportText', '__', '__')"><u>U</u></button>
-                                        </div>
-                                        <textarea id="supportText" class="form-textarea" oninput="updateFromForm()"></textarea>
+                                        <label for="supportPlatform">Platform:</label>
+                                        <select id="supportPlatform" onchange="updateJsonFromForm()">
+                                            <option value="All">All Platforms</option>
+                                            <option value="Windows">Windows Only</option>
+                                            <option value="Mac">Mac Only</option>
+                                        </select>
                                     </div>
                                     <div class="form-group">
-                                        <label>Links:</label>
-                                        <div id="supportLinks"></div>
-                                        <button class="btn-secondary small add-link-btn" onclick="addLink('supportLinks')">+ Add Link</button>
+                                        <label for="supportText">Support Text:</label>
+                                        <textarea id="supportText" rows="3" oninput="updateJsonFromForm()"></textarea>
                                     </div>
+                                    <div class="form-group">
+                                        <label for="supportDetails">Details (Optional):</label>
+                                        <textarea id="supportDetails" rows="2" oninput="updateJsonFromForm()"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="supportLinks">Links (One per line: Name|URL):</label>
+                                        <textarea id="supportLinks" rows="3" placeholder="Knowledge Base|https://kb.ll.mit.edu&#10;Portal|https://portal.ll.mit.edu" oninput="updateJsonFromForm()"></textarea>
+                                    </div>
+                                </div>
+                                
+                                <!-- Targeted Announcements -->
+                                <div class="form-section">
+                                    <h4>🎯 Targeted Announcements</h4>
+                                    <p class="help-text">These appear only when specific registry conditions are met</p>
+                                    <div id="targetedAnnouncementsContainer"></div>
+                                    <button class="btn-secondary" onclick="addTargetedAnnouncement()" style="margin-top: 10px;">+ Add Targeted Message</button>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- JSON Editor -->
-                        <div id="jsonEditor" class="json-editor">
-                            <textarea id="jsonEditorText" class="code-editor" spellcheck="false"></textarea>
+                        <div id="jsonEditor">
+                            <textarea id="jsonEditorText" class="json-editor-area" oninput="updatePreview(); scheduleAutosave();"></textarea>
+                            <div class="button-group" style="margin-top: 10px;">
+                                <button class="btn-secondary" onclick="formatJson()">Format JSON</button>
+                                <button class="btn-secondary" onclick="validateJson()">Validate</button>
+                            </div>
                         </div>
                     </div>
                     
                     <!-- Preview Panel -->
                     <div class="preview-panel">
                         <div class="panel-title">
-                            👁️ Live Preview
-                            <span class="live-indicator"></span>
+                            <span>Live Preview</span>
+                            <div class="live-indicator"></div>
                         </div>
-                        <div class="preview-window" id="previewWindow">
-                            <div class="preview-header">Lincoln Laboratory Endpoint Advisor</div>
-                            <div id="previewContent">
-                                <p style="text-align: center; color: #666; padding: 20px;">
-                                    Load or edit content to see preview
-                                </p>
-                            </div>
+                        <div id="previewWindow" class="preview-window">
+                            <p style="text-align: center; color: #666;">Load a file to see preview</p>
                         </div>
                     </div>
                 </div>
                 
-                <div class="button-group">
-                    <button class="btn-success" onclick="showDiffAndSave()">💾 Save to GitHub</button>
-                    <button class="btn-secondary" onclick="validateJson()">✓ Validate JSON</button>
-                    <button class="btn-warning" onclick="formatJson()">✨ Format/Prettify</button>
-                    <button class="btn-secondary" onclick="resetEditor()">🔄 Reload from GitHub</button>
-                    <button class="btn-secondary" onclick="openHelpModal()">❓ Help</button>
+                <!-- Action Buttons -->
+                <div class="button-group" style="margin-top: 20px;">
+                    <button class="btn-success" onclick="showDiff()">👁️ Review Changes</button>
+                    <button class="btn-primary" onclick="saveFile()">💾 Save to GitHub</button>
+                    <button class="btn-secondary" onclick="downloadJson()">⬇️ Download JSON</button>
                 </div>
-                
                 <div id="editorStatus"></div>
+                
+                <!-- Diff Viewer -->
+                <div id="diffViewer" style="display: none;">
+                    <h4>Changes to be saved:</h4>
+                    <div id="diffContent" class="diff-viewer"></div>
+                </div>
             </div>
         </div>
     </div>
-
-    <!-- Diff Modal -->
-    <div id="diffModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>📊 Review Changes Before Saving</h3>
-                <button class="close-modal" onclick="closeDiffModal()">×</button>
-            </div>
-            <div class="diff-view">
-                <div class="diff-panel">
-                    <h4>❌ Current (GitHub)</h4>
-                    <div id="diffOriginal" class="diff-content"></div>
-                </div>
-                <div class="diff-panel">
-                    <h4>✅ New (Your Changes)</h4>
-                    <div id="diffModified" class="diff-content"></div>
-                </div>
-            </div>
-            <div class="button-group" style="margin-top: 20px; justify-content: flex-end;">
-                <button class="btn-secondary" onclick="closeDiffModal()">Cancel</button>
-                <button class="btn-success" onclick="confirmSave()">Confirm & Save to GitHub</button>
-            </div>
-        </div>
-    </div>
-
+    
     <!-- Template Modal -->
     <div id="templateModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>📋 Choose a Template</h3>
-                <button class="close-modal" onclick="closeTemplateModal()">×</button>
+                <h3>Choose a Template</h3>
+                <button class="close-btn" onclick="closeModal('templateModal')">&times;</button>
             </div>
             <div class="template-grid">
                 <div class="template-card" onclick="applyTemplate('maintenance')">
                     <h4>🔧 System Maintenance</h4>
-                    <p>Scheduled maintenance announcement</p>
+                    <p>Scheduled maintenance notification</p>
                 </div>
                 <div class="template-card" onclick="applyTemplate('security')">
                     <h4>🔒 Security Alert</h4>
-                    <p>Important security update notice</p>
+                    <p>Important security update</p>
                 </div>
                 <div class="template-card" onclick="applyTemplate('patching')">
                     <h4>⚙️ Patching Notice</h4>
-                    <p>Monthly patch deployment</p>
+                    <p>Software update reminder</p>
                 </div>
                 <div class="template-card" onclick="applyTemplate('training')">
                     <h4>📚 Training Reminder</h4>
-                    <p>Required training notification</p>
+                    <p>Mandatory training notification</p>
                 </div>
                 <div class="template-card" onclick="applyTemplate('holiday')">
                     <h4>🎉 Holiday Schedule</h4>
-                    <p>Holiday hours and closures</p>
+                    <p>Office closure information</p>
                 </div>
                 <div class="template-card" onclick="applyTemplate('pilot')">
                     <h4>🚀 Pilot Program</h4>
-                    <p>Targeted pilot announcement</p>
+                    <p>Enrollment in pilot group</p>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Help Modal -->
-    <div id="helpModal" class="modal help-modal">
+    
+    <!-- Saved Configs Modal -->
+    <div id="configModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>❓ Help & Documentation</h3>
-                <button class="close-modal" onclick="closeHelpModal()">×</button>
+                <h3>Saved Configurations</h3>
+                <button class="close-btn" onclick="closeModal('configModal')">&times;</button>
             </div>
-            
-            <div class="help-tabs">
-                <button class="help-tab active" onclick="showHelpTab('getting-started')">Getting Started</button>
-                <button class="help-tab" onclick="showHelpTab('markdown')">Markdown Formatting</button>
-                <button class="help-tab" onclick="showHelpTab('targeted')">Targeted Announcements</button>
-                <button class="help-tab" onclick="showHelpTab('best-practices')">Best Practices</button>
-                <button class="help-tab" onclick="showHelpTab('troubleshooting')">Troubleshooting</button>
-            </div>
-            
-            <!-- Getting Started Tab -->
-            <div id="help-getting-started" class="help-content active">
-                <div class="help-section">
-                    <h4>🚀 Quick Start Guide</h4>
-                    <p>Welcome to the Endpoint Advisor Content Editor! This tool helps you manage announcements and support information that appear on user endpoints.</p>
-                    
-                    <p><strong>Step 1: Connect to GitHub</strong></p>
-                    <ul>
-                        <li>Select your GitHub instance from the dropdown (Public or Enterprise)</li>
-                        <li>Enter your repository details (owner, repo name, branch)</li>
-                        <li>Create a Personal Access Token at <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings</a> with "repo" scope</li>
-                        <li>Paste the token and click "Load File"</li>
-                    </ul>
-                    
-                    <p><strong>Step 2: Edit Your Content</strong></p>
-                    <ul>
-                        <li><strong>Form Editor (Easy):</strong> Use the friendly form interface to edit content without touching JSON</li>
-                        <li><strong>JSON Editor (Advanced):</strong> Edit the raw JSON for full control</li>
-                        <li>Changes are auto-saved to your browser every 2 seconds</li>
-                    </ul>
-                    
-                    <p><strong>Step 3: Preview & Save</strong></p>
-                    <ul>
-                        <li>View live preview on the right side as you type</li>
-                        <li>Click "Save to GitHub" to review changes in diff viewer</li>
-                        <li>Confirm and enter a commit message to publish</li>
-                    </ul>
-                    
-                    <div class="tip-box">
-                        <strong>💡 Pro Tip:</strong>
-                        Use templates to get started quickly! Click "Load Template" for pre-made announcements.
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🏢 Customizing for Your Organization</h4>
-                    <p>To customize the GitHub instance dropdown for your organization:</p>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">1. Find the Dropdown in the HTML</div>
-                        <p>Look for the <code>&lt;select id="apiBase"&gt;</code> section around line 560</p>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">2. Add Your Organization's GitHub URLs</div>
-                        <pre style="white-space: pre-wrap;">&lt;select id="apiBase" onchange="handleApiBaseChange()"&gt;
-  &lt;option value="https://api.github.com"&gt;Public GitHub&lt;/option&gt;
-  &lt;option value="https://github.yourcompany.com/api/v3" selected&gt;Production GitHub&lt;/option&gt;
-  &lt;option value="https://github-dev.yourcompany.com/api/v3"&gt;Dev GitHub&lt;/option&gt;
-  &lt;option value="custom"&gt;Custom URL...&lt;/option&gt;
-&lt;/select&gt;</pre>
-                        <p style="margin-top: 8px;"><strong>Tips:</strong></p>
-                        <ul style="margin-left: 20px;">
-                            <li>Add <code>selected</code> attribute to the option you want as default</li>
-                            <li>Use descriptive names (Production, Dev, Staging, etc.)</li>
-                            <li>Always keep the "Custom URL..." option for flexibility</li>
-                            <li>API URL format: <code>https://your-github-domain/api/v3</code></li>
-                        </ul>
-                    </div>
-                    
-                    <div class="tip-box">
-                        <strong>💡 For IT Administrators:</strong>
-                        Save this HTML file with your organization's pre-configured URLs and distribute it to your team. Users won't need to know the API endpoints!
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🔧 Key Features</h4>
-                    <ul>
-                        <li><strong>Auto-Save:</strong> Your work is automatically saved to browser storage</li>
-                        <li><strong>Diff Viewer:</strong> Review all changes before publishing to GitHub</li>
-                        <li><strong>Live Preview:</strong> See exactly how content will appear to users</li>
-                        <li><strong>Templates:</strong> Pre-built announcements for common scenarios</li>
-                        <li><strong>Markdown Support:</strong> Rich text formatting with simple syntax</li>
-                        <li><strong>Targeted Announcements:</strong> Show messages to specific user groups</li>
-                        <li><strong>BigFix Scripts:</strong> Ready-to-use action scripts for registry setup (see Targeted Announcements tab)</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <!-- Markdown Tab -->
-            <div id="help-markdown" class="help-content">
-                <div class="help-section">
-                    <h4>📝 Markdown Formatting Guide</h4>
-                    <p>Use these simple codes to format your text:</p>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Bold Text:</div>
-                        <code>**This text is bold**</code>
-                        <div style="margin-top: 8px;">Result: <strong>This text is bold</strong></div>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Italic Text:</div>
-                        <code>*This text is italic*</code>
-                        <div style="margin-top: 8px;">Result: <em>This text is italic</em></div>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Underlined Text:</div>
-                        <code>__This text is underlined__</code>
-                        <div style="margin-top: 8px;">Result: <u>This text is underlined</u></div>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Colored Text:</div>
-                        <code>[green]Success message[/green]</code><br>
-                        <code>[red]Error or warning[/red]</code><br>
-                        <code>[yellow]Caution message[/yellow]</code><br>
-                        <code>[blue]Information[/blue]</code>
-                        <div style="margin-top: 8px;">
-                            Result: <span style="color: green;">Success message</span> / 
-                            <span style="color: red;">Error or warning</span> / 
-                            <span style="color: #b8860b;">Caution message</span> / 
-                            <span style="color: blue;">Information</span>
-                        </div>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Combining Styles:</div>
-                        <code>[red]**Important:**[/red] Please restart your computer.</code>
-                        <div style="margin-top: 8px;">Result: <span style="color: red;"><strong>Important:</strong></span> Please restart your computer.</div>
-                    </div>
-                    
-                    <div class="tip-box">
-                        <strong>💡 Quick Tip:</strong>
-                        Use the toolbar buttons above text fields to insert formatting automatically!
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>📋 Real-World Example</h4>
-                    <div class="help-example">
-                        <div class="help-example-title">Input:</div>
-                        <pre style="white-space: pre-wrap;">**Starting today at 3pm** the Windows monthly patches will be made available.
-
-[yellow]**Important:**[/yellow] Computers will reboot after installing updates.
-
-Daytime patching begins [red]October 22nd[/red] for any computers still needing updates.</pre>
-                    </div>
-                    
-                    <p style="margin-top: 15px;"><strong>Output:</strong></p>
-                    <div style="padding: 15px; background: white; border: 1px solid #ddd; border-radius: 6px;">
-                        <strong>Starting today at 3pm</strong> the Windows monthly patches will be made available.<br><br>
-                        <span style="color: #b8860b;"><strong>Important:</strong></span> Computers will reboot after installing updates.<br><br>
-                        Daytime patching begins <span style="color: red;">October 22nd</span> for any computers still needing updates.
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Targeted Announcements Tab -->
-            <div id="help-targeted" class="help-content">
-                <div class="help-section">
-                    <h4>🎯 What are Targeted Announcements?</h4>
-                    <p>Targeted announcements allow you to show different messages to specific groups of users based on registry values on their computers.</p>
-                    
-                    <div class="tip-box">
-                        <strong>📋 Quick Workflow:</strong>
-                        <ol style="margin-left: 20px; margin-top: 5px;">
-                            <li>Create BigFix Action to set registry key on target computers (see templates below)</li>
-                            <li>Deploy BigFix Action to specific computer group</li>
-                            <li>Create targeted announcement in this editor with matching registry condition</li>
-                            <li>Save and publish - announcement appears only on computers with registry key</li>
-                        </ol>
-                    </div>
-                    
-                    <p><strong>Use Cases:</strong></p>
-                    <ul>
-                        <li>Show pilot program instructions only to pilot participants</li>
-                        <li>Display Windows 11-specific messages only to Windows 11 users</li>
-                        <li>Communicate department-specific information</li>
-                        <li>Provide VPN instructions only to remote users</li>
-                    </ul>
-                </div>
-                
-                <div class="help-section">
-                    <h4>⚙️ How Registry Conditions Work</h4>
-                    <p>The Endpoint Advisor script checks the Windows registry on each computer. If the registry matches your condition, the targeted announcement is displayed.</p>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Example Registry Condition:</div>
-                        <strong>Registry Path:</strong> <code>HKLM:\SOFTWARE\MITLL\Targeting</code><br>
-                        <strong>Value Name:</strong> <code>Group</code><br>
-                        <strong>Expected Value:</strong> <code>VPN-Pilot</code>
-                    </div>
-                    
-                    <p>This means: "Show this announcement only on computers where the registry key <code>HKLM:\SOFTWARE\MITLL\Targeting\Group</code> has a value of <code>VPN-Pilot</code>"</p>
-                    
-                    <div class="warning-box">
-                        <strong>⚠️ Important:</strong>
-                        You (or your IT team) must create and set these registry values on target computers. The editor doesn't create them automatically.
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🔧 Creating Targeted Announcements</h4>
-                    <ol>
-                        <li>In the Form Editor, scroll to "Targeted Announcements"</li>
-                        <li>Click "+ Add Targeted Announcement"</li>
-                        <li>Check "Enabled" to activate it</li>
-                        <li>Choose "Append to Default" to show it alongside the default announcement, or uncheck to replace it</li>
-                        <li>Enter your text, details, and links</li>
-                        <li>Set the registry condition (path, value name, expected value)</li>
-                    </ol>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Example: Pilot Program Announcement</div>
-                        <strong>Text:</strong> <code>[green]**Pilot Program**[/green] - You've been selected!</code><br>
-                        <strong>Details:</strong> <code>Install the pilot software by Friday...</code><br>
-                        <strong>Enabled:</strong> ✓ Checked<br>
-                        <strong>Append to Default:</strong> ✓ Checked<br>
-                        <strong>Registry Path:</strong> <code>HKLM:\SOFTWARE\MITLL\Targeting</code><br>
-                        <strong>Value Name:</strong> <code>Group</code><br>
-                        <strong>Expected Value:</strong> <code>Pilot</code>
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>📊 Append vs Replace</h4>
-                    <ul>
-                        <li><strong>Append to Default (checked):</strong> Shows both the default announcement AND the targeted announcement</li>
-                        <li><strong>Replace Default (unchecked):</strong> Shows ONLY the targeted announcement (hides default)</li>
-                    </ul>
-                    
-                    <div class="tip-box">
-                        <strong>💡 Best Practice:</strong>
-                        Use "Append" for additional information (pilot instructions). Use "Replace" when the targeted message is completely different (maintenance window specific to one building).
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🔧 BigFix Action Script Templates</h4>
-                    <p>Use these BigFix Action scripts to create the registry keys that trigger targeted announcements. Deploy these to specific computer groups.</p>
-                    
-                    <div class="warning-box">
-                        <strong>⚠️ Important:</strong>
-                        These scripts must be deployed BEFORE the targeted announcement will appear. Test on a small group first!
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Template 1: Using regset (Preferred Method)</div>
-                        <pre style="white-space: pre-wrap;">// Create the registry key path if it doesn't exist
-regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL]" "Targeting"=""
-
-// Set the targeting value
-regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"="Pilot"</pre>
-                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL&quot;] &quot;Targeting&quot;=&quot;&quot;\n\nregset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Group&quot;=&quot;Pilot&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Template 2: Using reg.exe (Alternative Method)</div>
-                        <pre style="white-space: pre-wrap;">// Create registry key and set value
-waithidden reg.exe add "HKLM\SOFTWARE\MITLL\Targeting" /v Group /t REG_SZ /d "Pilot" /f</pre>
-                        <button class="btn-secondary small" onclick="copyToClipboard('waithidden reg.exe add &quot;HKLM\\SOFTWARE\\MITLL\\Targeting&quot; /v Group /t REG_SZ /d &quot;Pilot&quot; /f')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <p style="margin-top: 20px;"><strong>Common Use Case Examples:</strong></p>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Example 1: VPN Pilot Group</div>
-                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"="VPN-Pilot"</pre>
-                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Expected Value to: <code>VPN-Pilot</code></p>
-                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Group&quot;=&quot;VPN-Pilot&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Example 2: Windows 11 Computers</div>
-                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "OS_Version"="Win11"</pre>
-                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Value Name to: <code>OS_Version</code> and Expected Value to: <code>Win11</code></p>
-                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;OS_Version&quot;=&quot;Win11&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Example 3: Department-Specific (Engineering)</div>
-                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Department"="Engineering"</pre>
-                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Value Name to: <code>Department</code> and Expected Value to: <code>Engineering</code></p>
-                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Department&quot;=&quot;Engineering&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Example 4: Building/Location-Specific</div>
-                        <pre style="white-space: pre-wrap;">regset "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Building"="Bldg-32"</pre>
-                        <p style="margin-top: 8px; font-size: 12px;">Then in editor, set Value Name to: <code>Building</code> and Expected Value to: <code>Bldg-32</code></p>
-                        <button class="btn-secondary small" onclick="copyToClipboard('regset [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Building&quot;=&quot;Bldg-32&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <div class="tip-box" style="margin-top: 20px;">
-                        <strong>💡 Pro Tips:</strong>
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li>Use descriptive value names that make sense: "Group", "Department", "Building", "OS_Version"</li>
-                            <li>Keep values simple and consistent: "Pilot" not "Pilot-Program-2024"</li>
-                            <li>Document which BigFix fixlets set which registry values</li>
-                            <li>You can use multiple registry values for different targeting scenarios</li>
-                            <li>Test on a single computer first before deploying widely</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Verification Script (PowerShell)</div>
-                        <p>Use this to verify the registry key was created correctly:</p>
-                        <pre style="white-space: pre-wrap;">Get-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting" -ErrorAction SilentlyContinue</pre>
-                        <button class="btn-secondary small" onclick="copyToClipboard('Get-ItemProperty -Path &quot;HKLM:\\SOFTWARE\\MITLL\\Targeting&quot; -ErrorAction SilentlyContinue')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">Removal Script (If needed)</div>
-                        <p>To remove the targeting registry value:</p>
-                        <pre style="white-space: pre-wrap;">regdelete "[HKEY_LOCAL_MACHINE\SOFTWARE\MITLL\Targeting]" "Group"</pre>
-                        <button class="btn-secondary small" onclick="copyToClipboard('regdelete [&quot;HKEY_LOCAL_MACHINE\\SOFTWARE\\MITLL\\Targeting&quot;] &quot;Group&quot;')" style="margin-top: 10px;">📋 Copy to Clipboard</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Best Practices Tab -->
-            <div id="help-best-practices" class="help-content">
-                <div class="help-section">
-                    <h4>✨ Writing Effective Announcements</h4>
-                    
-                    <p><strong>Keep it Clear and Concise:</strong></p>
-                    <ul>
-                        <li>Use short, simple sentences</li>
-                        <li>Put the most important information first</li>
-                        <li>Use bullet points for lists of actions</li>
-                        <li>Avoid technical jargon when possible</li>
-                    </ul>
-                    
-                    <p><strong>Use Formatting Strategically:</strong></p>
-                    <ul>
-                        <li><span style="color: red;">Red</span> for urgent warnings or deadlines</li>
-                        <li><span style="color: green;">Green</span> for positive news or success messages</li>
-                        <li><span style="color: #b8860b;">Yellow</span> for cautions or important notices</li>
-                        <li><strong>Bold</strong> for key terms and action items</li>
-                    </ul>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">❌ Not Great:</div>
-                        <pre style="white-space: pre-wrap;">The IT department will be performing necessary system maintenance on the network infrastructure components which may result in intermittent connectivity issues.</pre>
-                    </div>
-                    
-                    <div class="help-example">
-                        <div class="help-example-title">✅ Better:</div>
-                        <pre style="white-space: pre-wrap;">**Network Maintenance** - [yellow]Brief outages expected[/yellow]
-
-**When:** Tonight, 11 PM - 2 AM
-**Impact:** Network may be unavailable for 5-10 minutes
-
-Save your work before leaving for the day.</pre>
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🗓️ Timing & Updates</h4>
-                    <ul>
-                        <li>Post announcements at least 24-48 hours in advance when possible</li>
-                        <li>Update deadlines regularly (don't leave expired dates)</li>
-                        <li>Clear old announcements after events are complete</li>
-                        <li>The app refreshes every 10-20 minutes, so changes appear quickly</li>
-                    </ul>
-                    
-                    <div class="tip-box">
-                        <strong>💡 Pro Tip:</strong>
-                        Use commit messages to track what you changed: "Updated patch date to Oct 22" or "Added pilot program announcement"
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🔗 Links Best Practices</h4>
-                    <ul>
-                        <li>Use descriptive link names: "Training Portal" not "Click Here"</li>
-                        <li>Test all links before publishing</li>
-                        <li>Use internal knowledge base articles when available</li>
-                        <li>Keep the number of links manageable (3-5 maximum)</li>
-                    </ul>
-                </div>
-                
-                <div class="help-section">
-                    <h4>✅ Validation Checklist</h4>
-                    <p>Before saving, verify:</p>
-                    <ul>
-                        <li>☑️ Dates and times are correct</li>
-                        <li>☑️ Contact information is accurate</li>
-                        <li>☑️ All links work</li>
-                        <li>☑️ Spelling and grammar are correct</li>
-                        <li>☑️ Formatting displays correctly in preview</li>
-                        <li>☑️ Targeted announcements have correct registry paths</li>
-                        <li>☑️ JSON validates without errors</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <!-- Troubleshooting Tab -->
-            <div id="help-troubleshooting" class="help-content">
-                <div class="help-section">
-                    <h4>🔍 Common Issues & Solutions</h4>
-                    
-                    <p><strong>Problem: "GitHub API error: 401" even with "repo" scope</strong></p>
-                    <div class="warning-box">
-                        <strong>Solution:</strong>
-                        If your token has "repo" checked but still getting 401 errors:
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li><strong>For Enterprise GitHub with SSO:</strong>
-                                <ol style="margin-left: 20px; margin-top: 5px;">
-                                    <li>Go to GitHub Settings → Personal access tokens</li>
-                                    <li>Find your token in the list</li>
-                                    <li>Click "Configure SSO" or "Authorize SSO" next to it</li>
-                                    <li>Select your organization and authorize</li>
-                                    <li>This is required even if the token has "repo" scope!</li>
-                                </ol>
-                            </li>
-                            <li><strong>Check organization restrictions:</strong> Your organization may have additional access controls</li>
-                            <li><strong>Verify you're not using a fine-grained token:</strong> Use "classic" tokens with full "repo" scope</li>
-                            <li><strong>Check branch protection:</strong> Use "Check Token Permissions" button - protected branches may block direct commits</li>
-                            <li><strong>Try the browser console:</strong> Open DevTools (F12), try to save, and look at the Network tab for the exact error response</li>
-                            <li><strong>Token might be expired:</strong> Even if it shows in settings, regenerate a fresh one</li>
-                        </ul>
-                    </div>
-                    
-                    <p><strong>Problem: "GitHub API error: 404"</strong></p>
-                    <div class="warning-box">
-                        <strong>Solution:</strong>
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li>Verify the GitHub Instance dropdown is set to the correct environment</li>
-                            <li>Check that your repository owner, name, branch, and file path are correct</li>
-                            <li>The file must exist in the repository</li>
-                            <li>For Enterprise GitHub, ensure the API URL is correct</li>
-                        </ul>
-                    </div>
-                    
-                    <p><strong>Problem: "Invalid JSON" error</strong></p>
-                    <div class="warning-box">
-                        <strong>Solution:</strong>
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li>Click "Validate JSON" to see the specific error</li>
-                            <li>Switch to JSON Editor mode to see the raw JSON</li>
-                            <li>Common issues: missing commas, unclosed quotes, unmatched brackets</li>
-                            <li>Click "Format/Prettify" to auto-fix formatting</li>
-                        </ul>
-                    </div>
-                    
-                    <p><strong>Problem: Changes not appearing on endpoints</strong></p>
-                    <div class="warning-box">
-                        <strong>Solution:</strong>
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li>Wait 10-20 minutes - the app refreshes periodically</li>
-                            <li>Verify the file was saved to GitHub (check commit history)</li>
-                            <li>Ensure the URL in the PowerShell script matches your repository</li>
-                            <li>Check that endpoints can reach GitHub (not blocked by firewall)</li>
-                        </ul>
-                    </div>
-                    
-                    <p><strong>Problem: Targeted announcement not showing</strong></p>
-                    <div class="warning-box">
-                        <strong>Solution:</strong>
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li>Verify "Enabled" is checked in the editor</li>
-                            <li>Confirm the registry key exists on the target computer</li>
-                            <li>Check registry path, value name, and expected value match exactly (case-sensitive)</li>
-                            <li>Use PowerShell to verify: <code>Get-ItemProperty -Path "HKLM:\SOFTWARE\MITLL\Targeting"</code></li>
-                            <li>See the "Targeted Announcements" tab for BigFix scripts to create registry keys</li>
-                        </ul>
-                    </div>
-                    
-                    <p><strong>Problem: Markdown formatting not displaying</strong></p>
-                    <div class="warning-box">
-                        <strong>Solution:</strong>
-                        <ul style="margin-left: 20px; margin-top: 5px;">
-                            <li>Check that markdown syntax is correct (see Markdown tab)</li>
-                            <li>Ensure opening and closing tags match: <code>[red]...[/red]</code></li>
-                            <li>Verify no extra spaces in color tags</li>
-                            <li>Check the live preview to see how it will appear</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <div class="help-section">
-                    <h4>💾 Auto-Save Issues</h4>
-                    <p><strong>Problem: Auto-save not working</strong></p>
-                    <ul>
-                        <li>Ensure browser cookies/storage are enabled</li>
-                        <li>Check browser console for errors (F12)</li>
-                        <li>Try a different browser</li>
-                        <li>Auto-save is stored locally - it won't sync between computers</li>
-                    </ul>
-                </div>
-                
-                <div class="help-section">
-                    <h4>🆘 Getting Help</h4>
-                    <p>If you continue to experience issues:</p>
-                    <ul>
-                        <li>Use the "Check Token Permissions" button to diagnose authentication issues</li>
-                        <li>Check the browser console (F12) for error messages</li>
-                        <li>Try the JSON Editor mode to see raw data</li>
-                        <li>Export your JSON and test it in a JSON validator</li>
-                        <li>Verify you have write access to the repository in GitHub</li>
-                        <li>Contact your IT support team</li>
-                        <li>Email: endpointengineering@ll.mit.edu</li>
-                    </ul>
-                </div>
-            </div>
+            <div id="configList"></div>
         </div>
-    </div>
-
-    <!-- Help Button -->
-    <div class="help-button" onclick="openHelpModal()" title="Help & Documentation">
-        ❓
     </div>
 
     <script>
-        let currentSha = null;
-        let currentContent = null;
-        let currentData = null;
-        let isUpdatingFromJson = false;
+        let currentContent = '';
+        let currentSha = '';
         let autosaveTimer = null;
-        let targetedAnnouncementCounter = 0;
-
-        // ========================================
-        // CONFIGURATION: Customize these URLs for your organization
-        // ========================================
-        // To add more GitHub instances, add additional <option> tags in the HTML above
-        // Example: <option value="https://git.yourcompany.com/api/v3">Dev GitHub</option>
-        // The first option is selected by default
-        // ========================================
-
-        // Templates
-        const templates = {
-            maintenance: {
-                Announcements: {
-                    Default: {
-                        Text: "**Scheduled System Maintenance** - [yellow]Systems will be offline[/yellow]",
-                        Details: "**Date:** [Specify date and time]\n**Duration:** Approximately 4 hours\n**Impact:** Systems will be unavailable during this window\n\nPlease save your work and log off before maintenance begins.",
-                        Links: []
-                    },
-                    Targeted: []
-                },
-                Support: {
-                    Text: "Questions about the maintenance? Contact IT Support at 781-981-4357 (HELP).",
-                    Links: []
-                }
+        
+        // Repository Presets
+        const presets = {
+            prod: {
+                instance: 'https://github.ll.mit.edu/api/v3',
+                owner: 'EndpointEngineering',
+                repo: 'EndpointAdvisor',
+                branch: 'main',
+                file: 'ContentData.json'
             },
-            security: {
-                Announcements: {
-                    Default: {
-                        Text: "[red]**SECURITY ALERT**[/red] - Action Required",
-                        Details: "A critical security update has been released.\n\n**Action Required:**\n- Update your system immediately\n- Restart your computer when prompted\n- Contact IT if you experience issues",
-                        Links: []
-                    },
-                    Targeted: []
-                },
-                Support: {
-                    Text: "Security concerns? Contact ISD Support immediately at 781-981-4357 (HELP).",
-                    Links: []
-                }
+            staging: {
+                instance: 'https://github-stage.ll.mit.edu/api/v3',
+                owner: 'EndpointEngineering',
+                repo: 'EndpointAdvisor-Staging',
+                branch: 'main',
+                file: 'ContentData.json'
             },
-            patching: {
-                Announcements: {
-                    Default: {
-                        Text: "**Monthly Patch Deployment** - Windows and Office updates available",
-                        Details: "**Starting today** the monthly patches will be made available. Updates will be automatically installed overnight.\n\n[yellow]**Important:**[/yellow] Computers will reboot after installing updates. Save your work before leaving.\n\nDaytime patching begins tomorrow for any computers still needing updates.",
-                        Links: []
-                    },
-                    Targeted: []
-                },
-                Support: {
-                    Text: "Patching issues? Call ISD Support at 781-981-4357 (HELP).",
-                    Links: []
-                }
+            dev: {
+                instance: 'https://github-dev.ll.mit.edu/api/v3',
+                owner: 'EndpointEngineering',
+                repo: 'EndpointAdvisor-Dev',
+                branch: 'dev',
+                file: 'ContentData.json'
             },
-            training: {
-                Announcements: {
-                    Default: {
-                        Text: "**Required Training Reminder** - Deadline Approaching",
-                        Details: "[red]**Action Required:**[/red] Complete your mandatory security awareness training by [deadline date].\n\n**Steps:**\n1. Log into the training portal\n2. Complete all required modules\n3. Verify completion certificate\n\nFailure to complete may result in system access restrictions.",
-                        Links: [
-                            { Name: "Training Portal", Url: "https://training.example.com" }
-                        ]
-                    },
-                    Targeted: []
-                },
-                Support: {
-                    Text: "Training questions? Contact Training Team or call 781-981-4357 (HELP).",
-                    Links: []
-                }
-            },
-            holiday: {
-                Announcements: {
-                    Default: {
-                        Text: "**Holiday Schedule** - Support Hours Modified",
-                        Details: "**Holiday:** [Holiday Name] - [Date]\n\n**ISD Support Center Hours:**\n- [Date]: Closed\n- [Date]: Limited hours (9 AM - 12 PM)\n\n[green]Normal operations resume [date][/green]\n\nEmergency support remains available 24/7.",
-                        Links: []
-                    },
-                    Targeted: []
-                },
-                Support: {
-                    Text: "For emergency support during holidays, call 781-981-4357 (HELP).",
-                    Links: []
-                }
-            },
-            pilot: {
-                Announcements: {
-                    Default: {
-                        Text: "No general announcements at this time.",
-                        Details: "",
-                        Links: []
-                    },
-                    Targeted: [
-                        {
-                            Text: "[green]**Pilot Program**[/green] - You've been selected!",
-                            Details: "You're part of the [Program Name] pilot group.\n\n**Next Steps:**\n- Review pilot documentation\n- Install pilot software by [date]\n- Provide feedback via survey\n\nThank you for participating!",
-                            Links: [
-                                { Name: "Pilot Documentation", Url: "https://example.com/pilot" }
-                            ],
-                            Enabled: true,
-                            AppendToDefault: false,
-                            Condition: {
-                                Type: "Registry",
-                                Path: "HKLM:\\SOFTWARE\\MITLL\\Targeting",
-                                Name: "Group",
-                                Value: "Pilot"
-                            }
-                        }
-                    ]
-                },
-                Support: {
-                    Text: "Pilot program support: email pilot@example.com or call 781-981-4357 (HELP).",
-                    Links: []
-                }
+            custom: {
+                instance: 'custom',
+                owner: '',
+                repo: '',
+                branch: 'main',
+                file: 'ContentData.json'
             }
         };
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            const jsonEditorText = document.getElementById('jsonEditorText');
-            jsonEditorText.addEventListener('input', debounce(() => {
-                if (!isUpdatingFromJson) {
-                    updateFromJson();
-                    scheduleAutosave();
-                }
-            }, 500));
+        
+        // Load preset configuration
+        function loadPreset(presetName) {
+            const preset = presets[presetName];
+            if (!preset) return;
             
-            checkAutosave();
-        });
-
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-
-        // Auto-save functionality
-        function scheduleAutosave() {
-            const status = document.getElementById('autosaveStatus');
-            status.textContent = '⏳ Saving...';
-            status.className = 'autosave-indicator saving';
+            document.getElementById('githubInstance').value = preset.instance;
+            document.getElementById('repoOwner').value = preset.owner;
+            document.getElementById('repoName').value = preset.repo;
+            document.getElementById('branch').value = preset.branch;
+            document.getElementById('filePath').value = preset.file;
             
-            clearTimeout(autosaveTimer);
-            autosaveTimer = setTimeout(() => {
-                const content = document.getElementById('jsonEditorText').value;
-                if (content.trim()) {
-                    localStorage.setItem('endpointadvisor_autosave', content);
-                    localStorage.setItem('endpointadvisor_autosave_time', new Date().toISOString());
-                    status.textContent = '✓ Auto-saved';
-                    status.className = 'autosave-indicator saved';
-                    setTimeout(() => {
-                        status.textContent = '';
-                        status.className = 'autosave-indicator';
-                    }, 3000);
-                }
-            }, 2000);
-        }
-
-        function checkAutosave() {
-            const saved = localStorage.getItem('endpointadvisor_autosave');
-            const saveTime = localStorage.getItem('endpointadvisor_autosave_time');
+            handleInstanceChange();
             
-            if (saved && saveTime) {
-                const time = new Date(saveTime);
-                const timeDiff = (new Date() - time) / 1000 / 60; // minutes
-                
-                if (timeDiff < 60) { // Only show if less than 1 hour old
-                    const restoreBtn = document.querySelector('[onclick="restoreAutosave()"]');
-                    if (restoreBtn) {
-                        restoreBtn.style.background = '#28a745';
-                        restoreBtn.style.color = 'white';
-                        restoreBtn.textContent = `💾 Restore Auto-save (${Math.round(timeDiff)} min ago)`;
-                    }
-                }
-            }
+            // Highlight active preset
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
         }
-
-        function restoreAutosave() {
-            const saved = localStorage.getItem('endpointadvisor_autosave');
-            if (saved) {
-                if (confirm('Restore your auto-saved work? This will replace any current unsaved changes.')) {
-                    document.getElementById('jsonEditorText').value = saved;
-                    formatJson();
-                    updateFormFromJson();
-                    updatePreview();
-                    document.getElementById('editorSection').classList.add('active');
-                    showStatus('authStatus', '✓ Auto-saved content restored!', 'success');
-                    document.getElementById('editorSection').scrollIntoView({ behavior: 'smooth' });
-                }
-            } else {
-                showStatus('authStatus', 'No auto-saved content found.', 'info');
-            }
-        }
-
-        function getApiBaseUrl() {
-            const select = document.getElementById('apiBase');
-            const customInput = document.getElementById('apiBaseCustom');
-            
-            if (select.value === 'custom') {
-                const customUrl = customInput.value.trim();
-                return customUrl ? customUrl.replace(/\/$/, '') : 'https://api.github.com';
-            }
-            
-            return select.value;
-        }
-
-        function handleApiBaseChange() {
-            const select = document.getElementById('apiBase');
-            const customInput = document.getElementById('apiBaseCustom');
+        
+        // Handle GitHub instance selection change
+        function handleInstanceChange() {
+            const select = document.getElementById('githubInstance');
+            const customInput = document.getElementById('customApiUrl');
             
             if (select.value === 'custom') {
                 customInput.style.display = 'block';
-                customInput.focus();
             } else {
                 customInput.style.display = 'none';
             }
         }
-
-        async function checkTokenPermissions() {
-            const token = document.getElementById('token').value;
-            const owner = document.getElementById('repoOwner').value;
-            const repo = document.getElementById('repoName').value;
-            const branch = document.getElementById('branch').value;
-            const apiBase = getApiBaseUrl();
-
-            if (!token || !owner || !repo) {
-                showStatus('authStatus', 'Please fill in repository details and token first', 'error');
-                return;
+        
+        // Get the active API base URL
+        function getApiBaseUrl() {
+            const select = document.getElementById('githubInstance');
+            if (select.value === 'custom') {
+                const customUrl = document.getElementById('customApiUrl').value.trim();
+                return customUrl || 'https://api.github.com';
             }
-
-            showStatus('authStatus', 'Checking token permissions...', 'info');
-
-            try {
-                // Check repository permissions (this endpoint should work since loading the file works)
-                const repoResponse = await fetch(`${apiBase}/repos/${owner}/${repo}`, {
-                    headers: {
-                        'Authorization': `token ${token}`,
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
-                });
-
-                if (!repoResponse.ok) {
-                    throw new Error(`Cannot access repository (${repoResponse.status}) - check owner/repo name and token`);
+            return select.value;
+        }
+        
+        // Save current configuration
+        function saveCurrentConfig() {
+            const name = prompt('Enter a name for this configuration:');
+            if (!name) return;
+            
+            const config = {
+                name: name,
+                instance: document.getElementById('githubInstance').value,
+                customUrl: document.getElementById('customApiUrl').value,
+                owner: document.getElementById('repoOwner').value,
+                repo: document.getElementById('repoName').value,
+                branch: document.getElementById('branch').value,
+                file: document.getElementById('filePath').value,
+                token: document.getElementById('token').value
+            };
+            
+            // Get existing configs
+            let configs = JSON.parse(localStorage.getItem('ea_saved_configs') || '[]');
+            
+            // Check if config with same name exists
+            const existingIndex = configs.findIndex(c => c.name === name);
+            if (existingIndex >= 0) {
+                if (!confirm('A configuration with this name already exists. Overwrite?')) {
+                    return;
                 }
-
-                const repoData = await repoResponse.json();
-                const permissions = repoData.permissions || {};
-
-                // Try to check user (might not work on Enterprise)
-                let userName = 'Unknown';
-                let scopes = [];
-                try {
-                    const userResponse = await fetch(`${apiBase}/user`, {
-                        headers: {
-                            'Authorization': `token ${token}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    });
-                    if (userResponse.ok) {
-                        const userData = await userResponse.json();
-                        userName = userData.login || userData.name || 'Unknown';
-                        const scopesHeader = userResponse.headers.get('X-OAuth-Scopes');
-                        scopes = scopesHeader ? scopesHeader.split(', ') : [];
-                    }
-                } catch (e) {
-                    // User endpoint might not be available on some Enterprise instances
-                }
-
-                // Check branch protection
-                let branchProtected = false;
-                let branchInfo = '';
-                try {
-                    const branchResponse = await fetch(`${apiBase}/repos/${owner}/${repo}/branches/${branch}`, {
-                        headers: {
-                            'Authorization': `token ${token}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    });
-                    if (branchResponse.ok) {
-                        const branchData = await branchResponse.json();
-                        branchProtected = branchData.protected || false;
-                        branchInfo = branchProtected ? '⚠️ PROTECTED' : '✓ Not Protected';
-                    }
-                } catch (e) {
-                    branchInfo = '(Unable to check)';
-                }
-
-                let statusMessage = `<strong>✓ Token can access repository</strong><br>`;
-                if (userName !== 'Unknown') {
-                    statusMessage += `User: ${userName}<br>`;
-                }
-                statusMessage += `API Base: ${apiBase}<br><br>`;
-                
-                if (scopes.length > 0) {
-                    statusMessage += `<strong>Token Scopes:</strong><br>`;
-                    statusMessage += scopes.join(', ') + '<br><br>';
-                }
-                
-                statusMessage += `<strong>Repository Permissions:</strong><br>`;
-                statusMessage += `• Read: ${permissions.pull ? '✓ Yes' : '✗ No'}<br>`;
-                statusMessage += `• Write: ${permissions.push ? '✓ Yes' : '✗ No'}<br>`;
-                statusMessage += `• Admin: ${permissions.admin ? '✓ Yes' : '✗ No'}<br><br>`;
-                
-                statusMessage += `<strong>Branch Status (${branch}):</strong><br>`;
-                statusMessage += branchInfo + '<br><br>';
-
-                if (!permissions.push) {
-                    statusMessage += `<strong>⚠️ WARNING: No WRITE permission!</strong><br>`;
-                    statusMessage += `Your token lacks write access to this repository.<br>`;
-                    statusMessage += `Check with your admin or create a new token with "repo" scope.`;
-                    showStatus('authStatus', statusMessage, 'error');
-                } else if (branchProtected) {
-                    statusMessage += `<strong>⚠️ WARNING: Protected Branch!</strong><br>`;
-                    statusMessage += `The branch "${branch}" is protected. You may need:<br>`;
-                    statusMessage += `• Admin/bypass permissions<br>`;
-                    statusMessage += `• Or commit to a different branch`;
-                    showStatus('authStatus', statusMessage, 'error');
-                } else {
-                    statusMessage += `<strong>✓ Everything looks good!</strong><br>`;
-                    statusMessage += `Your token should be able to save files.`;
-                    showStatus('authStatus', statusMessage, 'success');
-                }
-
-            } catch (error) {
-                showStatus('authStatus', `Error checking permissions: ${error.message}`, 'error');
-                console.error('Permission check error:', error);
+                configs[existingIndex] = config;
+            } else {
+                configs.push(config);
             }
-        }
-
-        // Template functionality
-        function loadTemplate() {
-            document.getElementById('templateModal').classList.add('active');
-        }
-
-        function closeTemplateModal() {
-            document.getElementById('templateModal').classList.remove('active');
-        }
-
-        function openHelpModal() {
-            document.getElementById('helpModal').classList.add('active');
-        }
-
-        function closeHelpModal() {
-            document.getElementById('helpModal').classList.remove('active');
-        }
-
-        function showHelpTab(tabName) {
-            // Hide all help content
-            document.querySelectorAll('.help-content').forEach(content => {
-                content.classList.remove('active');
-            });
             
-            // Remove active class from all tabs
-            document.querySelectorAll('.help-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected content
-            document.getElementById('help-' + tabName).classList.add('active');
-            
-            // Activate selected tab
-            event.target.classList.add('active');
+            localStorage.setItem('ea_saved_configs', JSON.stringify(configs));
+            showStatus('authStatus', `✓ Configuration "${name}" saved!`, 'success');
         }
-
-        function copyToClipboard(text) {
-            // Create a temporary textarea element
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
+        
+        // Show saved configurations
+        function showSavedConfigs() {
+            const configs = JSON.parse(localStorage.getItem('ea_saved_configs') || '[]');
+            const configList = document.getElementById('configList');
             
-            try {
-                document.execCommand('copy');
-                // Show success feedback
-                const button = event.target;
-                const originalText = button.textContent;
-                button.textContent = '✓ Copied!';
-                button.style.background = '#28a745';
-                button.style.color = 'white';
-                
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.style.background = '';
-                    button.style.color = '';
-                }, 2000);
-            } catch (err) {
-                console.error('Failed to copy:', err);
-                alert('Failed to copy to clipboard. Please copy manually.');
-            } finally {
-                document.body.removeChild(textarea);
+            if (configs.length === 0) {
+                configList.innerHTML = '<p style="text-align: center; color: #666;">No saved configurations</p>';
+            } else {
+                configList.innerHTML = configs.map((config, index) => `
+                    <div class="config-item">
+                        <div class="config-item-info">
+                            <div class="config-item-name">${config.name}</div>
+                            <div class="config-item-details">${config.owner}/${config.repo} (${config.branch})</div>
+                        </div>
+                        <div class="config-item-actions">
+                            <button class="btn-primary icon-btn" onclick="loadSavedConfig(${index})">Load</button>
+                            <button class="btn-danger icon-btn" onclick="deleteSavedConfig(${index})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
             }
+            
+            document.getElementById('configModal').classList.add('active');
         }
-
-        function applyTemplate(templateName) {
-            const template = templates[templateName];
-            if (template) {
-                currentData = template;
-                document.getElementById('jsonEditorText').value = JSON.stringify(template, null, 2);
-                updateFormFromJson();
-                updatePreview();
-                document.getElementById('editorSection').classList.add('active');
-                closeTemplateModal();
-                showStatus('authStatus', `✓ Template "${templateName}" loaded!`, 'success');
-                document.getElementById('editorSection').scrollIntoView({ behavior: 'smooth' });
-                scheduleAutosave();
-            }
+        
+        // Load a saved configuration
+        function loadSavedConfig(index) {
+            const configs = JSON.parse(localStorage.getItem('ea_saved_configs') || '[]');
+            const config = configs[index];
+            
+            if (!config) return;
+            
+            document.getElementById('githubInstance').value = config.instance;
+            document.getElementById('customApiUrl').value = config.customUrl || '';
+            document.getElementById('repoOwner').value = config.owner;
+            document.getElementById('repoName').value = config.repo;
+            document.getElementById('branch').value = config.branch;
+            document.getElementById('filePath').value = config.file;
+            document.getElementById('token').value = config.token;
+            
+            handleInstanceChange();
+            closeModal('configModal');
+            showStatus('authStatus', `✓ Configuration "${config.name}" loaded!`, 'success');
         }
-
-        // Diff viewer functionality
-        function showDiffAndSave() {
-            if (!currentContent) {
-                showStatus('editorStatus', 'Please load the file first', 'error');
+        
+        // Delete a saved configuration
+        function deleteSavedConfig(index) {
+            if (!confirm('Are you sure you want to delete this configuration?')) {
                 return;
             }
             
-            const newContent = document.getElementById('jsonEditorText').value;
-            
-            try {
-                JSON.parse(newContent);
-            } catch (error) {
-                showStatus('editorStatus', `Invalid JSON: ${error.message}`, 'error');
-                return;
-            }
-            
-            // Show diff
-            document.getElementById('diffOriginal').textContent = currentContent;
-            document.getElementById('diffModified').textContent = newContent;
-            document.getElementById('diffModal').classList.add('active');
+            let configs = JSON.parse(localStorage.getItem('ea_saved_configs') || '[]');
+            configs.splice(index, 1);
+            localStorage.setItem('ea_saved_configs', JSON.stringify(configs));
+            showSavedConfigs(); // Refresh the list
         }
-
-        function closeDiffModal() {
-            document.getElementById('diffModal').classList.remove('active');
+        
+        // Close modal
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
         }
-
-        async function confirmSave() {
-            closeDiffModal();
-            await saveFile();
-        }
-
-        // Targeted Announcements
-        function addTargetedAnnouncement(data = null) {
-            const container = document.getElementById('targetedAnnouncementsContainer');
-            const id = targetedAnnouncementCounter++;
-            
-            const div = document.createElement('div');
-            div.className = 'targeted-announcement';
-            div.dataset.id = id;
-            
-            const enabled = data?.Enabled ?? false;
-            const appendToDefault = data?.AppendToDefault ?? true;
-            
-            div.innerHTML = `
-                <h5>
-                    Targeted Announcement #${id + 1}
-                    <button class="btn-danger small" onclick="removeTargetedAnnouncement(${id})" style="padding: 4px 8px;">✕ Remove</button>
-                </h5>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="targeted_enabled_${id}" ${enabled ? 'checked' : ''} onchange="updateFromForm()">
-                    <label for="targeted_enabled_${id}">Enabled</label>
-                </div>
-                <div class="checkbox-group">
-                    <input type="checkbox" id="targeted_append_${id}" ${appendToDefault ? 'checked' : ''} onchange="updateFromForm()">
-                    <label for="targeted_append_${id}">Append to Default Announcement</label>
-                </div>
-                <div class="form-group">
-                    <label>Text:</label>
-                    <textarea id="targeted_text_${id}" class="form-textarea" oninput="updateFromForm()">${data?.Text || ''}</textarea>
-                </div>
-                <div class="form-group">
-                    <label>Details:</label>
-                    <textarea id="targeted_details_${id}" class="form-textarea" oninput="updateFromForm()">${data?.Details || ''}</textarea>
-                </div>
-                <div class="form-group">
-                    <label>Links:</label>
-                    <div id="targeted_links_${id}"></div>
-                    <button class="btn-secondary small" onclick="addLink('targeted_links_${id}')">+ Add Link</button>
-                </div>
-                <div class="condition-editor">
-                    <h6 style="margin-bottom: 8px; color: #856404;">Registry Condition (when to show):</h6>
-                    <div class="form-group">
-                        <label>Registry Path:</label>
-                        <input type="text" id="targeted_reg_path_${id}" value="${data?.Condition?.Path || 'HKLM:\\SOFTWARE\\MITLL\\Targeting'}" oninput="updateFromForm()">
-                    </div>
-                    <div class="form-group">
-                        <label>Value Name:</label>
-                        <input type="text" id="targeted_reg_name_${id}" value="${data?.Condition?.Name || 'Group'}" oninput="updateFromForm()">
-                    </div>
-                    <div class="form-group">
-                        <label>Expected Value:</label>
-                        <input type="text" id="targeted_reg_value_${id}" value="${data?.Condition?.Value || 'Pilot'}" oninput="updateFromForm()">
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(div);
-            
-            // Add existing links
-            if (data?.Links) {
-                data.Links.forEach(link => {
-                    addLink(`targeted_links_${id}`, link.Name, link.Url);
-                });
-            }
-        }
-
-        function removeTargetedAnnouncement(id) {
-            const elem = document.querySelector(`[data-id="${id}"]`);
-            if (elem) {
-                elem.remove();
-                updateFromForm();
-            }
-        }
-
-        function getTargetedAnnouncements() {
-            const targeted = [];
-            const container = document.getElementById('targetedAnnouncementsContainer');
-            const announcements = container.querySelectorAll('.targeted-announcement');
-            
-            announcements.forEach(ann => {
-                const id = ann.dataset.id;
-                targeted.push({
-                    Text: document.getElementById(`targeted_text_${id}`).value,
-                    Details: document.getElementById(`targeted_details_${id}`).value,
-                    Links: getLinksFromContainer(`targeted_links_${id}`),
-                    Enabled: document.getElementById(`targeted_enabled_${id}`).checked,
-                    AppendToDefault: document.getElementById(`targeted_append_${id}`).checked,
-                    Condition: {
-                        Type: "Registry",
-                        Path: document.getElementById(`targeted_reg_path_${id}`).value,
-                        Name: document.getElementById(`targeted_reg_name_${id}`).value,
-                        Value: document.getElementById(`targeted_reg_value_${id}`).value
-                    }
-                });
-            });
-            
-            return targeted;
-        }
-
+        
+        // Switch between form and JSON editing modes
         function switchMode(mode) {
             const formEditor = document.getElementById('formEditor');
             const jsonEditor = document.getElementById('jsonEditor');
@@ -2153,283 +1009,404 @@ Save your work before leaving for the day.</pre>
             const jsonBtn = document.getElementById('jsonModeBtn');
             
             if (mode === 'form') {
-                formEditor.classList.add('active');
-                jsonEditor.classList.remove('active');
+                formEditor.style.display = 'block';
+                jsonEditor.style.display = 'none';
                 formBtn.classList.add('active');
                 jsonBtn.classList.remove('active');
                 updateFormFromJson();
             } else {
-                formEditor.classList.remove('active');
-                jsonEditor.classList.add('active');
+                formEditor.style.display = 'none';
+                jsonEditor.style.display = 'block';
                 formBtn.classList.remove('active');
                 jsonBtn.classList.add('active');
-                updateJsonFromForm();
             }
         }
-
-        function insertMarkdown(textareaId, prefix, suffix) {
+        
+        // Update form fields from JSON
+        function updateFormFromJson() {
+            try {
+                const jsonText = document.getElementById('jsonEditorText').value;
+                const data = JSON.parse(jsonText);
+                
+                // Handle both old and new JSON structures
+                const actualData = data.Data || data;
+                
+                // Populate Announcements
+                if (actualData.Announcements && actualData.Announcements.Default) {
+                    const defaultAnn = Array.isArray(actualData.Announcements.Default) 
+                        ? actualData.Announcements.Default[0] 
+                        : actualData.Announcements.Default;
+                    
+                    if (defaultAnn) {
+                        console.log('Populating form - Details value:', defaultAnn.Details);
+                        document.getElementById('annPlatform').value = defaultAnn.Platform || 'All';
+                        document.getElementById('annTitle').value = defaultAnn.Title || '';
+                        document.getElementById('annText').value = defaultAnn.Text || '';
+                        document.getElementById('annDetails').value = defaultAnn.Details || '';
+                        document.getElementById('annLinks').value = (defaultAnn.Links || [])
+                            .map(link => `${link.Name}|${link.Url}`).join('\n');
+                        console.log('Form populated - annDetails element value:', document.getElementById('annDetails').value);
+                    }
+                }
+                
+                // Populate Support
+                if (actualData.Support) {
+                    const support = Array.isArray(actualData.Support) ? actualData.Support[0] : actualData.Support;
+                    if (support) {
+                        document.getElementById('supportText').value = support.Text || '';
+                        document.getElementById('supportDetails').value = support.Details || '';
+                        document.getElementById('supportLinks').value = (support.Links || [])
+                            .map(link => `${link.Name}|${link.Url}`).join('\n');
+                    }
+                }
+                
+                // Populate Targeted Announcements
+                if (actualData.Announcements && actualData.Announcements.Targeted) {
+                    renderTargetedAnnouncements(actualData.Announcements.Targeted);
+                }
+                
+            } catch (error) {
+                console.error('Error updating form:', error);
+            }
+        }
+        
+        // Render targeted announcements in form
+        function renderTargetedAnnouncements(targeted) {
+            const container = document.getElementById('targetedAnnouncementsContainer');
+            container.innerHTML = '';
+            
+            targeted.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'form-section';
+                div.style.background = '#f0f8ff';
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0;">Targeted Message #${index + 1}</h4>
+                        <button class="btn-danger" onclick="removeTargetedAnnouncement(${index})" style="padding: 5px 10px; font-size: 12px;">Remove</button>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="targeted_enabled_${index}" ${item.Enabled ? 'checked' : ''} onchange="updateJsonFromForm()">
+                        <label for="targeted_enabled_${index}">Enabled</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="targeted_append_${index}" ${item.AppendToDefault ? 'checked' : ''} onchange="updateJsonFromForm()">
+                        <label for="targeted_append_${index}">Append to Default (show both)</label>
+                    </div>
+                    <div class="form-group">
+                        <label>Platform:</label>
+                        <select id="targeted_platform_${index}" onchange="updateJsonFromForm()">
+                            <option value="All" ${item.Platform === 'All' ? 'selected' : ''}>All Platforms</option>
+                            <option value="Windows" ${item.Platform === 'Windows' ? 'selected' : ''}>Windows Only</option>
+                            <option value="Mac" ${item.Platform === 'Mac' ? 'selected' : ''}>Mac Only</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Title:</label>
+                        <input type="text" id="targeted_title_${index}" value="${item.Title || ''}" oninput="updateJsonFromForm()">
+                    </div>
+                    <div class="form-group">
+                        <label>Message Text:</label>
+                        <textarea id="targeted_text_${index}" rows="2" oninput="updateJsonFromForm()">${item.Text || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Details (Optional):</label>
+                        <textarea id="targeted_details_${index}" rows="2" oninput="updateJsonFromForm()">${item.Details || ''}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Registry Path:</label>
+                        <input type="text" id="targeted_path_${index}" value="${item.Condition?.Path || ''}" placeholder="HKLM:\\SOFTWARE\\MITLL\\Targeting" oninput="updateJsonFromForm()">
+                    </div>
+                    <div class="form-group">
+                        <label>Registry Name:</label>
+                        <input type="text" id="targeted_name_${index}" value="${item.Condition?.Name || ''}" placeholder="Group" oninput="updateJsonFromForm()">
+                    </div>
+                    <div class="form-group">
+                        <label>Registry Value:</label>
+                        <input type="text" id="targeted_value_${index}" value="${item.Condition?.Value || ''}" placeholder="EPI" oninput="updateJsonFromForm()">
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+        
+        // Add new targeted announcement
+        function addTargetedAnnouncement() {
+            try {
+                const jsonText = document.getElementById('jsonEditorText').value;
+                const data = JSON.parse(jsonText);
+                const actualData = data.Data || data;
+                
+                if (!actualData.Announcements) actualData.Announcements = {};
+                if (!actualData.Announcements.Targeted) actualData.Announcements.Targeted = [];
+                
+                actualData.Announcements.Targeted.push({
+                    id: `tg-custom-${Date.now()}`,
+                    Platform: "Windows",
+                    Enabled: true,
+                    AppendToDefault: true,
+                    Title: "New Targeted Message",
+                    Text: "Enter your message here",
+                    Condition: {
+                        Type: "Registry",
+                        Path: "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+                        Name: "Group",
+                        Value: "YourGroup"
+                    }
+                });
+                
+                document.getElementById('jsonEditorText').value = JSON.stringify(data, null, 2);
+                updateFormFromJson();
+                updatePreview();
+            } catch (error) {
+                console.error('Error adding targeted announcement:', error);
+            }
+        }
+        
+        // Remove targeted announcement
+        function removeTargetedAnnouncement(index) {
+            if (!confirm('Remove this targeted message?')) return;
+            
+            try {
+                const jsonText = document.getElementById('jsonEditorText').value;
+                const data = JSON.parse(jsonText);
+                const actualData = data.Data || data;
+                
+                if (actualData.Announcements && actualData.Announcements.Targeted) {
+                    actualData.Announcements.Targeted.splice(index, 1);
+                    document.getElementById('jsonEditorText').value = JSON.stringify(data, null, 2);
+                    updateFormFromJson();
+                    updatePreview();
+                }
+            } catch (error) {
+                console.error('Error removing targeted announcement:', error);
+            }
+        }
+        
+        // Update JSON from form fields
+        function updateJsonFromForm() {
+            try {
+                const jsonText = document.getElementById('jsonEditorText').value;
+                const data = JSON.parse(jsonText);
+                const actualData = data.Data || data;
+                
+                // Update Announcements
+                if (!actualData.Announcements) actualData.Announcements = {};
+                if (!actualData.Announcements.Default) actualData.Announcements.Default = [{}];
+                
+                const defaultAnn = Array.isArray(actualData.Announcements.Default)
+                    ? actualData.Announcements.Default[0]
+                    : actualData.Announcements.Default;
+                
+                defaultAnn.Platform = document.getElementById('annPlatform').value;
+                defaultAnn.Title = document.getElementById('annTitle').value;
+                defaultAnn.Text = document.getElementById('annText').value;
+                defaultAnn.Details = document.getElementById('annDetails').value;
+                
+                const annLinksText = document.getElementById('annLinks').value;
+                defaultAnn.Links = annLinksText.split('\n')
+                    .filter(line => line.trim() && line.includes('|'))
+                    .map(line => {
+                        const [name, url] = line.split('|').map(s => s.trim());
+                        return { Name: name, Url: url };
+                    });
+                
+                // Update Support
+                if (!actualData.Support) actualData.Support = Array.isArray(actualData.Support) ? [{}] : {};
+                
+                const support = Array.isArray(actualData.Support) ? actualData.Support[0] : actualData.Support;
+                support.Text = document.getElementById('supportText').value;
+                support.Details = document.getElementById('supportDetails').value;
+                
+                const supportLinksText = document.getElementById('supportLinks').value;
+                support.Links = supportLinksText.split('\n')
+                    .filter(line => line.trim() && line.includes('|'))
+                    .map(line => {
+                        const [name, url] = line.split('|').map(s => s.trim());
+                        return { Name: name, Url: url };
+                    });
+                
+                // Update Targeted Announcements
+                if (actualData.Announcements.Targeted) {
+                    actualData.Announcements.Targeted.forEach((item, index) => {
+                        const enabledEl = document.getElementById(`targeted_enabled_${index}`);
+                        const appendEl = document.getElementById(`targeted_append_${index}`);
+                        const platformEl = document.getElementById(`targeted_platform_${index}`);
+                        const titleEl = document.getElementById(`targeted_title_${index}`);
+                        const textEl = document.getElementById(`targeted_text_${index}`);
+                        const detailsEl = document.getElementById(`targeted_details_${index}`);
+                        const pathEl = document.getElementById(`targeted_path_${index}`);
+                        const nameEl = document.getElementById(`targeted_name_${index}`);
+                        const valueEl = document.getElementById(`targeted_value_${index}`);
+                        
+                        if (enabledEl) item.Enabled = enabledEl.checked;
+                        if (appendEl) item.AppendToDefault = appendEl.checked;
+                        if (platformEl) item.Platform = platformEl.value;
+                        if (titleEl) item.Title = titleEl.value;
+                        if (textEl) item.Text = textEl.value;
+                        if (detailsEl) item.Details = detailsEl.value;
+                        
+                        if (!item.Condition) item.Condition = { Type: "Registry" };
+                        if (pathEl) item.Condition.Path = pathEl.value;
+                        if (nameEl) item.Condition.Name = nameEl.value;
+                        if (valueEl) item.Condition.Value = valueEl.value;
+                    });
+                }
+                
+                document.getElementById('jsonEditorText').value = JSON.stringify(data, null, 2);
+                updatePreview();
+                scheduleAutosave();
+            } catch (error) {
+                console.error('Error updating JSON from form:', error);
+            }
+        }
+        
+        // Insert markdown formatting
+        function insertMarkdown(textareaId, before, after) {
             const textarea = document.getElementById(textareaId);
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
             const selectedText = textarea.value.substring(start, end);
-            const newText = prefix + selectedText + suffix;
+            const replacement = before + selectedText + after;
             
-            textarea.value = textarea.value.substring(0, start) + newText + textarea.value.substring(end);
+            textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
             textarea.focus();
-            textarea.selectionStart = start + prefix.length;
-            textarea.selectionEnd = start + prefix.length + selectedText.length;
+            textarea.setSelectionRange(start + before.length, start + before.length + selectedText.length);
             
-            updateFromForm();
+            updateJsonFromForm();
         }
-
-        function addLink(containerId, name = '', url = '') {
-            const container = document.getElementById(containerId);
-            const linkDiv = document.createElement('div');
-            linkDiv.className = 'link-item';
-            linkDiv.innerHTML = `
-                <input type="text" placeholder="Link Name" value="${name}" oninput="updateFromForm()">
-                <input type="text" placeholder="URL" value="${url}" oninput="updateFromForm()">
-                <button class="btn-danger small" onclick="this.parentElement.remove(); updateFromForm()">✕</button>
-            `;
-            container.appendChild(linkDiv);
-        }
-
-        function getLinksFromContainer(containerId) {
-            const container = document.getElementById(containerId);
-            if (!container) return [];
-            const links = [];
-            const linkItems = container.querySelectorAll('.link-item');
+        
+        // Show status message
+        function showStatus(elementId, message, type) {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.innerHTML = `<div class="status-message ${type}">${message}</div>`;
             
-            linkItems.forEach(item => {
-                const inputs = item.querySelectorAll('input');
-                const name = inputs[0].value.trim();
-                const url = inputs[1].value.trim();
-                if (name && url) {
-                    links.push({ Name: name, Url: url });
-                }
-            });
-            
-            return links;
-        }
-
-        function updateFromForm() {
-            if (isUpdatingFromJson) return;
-            
-            const data = {
-                Announcements: {
-                    Default: {
-                        Text: document.getElementById('announcementText').value,
-                        Details: document.getElementById('announcementDetails').value,
-                        Links: getLinksFromContainer('announcementLinks')
-                    },
-                    Targeted: getTargetedAnnouncements()
-                },
-                Support: {
-                    Text: document.getElementById('supportText').value,
-                    Links: getLinksFromContainer('supportLinks')
-                }
-            };
-            
-            currentData = data;
-            document.getElementById('jsonEditorText').value = JSON.stringify(data, null, 2);
-            updatePreview();
-            scheduleAutosave();
-        }
-
-        function updateFormFromJson() {
-            isUpdatingFromJson = true;
-            
-            try {
-                const jsonText = document.getElementById('jsonEditorText').value;
-                if (!jsonText.trim()) return;
-                
-                const data = JSON.parse(jsonText);
-                currentData = data;
-                
-                const dashboardData = data.Dashboard || data;
-                
-                // Update Announcements
-                if (dashboardData.Announcements && dashboardData.Announcements.Default) {
-                    document.getElementById('announcementText').value = dashboardData.Announcements.Default.Text || '';
-                    document.getElementById('announcementDetails').value = dashboardData.Announcements.Default.Details || '';
-                    
-                    const announcementLinksContainer = document.getElementById('announcementLinks');
-                    announcementLinksContainer.innerHTML = '';
-                    if (dashboardData.Announcements.Default.Links) {
-                        dashboardData.Announcements.Default.Links.forEach(link => {
-                            addLink('announcementLinks', link.Name, link.Url);
-                        });
-                    }
-                    
-                    // Load targeted announcements
-                    const targetedContainer = document.getElementById('targetedAnnouncementsContainer');
-                    targetedContainer.innerHTML = '';
-                    targetedAnnouncementCounter = 0;
-                    if (dashboardData.Announcements.Targeted) {
-                        dashboardData.Announcements.Targeted.forEach(targeted => {
-                            addTargetedAnnouncement(targeted);
-                        });
-                    }
-                }
-                
-                // Update Support
-                if (dashboardData.Support) {
-                    document.getElementById('supportText').value = dashboardData.Support.Text || '';
-                    
-                    const supportLinksContainer = document.getElementById('supportLinks');
-                    supportLinksContainer.innerHTML = '';
-                    if (dashboardData.Support.Links) {
-                        dashboardData.Support.Links.forEach(link => {
-                            addLink('supportLinks', link.Name, link.Url);
-                        });
-                    }
-                }
-                
-                updatePreview();
-            } catch (error) {
-                console.error('Error updating form from JSON:', error);
-            } finally {
-                isUpdatingFromJson = false;
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.innerHTML = '';
+                }, 5000);
             }
         }
-
-        function updateJsonFromForm() {
-            updateFromForm();
-        }
-
-        function updateFromJson() {
-            try {
-                const jsonText = document.getElementById('jsonEditorText').value;
-                if (!jsonText.trim()) return;
-                
-                const data = JSON.parse(jsonText);
-                currentData = data;
-                updatePreview();
-            } catch (error) {
-                updatePreview();
-            }
-        }
-
+        
+        // Parse markdown
         function parseMarkdown(text) {
             if (!text) return '';
             
-            text = text.replace(/\[green\](.*?)\[\/green\]/g, '<span class="text-green">$1</span>');
-            text = text.replace(/\[red\](.*?)\[\/red\]/g, '<span class="text-red">$1</span>');
-            text = text.replace(/\[yellow\](.*?)\[\/yellow\]/g, '<span class="text-yellow">$1</span>');
-            text = text.replace(/\[blue\](.*?)\[\/blue\]/g, '<span class="text-blue">$1</span>');
-            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            text = text.replace(/__(.*?)__/g, '<u>$1</u>');
-            text = text.replace(/\n/g, '<br>');
+            let html = text;
             
-            return text;
-        }
-
-        function createSection(title, content, hasAlert = false) {
-            const alertHTML = hasAlert ? '<span class="preview-alert"></span>' : '';
-            return `
-                <div class="preview-section">
-                    <div class="preview-section-title" onclick="toggleSection(this)">
-                        ${title}${alertHTML}
-                    </div>
-                    <div class="preview-section-content">
-                        ${content}
-                    </div>
-                </div>
-            `;
-        }
-
-        function toggleSection(element) {
-            element.classList.toggle('collapsed');
-            element.nextElementSibling.classList.toggle('collapsed');
-        }
-
-        function renderLinks(links) {
-            if (!links || links.length === 0) return '';
-            let html = '<div style="margin-top: 10px;">';
-            links.forEach(link => {
-                html += `<a class="preview-link" href="${link.Url}" target="_blank">${link.Name}</a>`;
-            });
-            html += '</div>';
+            // Color tags
+            html = html.replace(/\[green\](.*?)\[\/green\]/g, '<span style="color: green;">$1</span>');
+            html = html.replace(/\[red\](.*?)\[\/red\]/g, '<span style="color: red;">$1</span>');
+            html = html.replace(/\[yellow\](.*?)\[\/yellow\]/g, '<span style="color: #FFA500;">$1</span>');
+            html = html.replace(/\[blue\](.*?)\[\/blue\]/g, '<span style="color: blue;">$1</span>');
+            
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Italic
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Underline
+            html = html.replace(/__(.*?)__/g, '<u>$1</u>');
+            
+            // Line breaks
+            html = html.replace(/\n/g, '<br>');
+            
             return html;
         }
-
+        
+        // Update preview
         function updatePreview() {
+            const previewDiv = document.getElementById('previewWindow');
             const jsonText = document.getElementById('jsonEditorText').value;
-            const previewDiv = document.getElementById('previewContent');
             
             if (!jsonText.trim()) {
-                previewDiv.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Enter content to see preview</p>';
+                previewDiv.innerHTML = '<p style="text-align: center; color: #666;">Enter JSON to see preview</p>';
                 return;
             }
             
             try {
-                const json = JSON.parse(jsonText);
+                const data = JSON.parse(jsonText);
+                const actualData = data.Data || data;
+                
                 let html = '';
                 
-                const data = json.Dashboard || json;
+                // Helper function to create section
+                function createSection(title, content, expanded = false) {
+                    return `
+                        <div class="preview-section">
+                            <div class="preview-section-header">${title}</div>
+                            <div class="preview-content">${content}</div>
+                        </div>
+                    `;
+                }
+                
+                // Helper function to render links
+                function renderLinks(links) {
+                    if (!links || links.length === 0) return '';
+                    return '<div style="margin-top: 8px;">' + 
+                        links.map(link => `<a href="${link.Url}" class="preview-link" target="_blank">${link.Name}</a>`).join('') +
+                        '</div>';
+                }
                 
                 // Render Announcements
-                if (data.Announcements) {
-                    const announcements = data.Announcements;
+                if (actualData.Announcements) {
+                    const announcements = actualData.Announcements;
                     let announcementContent = '';
                     
+                    // Default announcement
                     if (announcements.Default) {
-                        announcementContent += `<div style="margin-bottom: 10px;">${parseMarkdown(announcements.Default.Text)}</div>`;
+                        const defaultAnn = Array.isArray(announcements.Default) 
+                            ? announcements.Default[0] 
+                            : announcements.Default;
                         
-                        if (announcements.Default.Details) {
-                            announcementContent += `<div style="margin-top: 5px; color: #555;">${parseMarkdown(announcements.Default.Details)}</div>`;
+                        if (defaultAnn) {
+                            if (defaultAnn.Title) {
+                                announcementContent += `<div style="font-weight: bold; margin-bottom: 5px;">${defaultAnn.Title}</div>`;
+                            }
+                            
+                            announcementContent += parseMarkdown(defaultAnn.Text);
+                            
+                            if (defaultAnn.Details) {
+                                announcementContent += `<div style="margin-top: 5px; color: #555;">${parseMarkdown(defaultAnn.Details)}</div>`;
+                            }
+                            
+                            announcementContent += renderLinks(defaultAnn.Links);
                         }
-                        
-                        announcementContent += renderLinks(announcements.Default.Links);
                     }
                     
+                    // Targeted announcements (show all that are enabled)
                     if (announcements.Targeted && announcements.Targeted.length > 0) {
-                        const enabledTargeted = announcements.Targeted.filter(t => t.Enabled);
-                        
-                        if (enabledTargeted.length > 0) {
-                            announcementContent += '<hr style="margin: 10px 0; border: 1px solid #ddd;">';
-                            announcementContent += '<div style="background: #fff9e6; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107; margin-bottom: 10px;">';
-                            announcementContent += '<strong style="color: #856404;">📍 TARGETED ANNOUNCEMENTS PREVIEW</strong><br>';
-                            announcementContent += '<small style="color: #856404;">In production, only ONE message shows based on registry condition. Previewing all enabled:</small>';
-                            announcementContent += '</div>';
-                            
-                            enabledTargeted.forEach((targeted, index) => {
-                                const conditionLabel = `${targeted.Condition?.Name || 'N/A'} = ${targeted.Condition?.Value || 'N/A'}`;
-                                const modeLabel = targeted.AppendToDefault ? 'APPEND MODE' : 'REPLACE MODE (hides default)';
-                                
-                                announcementContent += `<div style="background: ${targeted.AppendToDefault ? '#f0f8ff' : '#fff3cd'}; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 2px solid ${targeted.AppendToDefault ? '#0078D7' : '#ffc107'};">`;
-                                announcementContent += `<div style="margin-bottom: 8px;">`;
-                                announcementContent += `<strong style="color: ${targeted.AppendToDefault ? '#0055A4' : '#856404'};">Target #${index + 1}: ${modeLabel}</strong><br>`;
-                                announcementContent += `<small style="color: #666;"><strong>Condition:</strong> ${conditionLabel}</small>`;
-                                announcementContent += `</div>`;
-                                
-                                if (!targeted.AppendToDefault) {
-                                    announcementContent += `<div style="background: #fff; padding: 8px; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid #ffc107;">`;
-                                    announcementContent += `<small style="color: #856404;"><strong>⚠️ Note:</strong> In Replace mode, the default announcement above will NOT show for users matching this condition.</small>`;
-                                    announcementContent += `</div>`;
+                        announcements.Targeted.forEach(targeted => {
+                            if (targeted.Enabled && targeted.AppendToDefault) {
+                                announcementContent += '<hr style="margin: 10px 0; border: 1px solid #ddd;">';
+                                if (targeted.Title) {
+                                    announcementContent += `<div style="font-weight: bold; margin-bottom: 5px; color: #00008B;">${targeted.Title}</div>`;
                                 }
-                                
-                                announcementContent += `<div style="margin-top: 8px;">${parseMarkdown(targeted.Text)}</div>`;
+                                announcementContent += `<div style="margin-top: 5px;">${parseMarkdown(targeted.Text)}</div>`;
                                 
                                 if (targeted.Details) {
                                     announcementContent += `<div style="margin-top: 5px; color: #555;">${parseMarkdown(targeted.Details)}</div>`;
                                 }
                                 
                                 announcementContent += renderLinks(targeted.Links);
-                                announcementContent += '</div>';
-                            });
-                        }
+                            }
+                        });
                     }
                     
                     html += createSection('Announcements', announcementContent, true);
                 }
                 
                 // Render Support
-                if (data.Support) {
-                    let supportContent = parseMarkdown(data.Support.Text);
-                    supportContent += renderLinks(data.Support.Links);
-                    html += createSection('Support', supportContent);
+                if (actualData.Support) {
+                    const support = Array.isArray(actualData.Support) ? actualData.Support[0] : actualData.Support;
+                    if (support) {
+                        let supportContent = parseMarkdown(support.Text);
+                        if (support.Details) {
+                            supportContent += `<div style="margin-top: 5px; color: #555;">${parseMarkdown(support.Details)}</div>`;
+                        }
+                        supportContent += renderLinks(support.Links);
+                        html += createSection('Support', supportContent);
+                    }
                 }
                 
                 previewDiv.innerHTML = html || '<p style="text-align: center; color: #666;">No displayable content found</p>';
@@ -2461,8 +1438,6 @@ Save your work before leaving for the day.</pre>
 
             try {
                 const url = `${apiBase}/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
-                console.log('Loading from:', url);
-                
                 const response = await fetch(url, {
                     headers: {
                         'Authorization': `token ${token}`,
@@ -2525,16 +1500,6 @@ Save your work before leaving for the day.</pre>
 
             try {
                 const url = `${apiBase}/repos/${owner}/${repo}/contents/${path}`;
-                
-                console.log('Save attempt details:', {
-                    url,
-                    branch,
-                    path,
-                    hasSha: !!currentSha,
-                    contentLength: content.length,
-                    apiBase
-                });
-                
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: {
@@ -2544,71 +1509,15 @@ Save your work before leaving for the day.</pre>
                     },
                     body: JSON.stringify({
                         message: commitMessage,
-                        content: btoa(unescape(encodeURIComponent(content))),
+                        content: btoa(content),
                         sha: currentSha,
                         branch: branch
                     })
                 });
 
                 if (!response.ok) {
-                    let errorDetails = `Status: ${response.status} ${response.statusText}<br>`;
-                    
-                    // Try to get detailed error message
-                    try {
-                        const errorData = await response.json();
-                        console.error('GitHub API Error:', errorData);
-                        
-                        errorDetails += `Message: ${errorData.message || 'Unknown error'}<br>`;
-                        
-                        if (errorData.errors) {
-                            errorDetails += `Details: ${JSON.stringify(errorData.errors)}<br>`;
-                        }
-                        
-                        if (errorData.documentation_url) {
-                            errorDetails += `<a href="${errorData.documentation_url}" target="_blank">Documentation</a><br>`;
-                        }
-                    } catch (e) {
-                        errorDetails += 'Could not parse error details<br>';
-                    }
-                    
-                    if (response.status === 401) {
-                        errorDetails += `<br><strong>Authentication Failed (401)</strong><br>`;
-                        errorDetails += `Possible causes:<br>`;
-                        errorDetails += `• Token doesn't have "repo" scope<br>`;
-                        errorDetails += `• Token is expired<br>`;
-                        errorDetails += `• SSO not authorized (Enterprise GitHub)<br>`;
-                        errorDetails += `• Organization restrictions blocking access<br>`;
-                        errorDetails += `• Wrong API Base URL for Enterprise GitHub<br><br>`;
-                        errorDetails += `Try:<br>`;
-                        errorDetails += `1. Click "Check Token Permissions" button<br>`;
-                        errorDetails += `2. Verify API Base URL is correct for Enterprise<br>`;
-                        errorDetails += `3. Verify SSO authorization if using Enterprise<br>`;
-                        errorDetails += `4. Create a new token with full "repo" scope`;
-                    } else if (response.status === 403) {
-                        errorDetails += `<br><strong>Forbidden (403)</strong><br>`;
-                        errorDetails += `Possible causes:<br>`;
-                        errorDetails += `• Branch is protected<br>`;
-                        errorDetails += `• Repository is archived<br>`;
-                        errorDetails += `• Organization rules blocking write access<br>`;
-                        errorDetails += `• Rate limit exceeded<br>`;
-                        errorDetails += `• Token needs additional permissions`;
-                    } else if (response.status === 404) {
-                        errorDetails += `<br><strong>Not Found (404)</strong><br>`;
-                        errorDetails += `Check: owner, repo name, branch, and file path are correct`;
-                    } else if (response.status === 409) {
-                        errorDetails += `<br><strong>Conflict (409)</strong><br>`;
-                        errorDetails += `The file has been modified since you loaded it.<br>`;
-                        errorDetails += `Click "Reload from GitHub" and try again.`;
-                    } else if (response.status === 422) {
-                        errorDetails += `<br><strong>Unprocessable Entity (422)</strong><br>`;
-                        errorDetails += `The request was invalid. This could mean:<br>`;
-                        errorDetails += `• Invalid SHA (file was modified)<br>`;
-                        errorDetails += `• Invalid branch name<br>`;
-                        errorDetails += `• Invalid file content<br>`;
-                        errorDetails += `Try reloading the file first.`;
-                    }
-                    
-                    throw new Error(errorDetails);
+                    const errorData = await response.json();
+                    throw new Error(`GitHub API error: ${response.status} - ${errorData.message || response.statusText}`);
                 }
 
                 const data = await response.json();
@@ -2621,81 +1530,336 @@ Save your work before leaving for the day.</pre>
 
                 showStatus('editorStatus', '✓ File saved successfully to GitHub!', 'success');
             } catch (error) {
-                showStatus('editorStatus', `<strong>Error saving file:</strong><br>${error.message}`, 'error');
-                console.error('Save error details:', error);
+                showStatus('editorStatus', `Error: ${error.message}`, 'error');
+                console.error(error);
             }
         }
-
-        function validateJson() {
-            const content = document.getElementById('jsonEditorText').value;
-            const statusDiv = document.getElementById('editorStatus');
-            
-            try {
-                const json = JSON.parse(content);
-                const errors = [];
-                
-                if (json.Dashboard) {
-                    if (!json.Dashboard.Announcements) {
-                        errors.push('Dashboard.Announcements is missing');
-                    } else if (!json.Dashboard.Announcements.Default) {
-                        errors.push('Dashboard.Announcements.Default is missing');
-                    }
-                    if (!json.Dashboard.Support) {
-                        errors.push('Dashboard.Support is missing');
-                    }
-                } else {
-                    if (!json.Announcements) {
-                        errors.push('Announcements section is missing');
-                    } else if (!json.Announcements.Default) {
-                        errors.push('Announcements.Default is missing');
-                    }
-                    if (!json.Support) {
-                        errors.push('Support section is missing');
-                    }
-                }
-                
-                if (errors.length > 0) {
-                    showStatus('editorStatus', `⚠️ Validation warnings: ${errors.join(', ')}`, 'info');
-                } else {
-                    showStatus('editorStatus', '✓ JSON is valid and structure looks good!', 'success');
-                }
-            } catch (error) {
-                showStatus('editorStatus', `❌ Invalid JSON: ${error.message}`, 'error');
-            }
-        }
-
+        
+        // Format JSON
         function formatJson() {
-            const content = document.getElementById('jsonEditorText').value;
             try {
-                const json = JSON.parse(content);
-                const formatted = JSON.stringify(json, null, 2);
-                document.getElementById('jsonEditorText').value = formatted;
+                const jsonText = document.getElementById('jsonEditorText').value;
+                const data = JSON.parse(jsonText);
+                document.getElementById('jsonEditorText').value = JSON.stringify(data, null, 2);
                 updatePreview();
-                showStatus('editorStatus', '✓ JSON formatted successfully', 'success');
             } catch (error) {
-                showStatus('editorStatus', `Cannot format - Invalid JSON: ${error.message}`, 'error');
+                showStatus('editorStatus', `Invalid JSON: ${error.message}`, 'error');
             }
         }
-
-        function resetEditor() {
-            if (confirm('Are you sure you want to reload from GitHub? Any unsaved changes will be lost.')) {
-                loadFile();
+        
+        // Validate JSON
+        function validateJson() {
+            try {
+                const jsonText = document.getElementById('jsonEditorText').value;
+                JSON.parse(jsonText);
+                showStatus('editorStatus', '✓ JSON is valid!', 'success');
+            } catch (error) {
+                showStatus('editorStatus', `Invalid JSON: ${error.message}`, 'error');
             }
         }
-
-        function showStatus(elementId, message, type) {
-            const statusDiv = document.getElementById(elementId);
-            // Convert newlines to <br> for proper display
-            const formattedMessage = message.replace(/\n/g, '<br>');
-            statusDiv.innerHTML = `<div class="status ${type}">${formattedMessage}</div>`;
-        }
-
-        window.addEventListener('beforeunload', (e) => {
-            const currentEditorContent = document.getElementById('jsonEditorText').value;
-            if (currentContent && currentEditorContent !== currentContent) {
-                e.preventDefault();
-                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        
+        // Show diff
+        function showDiff() {
+            const diffViewer = document.getElementById('diffViewer');
+            const diffContent = document.getElementById('diffContent');
+            
+            const oldLines = currentContent.split('\n');
+            const newLines = document.getElementById('jsonEditorText').value.split('\n');
+            
+            let html = '';
+            const maxLines = Math.max(oldLines.length, newLines.length);
+            
+            for (let i = 0; i < maxLines; i++) {
+                const oldLine = oldLines[i] || '';
+                const newLine = newLines[i] || '';
+                
+                if (oldLine !== newLine) {
+                    if (oldLine) {
+                        html += `<div class="diff-line removed">- ${escapeHtml(oldLine)}</div>`;
+                    }
+                    if (newLine) {
+                        html += `<div class="diff-line added">+ ${escapeHtml(newLine)}</div>`;
+                    }
+                } else {
+                    html += `<div class="diff-line unchanged">  ${escapeHtml(oldLine)}</div>`;
+                }
             }
+            
+            diffContent.innerHTML = html || '<p style="text-align: center; color: #666;">No changes</p>';
+            diffViewer.style.display = 'block';
+            diffViewer.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Download JSON
+        function downloadJson() {
+            const content = document.getElementById('jsonEditorText').value;
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ContentData.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Auto-save functionality
+        function scheduleAutosave() {
+            const indicator = document.getElementById('autosaveStatus');
+            indicator.textContent = '💾 Saving...';
+            indicator.className = 'autosave-indicator saving';
+            
+            clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(() => {
+                const content = document.getElementById('jsonEditorText').value;
+                localStorage.setItem('endpointadvisor_autosave', content);
+                localStorage.setItem('endpointadvisor_autosave_time', new Date().toISOString());
+                
+                indicator.textContent = '✓ Saved';
+                indicator.className = 'autosave-indicator saved';
+                
+                setTimeout(() => {
+                    indicator.style.opacity = '0';
+                }, 2000);
+            }, 2000);
+        }
+        
+        // Restore autosave
+        function restoreAutosave() {
+            const saved = localStorage.getItem('endpointadvisor_autosave');
+            const savedTime = localStorage.getItem('endpointadvisor_autosave_time');
+            
+            if (!saved) {
+                showStatus('authStatus', 'No auto-saved content found', 'info');
+                return;
+            }
+            
+            const time = savedTime ? new Date(savedTime).toLocaleString() : 'unknown time';
+            if (confirm(`Restore auto-saved content from ${time}?`)) {
+                document.getElementById('jsonEditorText').value = saved;
+                updateFormFromJson();
+                updatePreview();
+                showStatus('authStatus', '✓ Auto-save restored!', 'success');
+                document.getElementById('editorSection').classList.add('active');
+            }
+        }
+        
+        // Load template
+        function loadTemplate() {
+            document.getElementById('templateModal').classList.add('active');
+        }
+        
+        // Apply template
+        function applyTemplate(templateName) {
+            const templates = {
+                maintenance: {
+                    schemaVersion: "1.1.0",
+                    contentVersion: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+                    Data: {
+                        Announcements: {
+                            Default: [{
+                                id: "maint-001",
+                                Platform: "All",
+                                Enabled: true,
+                                Title: "Scheduled Maintenance",
+                                Text: "[yellow]**System Maintenance Scheduled**[/yellow]",
+                                Details: "Our systems will undergo scheduled maintenance this weekend. Some services may be temporarily unavailable.\n\n**Date:** Saturday, [DATE]\n**Time:** 2:00 AM - 6:00 AM ET\n**Impact:** Brief interruptions possible",
+                                Links: [
+                                    { Name: "Maintenance Details", Url: "https://status.ll.mit.edu" }
+                                ]
+                            }],
+                            Targeted: []
+                        },
+                        Support: [{
+                            id: "support-all-001",
+                            Platform: "All",
+                            Text: "Contact the ISD Support Center for assistance.",
+                            Details: "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
+                            Links: [
+                                { Name: "Knowledge Base", Url: "https://kb.ll.mit.edu" },
+                                { Name: "Self-Service Portal", Url: "https://portal.ll.mit.edu" }
+                            ]
+                        }]
+                    }
+                },
+                security: {
+                    schemaVersion: "1.1.0",
+                    contentVersion: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+                    Data: {
+                        Announcements: {
+                            Default: [{
+                                id: "sec-001",
+                                Platform: "All",
+                                Enabled: true,
+                                Title: "Security Update Required",
+                                Text: "[red]**Important Security Update Available**[/red]",
+                                Details: "A critical security update is available for your system. Please install as soon as possible.\n\n**What to do:**\n1. Save your work\n2. Install updates from Settings\n3. Restart when prompted",
+                                Links: [
+                                    { Name: "Security Bulletin", Url: "https://security.ll.mit.edu" }
+                                ]
+                            }],
+                            Targeted: []
+                        },
+                        Support: [{
+                            id: "support-all-001",
+                            Platform: "All",
+                            Text: "Contact Security Operations for assistance.",
+                            Details: "- Phone: 781-981-XXXX\n- Email: security@ll.mit.edu",
+                            Links: [
+                                { Name: "Security Resources", Url: "https://security.ll.mit.edu" }
+                            ]
+                        }]
+                    }
+                },
+                patching: {
+                    schemaVersion: "1.1.0",
+                    contentVersion: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+                    Data: {
+                        Announcements: {
+                            Default: [{
+                                id: "patch-001",
+                                Platform: "Windows",
+                                Enabled: true,
+                                Title: "Software Updates Available",
+                                Text: "Updates are available for your system.",
+                                Details: "Please check Settings → Windows Update to install the latest updates.\n\n**Remember to:**\n- Save all work before updating\n- Restart when prompted\n- Check for additional updates after restart",
+                                Links: [
+                                    { Name: "Update Guide", Url: "https://kb.ll.mit.edu/updates" }
+                                ]
+                            }],
+                            Targeted: []
+                        },
+                        Support: [{
+                            id: "support-win-001",
+                            Platform: "Windows",
+                            Text: "Contact the ISD Support Center for assistance.",
+                            Details: "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu",
+                            Links: [
+                                { Name: "Windows Support", Url: "https://kb.ll.mit.edu/windows" }
+                            ]
+                        }]
+                    }
+                },
+                training: {
+                    schemaVersion: "1.1.0",
+                    contentVersion: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+                    Data: {
+                        Announcements: {
+                            Default: [{
+                                id: "train-001",
+                                Platform: "All",
+                                Enabled: true,
+                                Title: "Mandatory Training Reminder",
+                                Text: "[blue]**Annual Security Training Due**[/blue]",
+                                Details: "All employees must complete annual security awareness training by [DATE].\n\n**To complete:**\n1. Visit the training portal\n2. Complete all modules\n3. Pass the assessment",
+                                Links: [
+                                    { Name: "Training Portal", Url: "https://training.ll.mit.edu" }
+                                ]
+                            }],
+                            Targeted: []
+                        },
+                        Support: [{
+                            id: "support-all-001",
+                            Platform: "All",
+                            Text: "Contact HR for training assistance.",
+                            Details: "- Email: training@ll.mit.edu",
+                            Links: [
+                                { Name: "Training FAQ", Url: "https://training.ll.mit.edu/faq" }
+                            ]
+                        }]
+                    }
+                },
+                holiday: {
+                    schemaVersion: "1.1.0",
+                    contentVersion: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+                    Data: {
+                        Announcements: {
+                            Default: [{
+                                id: "holiday-001",
+                                Platform: "All",
+                                Enabled: true,
+                                Title: "Holiday Schedule",
+                                Text: "[green]**Office Closure Notice**[/green]",
+                                Details: "Our offices will be closed for the [HOLIDAY] holiday.\n\n**Closure dates:** [DATES]\n**Reopening:** [DATE]\n\nEmergency support remains available 24/7.",
+                                Links: [
+                                    { Name: "Holiday Calendar", Url: "https://calendar.ll.mit.edu" }
+                                ]
+                            }],
+                            Targeted: []
+                        },
+                        Support: [{
+                            id: "support-all-001",
+                            Platform: "All",
+                            Text: "Emergency support available 24/7.",
+                            Details: "- Emergency Phone: 781-981-XXXX",
+                            Links: []
+                        }]
+                    }
+                },
+                pilot: {
+                    schemaVersion: "1.1.0",
+                    contentVersion: new Date().toISOString().split('T')[0].replace(/-/g, '.'),
+                    Data: {
+                        Announcements: {
+                            Default: [{
+                                id: "def-all-001",
+                                Platform: "All",
+                                Enabled: true,
+                                Title: "Endpoint Advisor",
+                                Text: "Welcome to Endpoint Advisor.",
+                                Details: "No action required today.",
+                                Links: [
+                                    { Name: "FAQ", Url: "https://kb.ll.mit.edu/ea-faq" }
+                                ]
+                            }],
+                            Targeted: [{
+                                id: "tg-win-pilot-001",
+                                Platform: "Windows",
+                                Enabled: true,
+                                AppendToDefault: true,
+                                Title: "Pilot Program",
+                                Text: "You are enrolled in the Pilot group.",
+                                Details: "Thank you for participating! Feedback is encouraged.\n\nSubmit issues to: endpointengineering@ll.mit.edu",
+                                Condition: {
+                                    Type: "Registry",
+                                    Path: "HKLM:\\SOFTWARE\\MITLL\\Targeting",
+                                    Name: "Program",
+                                    Value: "Pilot"
+                                }
+                            }]
+                        },
+                        Support: [{
+                            id: "support-all-001",
+                            Platform: "All",
+                            Text: "Contact the ISD Support Center for assistance.",
+                            Details: "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu",
+                            Links: [
+                                { Name: "Knowledge Base", Url: "https://kb.ll.mit.edu" }
+                            ]
+                        }]
+                    }
+                }
+            };
+            
+            const template = templates[templateName];
+            if (template) {
+                document.getElementById('jsonEditorText').value = JSON.stringify(template, null, 2);
+                updateFormFromJson();
+                updatePreview();
+                closeModal('templateModal');
+                showStatus('authStatus', `✓ ${templateName.charAt(0).toUpperCase() + templateName.slice(1)} template loaded!`, 'success');
+            }
+        }
+        
+        // Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            handleInstanceChange();
         });
     </script>
 </body>
