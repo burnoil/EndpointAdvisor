@@ -34,7 +34,7 @@ function Get-RemoteContentData {
                     $dataNode = $obj
                 }
                 $keys = ($dataNode | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name) -join ','
-                Write-Log (\"Fetched content keys: {0}\" -f $keys) -Level \"INFO\"
+                Write-Log ("Fetched content keys: {0}" -f $keys) -Level "INFO"
                 return @{
                     Data      = $dataNode
                     Source    = $Url
@@ -45,7 +45,7 @@ function Get-RemoteContentData {
                 Write-Log ('Response does not appear to be JSON. First 200 chars: {0}' -f $first200) -Level 'WARNING'
             }
         } catch {
-            Write-Log (\"Fetch attempt {0} failed - {1}\" -f $i, $_.Exception.Message) -Level 'ERROR'
+            Write-Log ("Fetch attempt {0} failed - {1}" -f $i, $_.Exception.Message) -Level 'ERROR'
         }
         Start-Sleep -Seconds ([Math]::Min(2*$i, 6))
     }
@@ -53,7 +53,7 @@ function Get-RemoteContentData {
 }
 
 function Load-ContentDataFromCache {
-    param([string]$Path = 'C:\ Program Files\ LLEA\ ContentData.cache.json')
+    param([string]$Path = 'C:\Program Files\LLEA\ContentData.cache.json')
     try {
         if (Test-Path -LiteralPath $Path) {
             $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
@@ -66,12 +66,12 @@ function Load-ContentDataFromCache {
                     $dataNode = $o
                 }
                 $keys = ($dataNode | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name) -join ','
-                Write-Log (\"Cached content keys: {0}\" -f $keys) -Level \"INFO\"
-                return @{ Data = $dataNode; Source = \"cache:$Path\"; Retrieved = (Get-Date).ToString('s') }
+                Write-Log ("Cached content keys: {0}" -f $keys) -Level "INFO"
+                return @{ Data = $dataNode; Source = "cache:$Path"; Retrieved = (Get-Date).ToString('s') }
             }
         }
     } catch {
-        Write-Log (\"Cache load failed: {0}\" -f $_) -Level \"WARNING\"
+        Write-Log ("Cache load failed: {0}" -f $_) -Level "WARNING"
     }
     return $null
 }
@@ -506,7 +506,7 @@ $xamlString = @"
     WindowStartupLocation="Manual" 
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
-    MaxWidth="600" MaxHeight="750"
+    MaxWidth="400" MaxHeight="550"
     ResizeMode="CanResizeWithGrip" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
     Background="#f0f0f0">
   <Window.Resources>
