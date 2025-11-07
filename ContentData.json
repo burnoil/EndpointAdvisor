@@ -9,7 +9,7 @@
           "Platform": "All",
           "Enabled": true,
           "Title": "Welcome",
-          "Text": "**Endpoint Advisor is running and your go-to hub for comms and alerts.**",
+          "Text": "**Endpoint Advisor is running and your go-to hub for comms and alerts!**",
           "Details": "Dual editing modes (Form/JSON), Live preview, Auto-save, Templates, Targeted announcements, Markdown support, Diff viewer added!",
           "Links": [
             {
