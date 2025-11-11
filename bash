@@ -26,15 +26,11 @@ Your complete upgrade script:
 
 action uses wow64 redirection {not x64 of operating system}
 
-// Kill by window title
+// This command finds any process with "Endpoint Advisor" in its
+// window title and forcibly stops it.
 override wait
 hidden=true
 wait powershell.exe -NoProfile -Command "Get-Process | Where-Object { $_.MainWindowTitle -like '*Endpoint Advisor*' } | Stop-Process -Force -ErrorAction SilentlyContinue"
-
-wait {pathname of system folder}\timeout.exe 3 /nobreak
-delete "{(value "TEMP" of environment)}\LLEA_Instance.lock"
-
-delete "C:\Program Files\LLEA\LLEA.ps1"
 
 delete __createfile
 createfile until END_OF_BATCH
