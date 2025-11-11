@@ -1,28 +1,15 @@
 delete __createfile
 createfile until END_OF_KILL_SCRIPT
-`$processes = Get-Process -Name powershell,pwsh -ErrorAction SilentlyContinue
-foreach (`$p in `$processes) {
-    # Method 1: Try Get-CimInstance instead of Get-WmiObject
-    try {
-        `$cim = Get-CimInstance Win32_Process -Filter "ProcessId=`$(`$p.Id)"
-        if (`$cim.CommandLine -like '*LLEA.ps1*') {
-            Stop-Process -Id `$p.Id -Force
-        }
-    } catch {
-        # Method 2: Fallback to WMI without filter
-        try {
-            `$wmi = Get-WmiObject Win32_Process | Where-Object { `$_.ProcessId -eq `$p.Id }
-            if (`$wmi.CommandLine -like '*LLEA.ps1*') {
-                Stop-Process -Id `$p.Id -Force
-            }
-        } catch {
-            # Method 3: Last resort - check MainWindowTitle
-            if (`$p.MainWindowTitle -like '*Lincoln Laboratory Endpoint Advisor*') {
-                Stop-Process -Id `$p.Id -Force
-            }
-        }
-    }
-}
+# Kill by window title
+Get-Process | Where-Object {
+    `$_.MainWindowTitle -like '*Lincoln Laboratory Endpoint Advisor*' -or
+    `$_.MainWindowTitle -like '*LLEA*'
+} | Stop-Process -Force -ErrorAction SilentlyContinue
+
+# Also try to find by command line (all PowerShell processes)
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" | 
+    Where-Object { `$_.CommandLine -like '*LLEA.ps1*' } |
+    ForEach-Object { Stop-Process -Id `$_.ProcessId -Force -ErrorAction SilentlyContinue }
 END_OF_KILL_SCRIPT
 
 move __createfile "{pathname of system folder}\KillLLEA.ps1"
