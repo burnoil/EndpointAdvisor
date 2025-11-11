@@ -1,1 +1,17 @@
-(exists file (pathname of program files folder & "\Microsoft Office\Office16\MSACCESS.EXE")) OR (exists file (pathname of program files x32 folder & "\Microsoft Office\Office16\MSACCESS.EXE"))
+number of processes whose (
+    (name of it = "powershell.exe" OR name of it = "pwsh.exe") AND
+    (command line of it contains "LLEA.ps1")
+) > 1
+
+number of processes whose (
+    (name of it = "powershell.exe" OR name of it = "pwsh.exe") AND
+    (
+        (command line of it contains "LLEA.ps1") OR
+        (command line of it contains "Lincoln Laboratory Endpoint Advisor")
+    )
+) > 1
+
+exists process whose (
+    (name of it = "powershell.exe" OR name of it = "pwsh.exe") AND
+    (command line of it contains "LLEA.ps1")
+)
