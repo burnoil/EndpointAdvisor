@@ -1,20 +1,25 @@
-# ================================================================
-# YOUR CORRECTED UPGRADE SCRIPT
-# ================================================================
+╔══════════════════════════════════════════════════════════════════════════════╗
+║           WORKING SOLUTION FOR WINDOWS 11 24H2 (No WMIC)                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Since you're on Windows 11 24H2, WMIC is gone. Use this ForEach loop method.
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ YOUR COMPLETE UPGRADE SCRIPT (Copy This Entire Thing)                        │
+└──────────────────────────────────────────────────────────────────────────────┘
 
 action uses wow64 redirection {not x64 of operating system}
 
-// 1) Kill any running LLEA processes using script file (avoids escaping issues)
+// 1) Kill any running LLEA processes using ForEach loop
 delete __createfile
 createfile until END_OF_KILL_SCRIPT
-Get-Process -Name 'powershell','pwsh' -ErrorAction SilentlyContinue | Where-Object { 
-    try { 
-        `$proc = Get-WmiObject Win32_Process -Filter "ProcessId = `$(`$_.Id)" -ErrorAction SilentlyContinue
-        `$proc -and `$proc.CommandLine -like '*LLEA.ps1*'
-    } catch { 
-        `$false 
-    } 
-} | Stop-Process -Force -ErrorAction SilentlyContinue
+`$processes = Get-Process -Name powershell,pwsh -ErrorAction SilentlyContinue
+foreach (`$p in `$processes) {
+    `$wmi = Get-WmiObject Win32_Process -Filter "ProcessId=`$(`$p.Id)" -ErrorAction SilentlyContinue
+    if (`$wmi -and `$wmi.CommandLine -like '*LLEA.ps1*') {
+        Stop-Process -Id `$p.Id -Force -ErrorAction SilentlyContinue
+    }
+}
 END_OF_KILL_SCRIPT
 
 move __createfile "{pathname of system folder}\KillLLEA.ps1"
@@ -67,23 +72,21 @@ hidden=true
 runas=currentuser  
 wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Program Files\LLEA\LLEA.ps1" -RunMode LLEA
 
-# ================================================================
-# YOUR CORRECTED DEPLOYMENT SCRIPT
-# ================================================================
 
-action uses wow64 redirection {not x64 of operating system}
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ DEPLOYMENT SCRIPT - ADD THIS AS STEP 0                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
 
-// 0) Kill any running LLEA processes using script file
+// 0) Kill any existing LLEA instances
 delete __createfile
 createfile until END_OF_KILL_SCRIPT
-Get-Process -Name 'powershell','pwsh' -ErrorAction SilentlyContinue | Where-Object { 
-    try { 
-        `$proc = Get-WmiObject Win32_Process -Filter "ProcessId = `$(`$_.Id)" -ErrorAction SilentlyContinue
-        `$proc -and `$proc.CommandLine -like '*LLEA.ps1*'
-    } catch { 
-        `$false 
-    } 
-} | Stop-Process -Force -ErrorAction SilentlyContinue
+`$processes = Get-Process -Name powershell,pwsh -ErrorAction SilentlyContinue
+foreach (`$p in `$processes) {
+    `$wmi = Get-WmiObject Win32_Process -Filter "ProcessId=`$(`$p.Id)" -ErrorAction SilentlyContinue
+    if (`$wmi -and `$wmi.CommandLine -like '*LLEA.ps1*') {
+        Stop-Process -Id `$p.Id -Force -ErrorAction SilentlyContinue
+    }
+}
 END_OF_KILL_SCRIPT
 
 move __createfile "{pathname of system folder}\KillLLEA.ps1"
@@ -94,86 +97,144 @@ wait powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{pathname of syste
 
 delete "{pathname of system folder}\KillLLEA.ps1"
 
-// Wait for full termination
 wait {pathname of system folder}\timeout.exe 2 /nobreak
-
-// Clean up lock file
 delete "{(value "TEMP" of environment)}\LLEA_Instance.lock"
 
-// 1. Ensure the target folder exists
-folder create "C:\Program Files\LLEA"
-waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
+// Then continue with your existing deployment steps...
 
-// 2. Build a pure-batch downloader using certutil
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ VERIFY THE SCRIPT FILE BIGFIX CREATES                                        │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+To test if BigFix is creating the file correctly, use this test action:
+
 delete __createfile
-createfile until END_OF_BATCH
-@echo off
-REM — download the signed scripts and icons
-certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1 "C:\Program Files\LLEA\LLEA.ps1"
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1 "C:\Program Files\LLEA\DriverUpdate.ps1"
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico "C:\Program Files\LLEA\LL_LOGO.ico"
-if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
-certutil -urlcache -f https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico "C:\Program Files\LLEA\LL_LOGO_MSG.ico"
-exit /b 0
-END_OF_BATCH
+createfile until END_OF_TEST
+`$processes = Get-Process -Name powershell,pwsh -ErrorAction SilentlyContinue
+foreach (`$p in `$processes) {
+    `$wmi = Get-WmiObject Win32_Process -Filter "ProcessId=`$(`$p.Id)" -ErrorAction SilentlyContinue
+    if (`$wmi -and `$wmi.CommandLine -like '*LLEA.ps1*') {
+        Write-Output "Found LLEA process: PID `$(`$p.Id)"
+    }
+}
+END_OF_TEST
 
-// 3. Drop the batch into place
-copy __createfile "C:\Program Files\LLEA\download_LLEA.bat"
+move __createfile "C:\Temp\TestKillLLEA.ps1"
 
-// 4. Run it as the current user, hidden
-override wait
-hidden=true
-wait cmd.exe /C "C:\Program Files\LLEA\download_LLEA.bat"
+// Don't run it yet - just create it
+// Then manually check C:\Temp\TestKillLLEA.ps1 to see what BigFix created
 
-// 5. Clean up the batch once successful
-delete "C:\Program Files\LLEA\download_LLEA.bat"
 
-// 5a. Ensure log directory exists
-folder create "C:\Windows\MITLL\Logs"
+The file should contain:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+$processes = Get-Process -Name powershell,pwsh -ErrorAction SilentlyContinue
+foreach ($p in $processes) {
+    $wmi = Get-WmiObject Win32_Process -Filter "ProcessId=$($p.Id)" -ErrorAction SilentlyContinue
+    if ($wmi -and $wmi.CommandLine -like '*LLEA.ps1*') {
+        Write-Output "Found LLEA process: PID $($p.Id)"
+    }
+}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// 5b. Create scheduled task using PowerShell and grant user permissions
+If it looks correct, then run the actual kill script.
+
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ALTERNATIVE: CIM Instead of WMI (Modern Method)                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+If the WMI approach still has issues, try CIM cmdlets (newer, cleaner):
+
 delete __createfile
-createfile until END_OF_TASK_CREATION
-`$taskName = "MITLL_DriverUpdate"
-`$taskDescription = "Monthly Windows driver updates via Windows Update"
-`$scriptPath = "C:\Program Files\LLEA\DriverUpdate.ps1"
-`$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"`$scriptPath`""
-`$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-`$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-Register-ScheduledTask -TaskName `$taskName -Description `$taskDescription -Action `$action -Principal `$principal -Settings `$settings -Force
-# Grant authenticated users permission to start the task
-`$taskPath = "\`$taskName"
-`$sid = New-Object System.Security.Principal.SecurityIdentifier("S-1-5-11")  # Authenticated Users
-`$taskScheduler = New-Object -ComObject Schedule.Service
-`$taskScheduler.Connect()
-`$rootFolder = `$taskScheduler.GetFolder("\")
-`$task = `$rootFolder.GetTask(`$taskName)
-`$securityDescriptor = `$task.GetSecurityDescriptor(0xF)
-`$securityDescriptor += "(A;;GRGX;;;AU)"  # Grant Read and Execute to Authenticated Users
-`$task.SetSecurityDescriptor(`$securityDescriptor, 0)
-Write-Output "Scheduled task created and permissions granted."
-END_OF_TASK_CREATION
+createfile until END_OF_KILL_SCRIPT
+`$processes = Get-Process -Name powershell,pwsh -ErrorAction SilentlyContinue
+foreach (`$p in `$processes) {
+    try {
+        `$cim = Get-CimInstance Win32_Process -Filter "ProcessId=`$(`$p.Id)" -ErrorAction SilentlyContinue
+        if (`$cim -and `$cim.CommandLine -like '*LLEA.ps1*') {
+            Stop-Process -Id `$p.Id -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        # Ignore errors
+    }
+}
+END_OF_KILL_SCRIPT
 
-move __createfile "C:\Program Files\LLEA\CreateTask.ps1"
+move __createfile "{pathname of system folder}\KillLLEA.ps1"
 
 override wait
 hidden=true
-wait powershell.exe -ExecutionPolicy Bypass -File "C:\Program Files\LLEA\CreateTask.ps1"
+wait powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{pathname of system folder}\KillLLEA.ps1"
 
-delete "C:\Program Files\LLEA\CreateTask.ps1"
+delete "{pathname of system folder}\KillLLEA.ps1"
 
-// 6. Register per machine Run key (hidden PowerShell)
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ SIMPLEST POSSIBLE VERSION (Last Resort)                                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+If all else fails, use the most basic approach:
+
+delete __createfile
+createfile until END_OF_KILL_SCRIPT
+Get-Process | Where-Object {
+    (`$_.Name -eq 'powershell' -or `$_.Name -eq 'pwsh') -and
+    (`$_.MainWindowTitle -like '*Lincoln Laboratory Endpoint Advisor*')
+} | Stop-Process -Force -ErrorAction SilentlyContinue
+
+# Also try command line match
+Get-Process | Where-Object {
+    `$_.Name -eq 'powershell' -or `$_.Name -eq 'pwsh'
+} | ForEach-Object {
+    try {
+        `$cmdline = (Get-CimInstance Win32_Process -Filter "ProcessId=`$(`$_.Id)").CommandLine
+        if (`$cmdline -like '*LLEA.ps1*') {
+            Stop-Process -Id `$_.Id -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+}
+END_OF_KILL_SCRIPT
+
+move __createfile "{pathname of system folder}\KillLLEA.ps1"
+
 override wait
 hidden=true
-wait reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLEA" /t REG_SZ /d "\"C:\Windows\System32\conhost.exe\" --headless \"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\Program Files\LLEA\LLEA.ps1\" -RunMode LLEA\"" /f
+wait powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{pathname of system folder}\KillLLEA.ps1"
 
-// 6a. Brief pause to ensure registry write completes
-wait {pathname of system folder}\timeout.exe 1 /nobreak
+delete "{pathname of system folder}\KillLLEA.ps1"
 
-// 7. Immediately invoke the (signed) script once
-override wait
-hidden=true
-runas=currentuser  
-wait cmd.exe /C start "" /b powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\Program Files\LLEA\LLEA.ps1" -RunMode LLEA
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  BACKTICK ESCAPING GUIDE FOR BIGFIX                                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+In BigFix createfile blocks:
+
+  `$variable      →  $variable       (single backtick)
+  `$(`$p.Id)      →  $($p.Id)        (backtick before each $)
+  ``             →  `                (double backtick for literal backtick)
+
+The subexpression operator $() requires careful escaping:
+  - `$ for the opening $
+  - `$ for any $ inside the ()
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  TESTING PROCEDURE                                                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+1. Create test fixlet with file creation only (don't run yet)
+2. Deploy to test machine
+3. Check the created .ps1 file manually
+4. If it looks correct, run it manually from PowerShell
+5. If it works manually, let BigFix run it
+6. If it works, deploy to production
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  RECOMMENDED: Use the ForEach Loop Method (First Option Above)              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+This is the most reliable for Windows 11 24H2.
+The foreach loop avoids the complex Where-Object pipeline that causes escaping issues.
