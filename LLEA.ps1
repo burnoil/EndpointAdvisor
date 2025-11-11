@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.2.1 (Fixed GitHub JSON processing and targeted announcements)
+# Version: 6.2.2 (Fixed multiple instance issues)
 
 
 function Test-IsJson {
@@ -158,18 +158,132 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.2.1"
+$ScriptVersion = "6.2.2"
 
-# --- START OF SINGLE-INSTANCE CHECK ---
-# Single-Instance Check: Prevents multiple copies of the application from running.
+# --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
+# Uses multiple methods to prevent duplicate instances:
+# 1. Global mutex (most reliable)
+# 2. Process/command-line checking (backup)
+# 3. Lock file with PID tracking (tertiary)
 $AppName = "Lincoln Laboratory Endpoint Advisor"
-# Find any other PowerShell process with the same window title, excluding the current process.
-$existingProcesses = Get-Process -Name "powershell", "pwsh" -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $pid -and $_.MainWindowTitle -like "*$AppName*" }
-if ($existingProcesses) {
-    Write-Host "An instance of $AppName is already running. Exiting."
+$MutexName = "Global\LLEA_SingleInstance_Mutex"
+$LockFilePath = "$env:TEMP\LLEA_Instance.lock"
+
+function Test-OtherInstanceRunning {
+    param([string]$CurrentPID = $pid)
+    $otherInstances = @()
+    
+    # Method 1: Check by command line
+    try {
+        $processes = Get-WmiObject Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" -ErrorAction SilentlyContinue
+        foreach ($proc in $processes) {
+            if ($proc.ProcessId -ne $CurrentPID -and $proc.CommandLine -like "*LLEA.ps1*") {
+                $otherInstances += $proc.ProcessId
+            }
+        }
+    } catch { Write-Host "[WARNING] Could not check processes via WMI: $_" }
+    
+    # Method 2: Check by MainWindowTitle (original method)
+    try {
+        $existingByTitle = Get-Process -Name "powershell", "pwsh" -ErrorAction SilentlyContinue | 
+            Where-Object { $_.Id -ne $CurrentPID -and $_.MainWindowTitle -like "*$AppName*" }
+        foreach ($proc in $existingByTitle) {
+            if ($proc.Id -notin $otherInstances) { $otherInstances += $proc.Id }
+        }
+    } catch { Write-Host "[WARNING] Could not check processes by window title: $_" }
+    
+    # Method 3: Check lock file
+    if (Test-Path $LockFilePath) {
+        try {
+            $lockContent = Get-Content $LockFilePath -Raw -ErrorAction SilentlyContinue
+            if ($lockContent -match "PID:(\d+)") {
+                $lockedPID = [int]$matches[1]
+                $lockedProcess = Get-Process -Id $lockedPID -ErrorAction SilentlyContinue
+                if ($lockedProcess -and $lockedProcess.Id -ne $CurrentPID) {
+                    try {
+                        $procInfo = Get-WmiObject Win32_Process -Filter "ProcessId = $lockedPID" -ErrorAction SilentlyContinue
+                        if ($procInfo -and $procInfo.CommandLine -like "*LLEA.ps1*") {
+                            if ($lockedPID -notin $otherInstances) { $otherInstances += $lockedPID }
+                        } else {
+                            Remove-Item $LockFilePath -Force -ErrorAction SilentlyContinue
+                        }
+                    } catch { Write-Host "[WARNING] Could not verify locked process: $_" }
+                } elseif (-not $lockedProcess) {
+                    Remove-Item $LockFilePath -Force -ErrorAction SilentlyContinue
+                }
+            }
+        } catch { Write-Host "[WARNING] Error reading lock file: $_" }
+    }
+    return $otherInstances
+}
+
+function Create-LockFile {
+    param([string]$Path = $LockFilePath, [string]$CurrentPID = $pid)
+    try {
+        $lockContent = @"
+LLEA Instance Lock File
+Created: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+PID:$CurrentPID
+Script:$($MyInvocation.MyCommand.Path)
+"@
+        Set-Content -Path $Path -Value $lockContent -Force -ErrorAction Stop
+        return $true
+    } catch { Write-Host "[WARNING] Could not create lock file: $_"; return $false }
+}
+
+function Remove-LockFile {
+    param([string]$Path = $LockFilePath)
+    try {
+        if (Test-Path $Path) {
+            Remove-Item $Path -Force -ErrorAction Stop
+        }
+    } catch { Write-Host "[WARNING] Could not remove lock file: $_" }
+}
+
+# Try to acquire mutex
+$script:InstanceMutex = $null
+$mutexAcquired = $false
+try {
+    $script:InstanceMutex = New-Object System.Threading.Mutex($false, $MutexName)
+    $mutexAcquired = $script:InstanceMutex.WaitOne(0, $false)
+} catch { Write-Host "[WARNING] Mutex creation/check failed: $_" }
+
+# Check for other running instances
+$otherInstances = Test-OtherInstanceRunning -CurrentPID $pid
+
+# Decide whether to proceed
+if (-not $mutexAcquired -or $otherInstances.Count -gt 0) {
+    Write-Host ""
+    Write-Host ("=" * 60)
+    Write-Host "ANOTHER INSTANCE OF $AppName IS ALREADY RUNNING"
+    Write-Host ("=" * 60)
+    Write-Host "  - Mutex acquired: $mutexAcquired"
+    Write-Host "  - Other instances found: $($otherInstances.Count)"
+    if ($otherInstances.Count -gt 0) { Write-Host "  - Other PIDs: $($otherInstances -join ', ')" }
+    Write-Host ("=" * 60)
+    
+    if ($mutexAcquired -and $script:InstanceMutex) {
+        try { $script:InstanceMutex.ReleaseMutex(); $script:InstanceMutex.Dispose() } catch {}
+    }
+    Start-Sleep -Seconds 2
     exit
 }
-# --- END OF SINGLE-INSTANCE CHECK ---
+
+# Create lock file
+Create-LockFile -Path $LockFilePath -CurrentPID $pid
+
+# Register cleanup on exit
+$script:CleanupRegistered = $false
+if (-not $script:CleanupRegistered) {
+    Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+        if ($script:InstanceMutex) {
+            try { $script:InstanceMutex.ReleaseMutex(); $script:InstanceMutex.Dispose() } catch {}
+        }
+        Remove-LockFile -Path $using:LockFilePath
+    } | Out-Null
+    $script:CleanupRegistered = $true
+}
+# --- END OF ENHANCED SINGLE-INSTANCE CHECK ---
 
 # CODE ADDED TO TERMINATE NOTIFICATION IF RUN ON IDENTIFIED CONFERENCE ROOM PC
 try {
@@ -1438,13 +1552,13 @@ function Update-DriverUpdateStatus {
     try {
         $driverLastRun = Get-DaysSinceLastDriverUpdate
         
-        # Determine if button should show (30+ days or never run)
+        # Determine if button should show (25+ days or never run)
         $showDriverButton = $false
         if ($driverLastRun -eq "Never run") {
             $showDriverButton = $true
         } elseif ($driverLastRun -match "Last run (\d+) day") {
             $days = [int]$matches[1]
-            if ($days -ge 30) {
+            if ($days -ge 25) {
                 $showDriverButton = $true
             }
         }
