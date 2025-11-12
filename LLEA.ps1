@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.2.2 (Fixed multiple instance issues and link ordering)
+# Version: 6.2.2 (Fixed multiple instance issues)
 
 
 function Test-IsJson {
