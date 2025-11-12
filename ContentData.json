@@ -54,7 +54,7 @@
         {
           "id": "tg-mac-epi-001",
           "Platform": "Mac",
-          "Enabled": true,
+          "Enabled": false,
           "AppendToDefault": true,
           "Title": "EPI Tools (macOS)",
           "Text": "Extra tools are enabled for EPI group systems.",
