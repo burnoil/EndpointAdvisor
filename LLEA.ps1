@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.2.2 (Fixed multiple instance issues)
+# Version: 6.2.2 (Fixed multiple instance issues and link ordering)
 
 
 function Test-IsJson {
@@ -699,8 +699,8 @@ $xamlString = @"
         <StackPanel>
           <TextBlock x:Name="AnnouncementsText" FontSize="11" TextWrapping="Wrap"/>
           <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
-          <StackPanel x:Name="AppendedAnnouncementsPanel" Orientation="Vertical" Margin="0,5,0,0" Visibility="Collapsed"/>
           <StackPanel x:Name="AnnouncementsLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
+          <StackPanel x:Name="AppendedAnnouncementsPanel" Orientation="Vertical" Margin="0,5,0,0" Visibility="Collapsed"/>
           <TextBlock x:Name="AnnouncementsSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
         </StackPanel>
       </Border>
