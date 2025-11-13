@@ -4,44 +4,59 @@ action uses wow64 redirection {not x64 of operating system}
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
-// 2. Download files using Base64-encoded PowerShell commands
-// This avoids ALL quote/parsing issues with BigFix
+// 2. Create ultra-simple PowerShell downloader using .NET WebClient
+// Avoids complex PowerShell structures and curly braces as much as possible
+delete __createfile
+createfile until ___END_DOWNLOAD_PS1___
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'
+$wc = New-Object System.Net.WebClient
+$files = @(
+  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1','C:\Program Files\LLEA\LLEA.ps1'),
+  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1','C:\Program Files\LLEA\DriverUpdate.ps1'),
+  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico','C:\Program Files\LLEA\LL_LOGO.ico'),
+  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico','C:\Program Files\LLEA\LL_LOGO_MSG.ico')
+)
+$failed = @()
+foreach ($f in $files) {{
+  $url,$dest = $f
+  $ok = $false
+  1..3 | ForEach-Object {{
+    if (-not $ok) {{
+      try {{
+        Write-Host "Downloading $(Split-Path $dest -Leaf) attempt $_"
+        $wc.DownloadFile($url,$dest)
+        if (Test-Path $dest) {{ $ok = $true; Write-Host "  OK: $((Get-Item $dest).Length) bytes" }}
+      }} catch {{
+        Write-Host "  Failed: $($_.Exception.Message)"
+        Start-Sleep -Seconds ($_ * 2)
+      }}
+    }}
+  }}
+  if (-not $ok) {{ $failed += Split-Path $dest -Leaf }}
+}}
+$wc.Dispose()
+if ($failed.Count -gt 0) {{ Write-Host "ERROR: $($failed -join ',')"; exit 1 }}
+Write-Host "Success!"; exit 0
+___END_DOWNLOAD_PS1___
 
-// Download LLEA.ps1
-// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1' -OutFile 'C:\Program Files\LLEA\LLEA.ps1' -UseBasicParsing -TimeoutSec 120
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHAAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEwATABFAEEALgBwAHMAMQAnACAALQBPAHUAdABGAGkAbABlACAAJwBDADoAXABQAHIAbwBnAHIAYQBtACAARgBpAGwAZQBzAFwATABMAEUAQQBcAEwATABFAEEALgBwAHMAMQAnACAALQBVAHMAZQBCAGEAcwBpAGMAUABhAHIAcwBpAG4AZwAgAC0AVABpAG0AZQBvAHUAdABTAGUAYwAgADEAMgAwAA==
+// 3. Drop the PowerShell script into place
+move __createfile "C:\Program Files\LLEA\download_LLEA.ps1"
 
-// Brief pause
-wait {pathname of system folder}\timeout.exe 2 /nobreak
+// 4. Run the download script
+override wait
+hidden=true
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -File "C:\Program Files\LLEA\download_LLEA.ps1"
 
-// Download DriverUpdate.ps1
-// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1' -OutFile 'C:\Program Files\LLEA\DriverUpdate.ps1' -UseBasicParsing -TimeoutSec 120
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHAAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEQAcgBpAHYAZQByAFUAcABkAGEAdABlAC4AcABzADEAJwAgAC0ATwB1AHQARgBpAGwAZQAgACcAQwA6AFwAUAByAG8AZwByAGEAbQAgAEYAaQBsAGUAcwBcAEwATABFAEEAXABEAHIAaQB2AGUAcgBVAHAAZABhAHQAZQAuAHAAcwAxACcAIAAtAFUAcwBlAEIAYQBzAGkAYwBQAGEAcgBzAGkAbgBnACAALQBUAGkAbQBlAG8AdQB0AFMAZQBjACAAMQAyADAA
-
-// Brief pause
-wait {pathname of system folder}\timeout.exe 2 /nobreak
-
-// Download LL_LOGO.ico
-// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO.ico' -UseBasicParsing -TimeoutSec 120
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHAAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEwATABfAEwATwBHAE8ALgBpAGMAbwAnACAALQBPAHUAdABGAGkAbABlACAAJwBDADoAXABQAHIAbwBnAHIAYQBtACAARgBpAGwAZQBzAFwATABMAEUAQQBcAEwATABfAEwATwBHAE8ALgBpAGMAbwAnACAALQBVAHMAZQBCAGEAcwBpAGMAUABhAHIAcwBpAG4AZwAgAC0AVABpAG0AZQBvAHUAdABTAGUAYwAgADEAMgAwAA==
-
-// Brief pause
-wait {pathname of system folder}\timeout.exe 2 /nobreak
-
-// Download LL_LOGO_MSG.ico
-// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO_MSG.ico' -UseBasicParsing -TimeoutSec 120
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHBAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEwATABfAEwATwBHAE8AXwBNAFMARwAuAGkAYwBvACcAIAAtAE8AdQB0AEYAaQBsAGUAIAAnAEMAOgBcAFAAcgBvAGcAcgBhAG0AIABGAGkAbABlAHMAXABMAEwARQBBAFwATABMAF8ATABPAE4ATwBfAE0AUwBHAC4AaQBjAG8AJwAgAC0AVQBzAGUAQgBhAHMAaQBjAFAAYQByAHMAaQBuAGcAIAAtAFQAaQBtAGUAbwB1AHQAUwBlAGMAIAAxADIAMAA=
-
-// 3. Verify downloads succeeded
+// 4a. Check if download was successful before proceeding
 continue if {exists file "LLEA.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
-continue if {exists file "DriverUpdate.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
-continue if {exists file "LL_LOGO.ico" of folder "LLEA" of folder "Program Files" of drive of system folder}
-continue if {exists file "LL_LOGO_MSG.ico" of folder "LLEA" of folder "Program Files" of drive of system folder}
 
-// 4. Ensure log directory exists
+// 5. Clean up the download script
+delete "C:\Program Files\LLEA\download_LLEA.ps1"
+
+// 5a. Ensure log directory exists
 folder create "C:\Windows\MITLL\Logs"
 
-// 5. Create scheduled task using PowerShell and grant user permissions
+// 5b. Create scheduled task using PowerShell and grant user permissions
 delete __createfile
 createfile until END_OF_TASK_CREATION
 $taskName = "MITLL_DriverUpdate"
@@ -77,10 +92,10 @@ override wait
 hidden=true
 wait reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLEA" /t REG_SZ /d "\"C:\Windows\System32\conhost.exe\" --headless \"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\Program Files\LLEA\LLEA.ps1\" -RunMode LLEA\"" /f
 
-// 7. Brief pause to ensure cleanup complete
+// 6a. Brief pause to ensure cleanup complete
 wait {pathname of system folder}\timeout.exe 1 /nobreak
 
-// 8. Immediately invoke the (signed) script once
+// 7. Immediately invoke the (signed) script once
 override wait
 hidden=true
 runas=currentuser  
