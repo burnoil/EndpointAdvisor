@@ -4,59 +4,31 @@ action uses wow64 redirection {not x64 of operating system}
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
-// 2. Create ultra-simple PowerShell downloader using .NET WebClient
-// Avoids complex PowerShell structures and curly braces as much as possible
-delete __createfile
-createfile until ___END_DOWNLOAD_PS1___
-[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'
-$wc = New-Object System.Net.WebClient
-$files = @(
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1','C:\Program Files\LLEA\LLEA.ps1'),
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1','C:\Program Files\LLEA\DriverUpdate.ps1'),
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico','C:\Program Files\LLEA\LL_LOGO.ico'),
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico','C:\Program Files\LLEA\LL_LOGO_MSG.ico')
-)
-$failed = @()
-foreach ($f in $files) {
-  $url,$dest = $f
-  $ok = $false
-  1..3 | ForEach-Object {
-    if (-not $ok) {
-      try {
-        Write-Host "Downloading $(Split-Path $dest -Leaf) attempt $_"
-        $wc.DownloadFile($url,$dest)
-        if (Test-Path $dest) { $ok = $true; Write-Host "  OK: $((Get-Item $dest).Length) bytes" }
-      } catch {
-        Write-Host "  Failed: $($_.Exception.Message)"
-        Start-Sleep -Seconds ($_ * 2)
-      }
-    }
-  }
-  if (-not $ok) { $failed += Split-Path $dest -Leaf }
-}
-$wc.Dispose()
-if ($failed.Count -gt 0) { Write-Host "ERROR: $($failed -join ',')"; exit 1 }
-Write-Host "Success!"; exit 0
-___END_DOWNLOAD_PS1___
+// 2. Download files using bitsadmin (built-in Windows tool)
+// No PowerShell scripting needed = no curly brace issues!
 
-// 3. Drop the PowerShell script into place
-copy __createfile "C:\Program Files\LLEA\download_LLEA.ps1"
+// Download LLEA.ps1
+waithidden bitsadmin.exe /transfer "LLEA_Download_1" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1 "C:\Program Files\LLEA\LLEA.ps1"
 
-// 4. Run the download script
-override wait
-hidden=true
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -File "C:\Program Files\LLEA\download_LLEA.ps1"
+// Download DriverUpdate.ps1
+waithidden bitsadmin.exe /transfer "LLEA_Download_2" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1 "C:\Program Files\LLEA\DriverUpdate.ps1"
 
-// 4a. Check if download was successful before proceeding
+// Download LL_LOGO.ico
+waithidden bitsadmin.exe /transfer "LLEA_Download_3" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico "C:\Program Files\LLEA\LL_LOGO.ico"
+
+// Download LL_LOGO_MSG.ico
+waithidden bitsadmin.exe /transfer "LLEA_Download_4" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico "C:\Program Files\LLEA\LL_LOGO_MSG.ico"
+
+// 3. Verify downloads succeeded
 continue if {exists file "LLEA.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
+continue if {exists file "DriverUpdate.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
+continue if {exists file "LL_LOGO.ico" of folder "LLEA" of folder "Program Files" of drive of system folder}
+continue if {exists file "LL_LOGO_MSG.ico" of folder "LLEA" of folder "Program Files" of drive of system folder}
 
-// 5. Clean up the download script
-delete "C:\Program Files\LLEA\download_LLEA.ps1"
-
-// 5a. Ensure log directory exists
+// 4. Ensure log directory exists
 folder create "C:\Windows\MITLL\Logs"
 
-// 5b. Create scheduled task using PowerShell and grant user permissions
+// 5. Create scheduled task using PowerShell and grant user permissions
 delete __createfile
 createfile until END_OF_TASK_CREATION
 $taskName = "MITLL_DriverUpdate"
@@ -92,10 +64,10 @@ override wait
 hidden=true
 wait reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /v "LLEA" /t REG_SZ /d "\"C:\Windows\System32\conhost.exe\" --headless \"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\Program Files\LLEA\LLEA.ps1\" -RunMode LLEA\"" /f
 
-// 6a. Brief pause to ensure cleanup complete
+// 7. Brief pause to ensure cleanup complete
 wait {pathname of system folder}\timeout.exe 1 /nobreak
 
-// 7. Immediately invoke the (signed) script once
+// 8. Immediately invoke the (signed) script once
 override wait
 hidden=true
 runas=currentuser  
