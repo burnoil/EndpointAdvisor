@@ -4,22 +4,22 @@ action uses wow64 redirection {not x64 of operating system}
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
-// 2. Set TLS and download each file individually
+// 2. Download with 3 retry attempts per file
 override wait
 hidden=true
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1' -OutFile 'C:\Program Files\LLEA\LLEA.ps1' -UseDefaultCredentials -UseBasicParsing"
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "& { [Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; $ok = $false; 1..3 | ForEach-Object { if (-not $ok) { try { Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1' -OutFile 'C:\Program Files\LLEA\LLEA.ps1' -UseDefaultCredentials -UseBasicParsing; $ok = $true } catch { Start-Sleep -Seconds ($_ * 2) } } }; if (-not $ok) { exit 1 } }"
 
 override wait
 hidden=true
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1' -OutFile 'C:\Program Files\LLEA\DriverUpdate.ps1' -UseDefaultCredentials -UseBasicParsing"
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "& { [Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; $ok = $false; 1..3 | ForEach-Object { if (-not $ok) { try { Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1' -OutFile 'C:\Program Files\LLEA\DriverUpdate.ps1' -UseDefaultCredentials -UseBasicParsing; $ok = $true } catch { Start-Sleep -Seconds ($_ * 2) } } }; if (-not $ok) { exit 1 } }"
 
 override wait
 hidden=true
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO.ico' -UseDefaultCredentials -UseBasicParsing"
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "& { [Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; $ok = $false; 1..3 | ForEach-Object { if (-not $ok) { try { Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO.ico' -UseDefaultCredentials -UseBasicParsing; $ok = $true } catch { Start-Sleep -Seconds ($_ * 2) } } }; if (-not $ok) { exit 1 } }"
 
 override wait
 hidden=true
-wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO_MSG.ico' -UseDefaultCredentials -UseBasicParsing"
+wait powershell.exe -ExecutionPolicy Bypass -NoProfile -Command "& { [Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'; $ok = $false; 1..3 | ForEach-Object { if (-not $ok) { try { Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO_MSG.ico' -UseDefaultCredentials -UseBasicParsing; $ok = $true } catch { Start-Sleep -Seconds ($_ * 2) } } }; if (-not $ok) { exit 1 } }"
 
 // 3. Check if download was successful before proceeding
 continue if {exists file "LLEA.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
