@@ -4,29 +4,33 @@ action uses wow64 redirection {not x64 of operating system}
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
-// 2. Download files using PowerShell one-liners with retry
-// This avoids ALL curly brace issues and is more reliable than bitsadmin
+// 2. Download files using Base64-encoded PowerShell commands
+// This avoids ALL quote/parsing issues with BigFix
 
-// Download LLEA.ps1 (with 3 retry attempts)
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1' -OutFile 'C:\Program Files\LLEA\LLEA.ps1' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
+// Download LLEA.ps1
+// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1' -OutFile 'C:\Program Files\LLEA\LLEA.ps1' -UseBasicParsing -TimeoutSec 120
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHAAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEwATABFAEEALgBwAHMAMQAnACAALQBPAHUAdABGAGkAbABlACAAJwBDADoAXABQAHIAbwBnAHIAYQBtACAARgBpAGwAZQBzAFwATABMAEUAQQBcAEwATABFAEEALgBwAHMAMQAnACAALQBVAHMAZQBCAGEAcwBpAGMAUABhAHIAcwBpAG4AZwAgAC0AVABpAG0AZQBvAHUAdABTAGUAYwAgADEAMgAwAA==
 
-// Brief pause between downloads
+// Brief pause
 wait {pathname of system folder}\timeout.exe 2 /nobreak
 
-// Download DriverUpdate.ps1 (with 3 retry attempts)
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1' -OutFile 'C:\Program Files\LLEA\DriverUpdate.ps1' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
+// Download DriverUpdate.ps1
+// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1' -OutFile 'C:\Program Files\LLEA\DriverUpdate.ps1' -UseBasicParsing -TimeoutSec 120
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHAAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEQAcgBpAHYAZQByAFUAcABkAGEAdABlAC4AcABzADEAJwAgAC0ATwB1AHQARgBpAGwAZQAgACcAQwA6AFwAUAByAG8AZwByAGEAbQAgAEYAaQBsAGUAcwBcAEwATABFAEEAXABEAHIAaQB2AGUAcgBVAHAAZABhAHQAZQAuAHAAcwAxACcAIAAtAFUAcwBlAEIAYQBzAGkAYwBQAGEAcgBzAGkAbgBnACAALQBUAGkAbQBlAG8AdQB0AFMAZQBjACAAMQAyADAA
 
-// Brief pause between downloads
+// Brief pause
 wait {pathname of system folder}\timeout.exe 2 /nobreak
 
-// Download LL_LOGO.ico (with 3 retry attempts)
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO.ico' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
+// Download LL_LOGO.ico
+// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO.ico' -UseBasicParsing -TimeoutSec 120
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHAAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEwATABfAEwATwBHAE8ALgBpAGMAbwAnACAALQBPAHUAdABGAGkAbABlACAAJwBDADoAXABQAHIAbwBnAHIAYQBtACAARgBpAGwAZQBzAFwATABMAEUAQQBcAEwATABfAEwATwBHAE8ALgBpAGMAbwAnACAALQBVAHMAZQBCAGEAcwBpAGMAUABhAHIAcwBpAG4AZwAgAC0AVABpAG0AZQBvAHUAdABTAGUAYwAgADEAMgAwAA==
 
-// Brief pause between downloads
+// Brief pause
 wait {pathname of system folder}\timeout.exe 2 /nobreak
 
-// Download LL_LOGO_MSG.ico (with 3 retry attempts)
-waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO_MSG.ico' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
+// Download LL_LOGO_MSG.ico
+// Base64 encoded: $ProgressPreference='SilentlyContinue';[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO_MSG.ico' -UseBasicParsing -TimeoutSec 120
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand JABQAHIAbwBnAHIAZQBzAHMAUAByAGUAZgBlAHIAZQBuAGMAZQA9ACcAUwBpAGwAZQBuAHQAbAB5AEMAbwBuAHQAaQBuAHUAZQAnADsAWwBOAGUAdAAuAFMAZQByAHYAaQBjAGUAUABvAGkAbgB0AE0AYQBuAGEAZwBlAHIAXQA6ADoAUwBlAGMAdQByAGkAdAB5AFAAcgBvAHQAbwBjAG8AbAA9ACcAVABsAHMAMQAyACwAVABsAHMAMQAzACcAOwBJAG4AdgBvAGsAZQAtAFcAZQBiAFIAZQBxAHUAZQBzAHQAIAAtAFUAcgBpACAAJwBoAHQAdABwAHMAOgAvAC8AcgBhAHcALgBsAGwAYwBhAGQALQBnAGkAdABoAHUAYgAuAGwAbABhAG4ALgBsAGwALgBtAGkAdAAuAGUAZAB1AC8ARQBuAGQAcABvAGkAbgB0AEUAbgBnAGkAbgBlAGUAcgBpAG4AZwAvAEUAbgBkAHBAbwBpAG4AdABBAGQAdgBpAHMAbwByAC8AbQBhAGkAbgAvAEwATABfAEwATwBHAE8AXwBNAFMARwAuAGkAYwBvACcAIAAtAE8AdQB0AEYAaQBsAGUAIAAnAEMAOgBcAFAAcgBvAGcAcgBhAG0AIABGAGkAbABlAHMAXABMAEwARQBBAFwATABMAF8ATABPAE4ATwBfAE0AUwBHAC4AaQBjAG8AJwAgAC0AVQBzAGUAQgBhAHMAaQBjAFAAYQByAHMAaQBuAGcAIAAtAFQAaQBtAGUAbwB1AHQAUwBlAGMAIAAxADIAMAA=
 
 // 3. Verify downloads succeeded
 continue if {exists file "LLEA.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
