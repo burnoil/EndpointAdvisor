@@ -4,20 +4,29 @@ action uses wow64 redirection {not x64 of operating system}
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
-// 2. Download files using bitsadmin (built-in Windows tool)
-// No PowerShell scripting needed = no curly brace issues!
+// 2. Download files using PowerShell one-liners with retry
+// This avoids ALL curly brace issues and is more reliable than bitsadmin
 
-// Download LLEA.ps1
-waithidden bitsadmin.exe /transfer "LLEA_Download_1" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1 "C:\Program Files\LLEA\LLEA.ps1"
+// Download LLEA.ps1 (with 3 retry attempts)
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1' -OutFile 'C:\Program Files\LLEA\LLEA.ps1' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
 
-// Download DriverUpdate.ps1
-waithidden bitsadmin.exe /transfer "LLEA_Download_2" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1 "C:\Program Files\LLEA\DriverUpdate.ps1"
+// Brief pause between downloads
+wait {pathname of system folder}\timeout.exe 2 /nobreak
 
-// Download LL_LOGO.ico
-waithidden bitsadmin.exe /transfer "LLEA_Download_3" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico "C:\Program Files\LLEA\LL_LOGO.ico"
+// Download DriverUpdate.ps1 (with 3 retry attempts)
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1' -OutFile 'C:\Program Files\LLEA\DriverUpdate.ps1' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
 
-// Download LL_LOGO_MSG.ico
-waithidden bitsadmin.exe /transfer "LLEA_Download_4" /priority high https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico "C:\Program Files\LLEA\LL_LOGO_MSG.ico"
+// Brief pause between downloads
+wait {pathname of system folder}\timeout.exe 2 /nobreak
+
+// Download LL_LOGO.ico (with 3 retry attempts)
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO.ico' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
+
+// Brief pause between downloads
+wait {pathname of system folder}\timeout.exe 2 /nobreak
+
+// Download LL_LOGO_MSG.ico (with 3 retry attempts)
+waithidden powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p='SilentlyContinue';$ProgressPreference=$p;[Net.ServicePointManager]::SecurityProtocol='Tls12,Tls13';$r=0;do{try{Invoke-WebRequest -Uri 'https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico' -OutFile 'C:\Program Files\LLEA\LL_LOGO_MSG.ico' -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop;$r=99}catch{$r++;Start-Sleep -Seconds ($r*5)}}while($r -lt 3 -and $r -ne 99)"
 
 // 3. Verify downloads succeeded
 continue if {exists file "LLEA.ps1" of folder "LLEA" of folder "Program Files" of drive of system folder}
