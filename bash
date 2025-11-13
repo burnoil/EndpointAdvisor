@@ -4,43 +4,67 @@ action uses wow64 redirection {not x64 of operating system}
 folder create "C:\Program Files\LLEA"
 waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 
-// 2. Build a compact PowerShell downloader (replaces certutil)
-// This version uses only Invoke-WebRequest with retry logic
+// 2. Build a compact PowerShell downloader (BigFix-safe, NO curly braces)
 delete __createfile
 createfile until END_OF_DOWNLOAD_SCRIPT
-# LLEA Download Script - Compact version with Invoke-WebRequest
+# LLEA Download Script - Compact BigFix-safe version
+# Uses parentheses instead of curly braces to avoid BigFix parsing issues
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12, [Net.SecurityProtocolType]::Tls13
 $ProgressPreference = 'SilentlyContinue'
+
+# Define files to download
 $urls = @(
     @("https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1", "C:\Program Files\LLEA\LLEA.ps1"),
     @("https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1", "C:\Program Files\LLEA\DriverUpdate.ps1"),
     @("https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico", "C:\Program Files\LLEA\LL_LOGO.ico"),
     @("https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico", "C:\Program Files\LLEA\LL_LOGO_MSG.ico")
 )
+
 $failed = @()
-foreach ($item in $urls) {
-    $url, $dest = $item
+
+foreach ($item in $urls)
+(
+    $url = $item[0]
+    $dest = $item[1]
     $success = $false
-    for ($i = 1; $i -le 3; $i++) {
-        try {
+    
+    for ($i = 1; $i -le 3; $i++)
+    (
+        try
+        (
             Write-Host "Downloading $(Split-Path $dest -Leaf) (attempt $i)..."
             Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -TimeoutSec 120 -ErrorAction Stop
-            if (Test-Path $dest) { 
-                Write-Host "  Success: $((Get-Item $dest).Length) bytes"
+            
+            if (Test-Path $dest)
+            (
+                $fileSize = (Get-Item $dest).Length
+                Write-Host "  Success: $fileSize bytes"
                 $success = $true
-                break 
-            }
-        } catch {
+                break
+            )
+        )
+        catch
+        (
             Write-Host "  Failed: $($_.Exception.Message)"
-            if ($i -lt 3) { Start-Sleep -Seconds (5 * $i) }
-        }
-    }
-    if (-not $success) { $failed += Split-Path $dest -Leaf }
-}
-if ($failed.Count -gt 0) {
+            if ($i -lt 3)
+            (
+                Start-Sleep -Seconds (5 * $i)
+            )
+        )
+    )
+    
+    if (-not $success)
+    (
+        $failed += Split-Path $dest -Leaf
+    )
+)
+
+if ($failed.Count -gt 0)
+(
     Write-Host "ERROR: Failed to download: $($failed -join ', ')" -ForegroundColor Red
     exit 1
-}
+)
+
 Write-Host "All files downloaded successfully!" -ForegroundColor Green
 exit 0
 END_OF_DOWNLOAD_SCRIPT
