@@ -7,8 +7,12 @@ waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 // 2. Create ultra-simple PowerShell downloader (BRACES RE-FIXED)
 delete __createfile
 createfile until ___END_DOWNLOAD_PS1___
-[Net.ServicePointManager]::SecurityProtocol = 'Tls12,Tls13'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
 $wc = New-Object System.Net.WebClient
+$wc.Proxy = [System.Net.WebRequest]::DefaultWebProxy
+$wc.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+$wc.UseDefaultCredentials = $true
+
 $files = @(
   @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1','C:\Program Files\LLEA\LLEA.ps1'),
   @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1','C:\Program Files\LLEA\DriverUpdate.ps1'),
@@ -27,6 +31,7 @@ foreach ($f in $files) {{
         if (Test-Path $dest) {{ $ok = $true; Write-Host "  OK: $((Get-Item $dest).Length) bytes" }}
       }} catch {{
         Write-Host "  Failed: $($_.Exception.Message)"
+        Write-Host "  Inner: $($_.Exception.InnerException.Message)"
         Start-Sleep -Seconds ($_ * 2)
       }}
     }}
@@ -37,7 +42,6 @@ $wc.Dispose()
 if ($failed.Count -gt 0) {{ Write-Host "ERROR: $($failed -join ',')"; exit 1 }}
 Write-Host "Success!"; exit 0
 ___END_DOWNLOAD_PS1___
-
 // 3. Drop the PowerShell script into place (using 'move')
 move __createfile "C:\Program Files\LLEA\download_LLEA.ps1"
 
