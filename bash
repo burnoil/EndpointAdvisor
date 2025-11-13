@@ -7,41 +7,28 @@ waithidden cmd.exe /c icacls "C:\Program Files\LLEA" /grant "Users":(OI)(CI)F /t
 // 2. Create ultra-simple PowerShell downloader (BRACES RE-FIXED)
 delete __createfile
 createfile until ___END_DOWNLOAD_PS1___
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-$wc = New-Object System.Net.WebClient
-$wc.Proxy = [System.Net.WebRequest]::DefaultWebProxy
-$wc.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
-$wc.UseDefaultCredentials = $true
-
+Import-Module BitsTransfer
 $files = @(
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1','C:\Program Files\LLEA\LLEA.ps1'),
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1','C:\Program Files\LLEA\DriverUpdate.ps1'),
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico','C:\Program Files\LLEA\LL_LOGO.ico'),
-  @('https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico','C:\Program Files\LLEA\LL_LOGO_MSG.ico')
+  @{{Url='https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LLEA.ps1'; Dest='C:\Program Files\LLEA\LLEA.ps1'}},
+  @{{Url='https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/DriverUpdate.ps1'; Dest='C:\Program Files\LLEA\DriverUpdate.ps1'}},
+  @{{Url='https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO.ico'; Dest='C:\Program Files\LLEA\LL_LOGO.ico'}},
+  @{{Url='https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/main/LL_LOGO_MSG.ico'; Dest='C:\Program Files\LLEA\LL_LOGO_MSG.ico'}}
 )
 $failed = @()
 foreach ($f in $files) {{
-  $url,$dest = $f
-  $ok = $false
-  1..3 | ForEach-Object {{
-    if (-not $ok) {{
-      try {{
-        Write-Host "Downloading $(Split-Path $dest -Leaf) attempt $_"
-        $wc.DownloadFile($url,$dest)
-        if (Test-Path $dest) {{ $ok = $true; Write-Host "  OK: $((Get-Item $dest).Length) bytes" }}
-      }} catch {{
-        Write-Host "  Failed: $($_.Exception.Message)"
-        Write-Host "  Inner: $($_.Exception.InnerException.Message)"
-        Start-Sleep -Seconds ($_ * 2)
-      }}
-    }}
+  try {{
+    Write-Host "Downloading $(Split-Path $f.Dest -Leaf)"
+    Start-BitsTransfer -Source $f.Url -Destination $f.Dest -Description "LLEA Download" -ErrorAction Stop
+    Write-Host "  OK: $((Get-Item $f.Dest).Length) bytes"
+  }} catch {{
+    Write-Host "  Failed: $($_.Exception.Message)"
+    $failed += Split-Path $f.Dest -Leaf
   }}
-  if (-not $ok) {{ $failed += Split-Path $dest -Leaf }}
 }}
-$wc.Dispose()
-if ($failed.Count -gt 0) {{ Write-Host "ERROR: $($failed -join ',')"; exit 1 }}
-Write-Host "Success!"; exit 0
+if ($failed.Count -gt 0) {{ Write-Host "ERROR: Failed files: $($failed -join ',')"; exit 1 }}
+Write-Host "All downloads successful!"; exit 0
 ___END_DOWNLOAD_PS1___
+
 // 3. Drop the PowerShell script into place (using 'move')
 move __createfile "C:\Program Files\LLEA\download_LLEA.ps1"
 
