@@ -404,6 +404,39 @@ function Rotate-LogFile {
                 try {
                     Invoke-WithRetry -Action {
                         Rename-Item -Path $LogFilePath -NewName $archivePath -ErrorAction Stop
+                    }
+                    Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
+
+                    $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "LLEndpointAdvisor.log.*.archive" | Sort-Object CreationTime
+                    $maxArchives = 3
+                    if ($archiveFiles.Count -gt $maxArchives) {
+                        $filesToDelete = $archiveFiles | Select-Object -First ($archiveFiles.Count - $maxArchives)
+                        foreach ($file in $filesToDelete) {
+                            try {
+                                Invoke-WithRetry -Action {
+                                    Remove-Item -Path $file.FullName -Force -ErrorAction Stop
+                                }
+                                Write-Log "Deleted old archive: $($file.FullName)" -Level "INFO"
+                            }
+                            catch {
+                                Write-Log "Failed to delete old archive $($file.FullName) - $($_.Exception.Message)" -Level "ERROR"
+                            }
+                        }
+                    }
+                }
+                catch {
+                    Write-Log "Failed to rotate log file - $($_.Exception.Message)" -Level "ERROR"
+                }
+            }
+        }
+    }
+    catch {
+        Write-Log "Error checking log file size for rotation - $($_.Exception.Message)" -Level "ERROR"
+    }
+    finally {
+        $global:IsRotatingLog = $false
+    }
+}
 
 # ============================================================
 # AD Account Monitoring Functions  
@@ -466,9 +499,8 @@ function Get-ADAccountStatus {
                 # Get domain password policy (default 90 days if can't retrieve)
                 $maxPasswordAge = 90
                 try {
-                    $domainRoot = $searcher.SearchRoot.Path
-                    $domainEntry = New-Object System.DirectoryServices.DirectoryEntry($domainRoot)
-                    $domainSearcher = New-Object System.DirectoryServices.DirectorySearcher($domainEntry)
+                    $domainRoot = [ADSI]""
+                    $domainSearcher = New-Object System.DirectoryServices.DirectorySearcher($domainRoot)
                     $domainSearcher.Filter = "(objectClass=domainDNS)"
                     $domainSearcher.PropertiesToLoad.Add("maxPwdAge")
                     $domainResult = $domainSearcher.FindOne()
@@ -659,39 +691,6 @@ function Start-PasswordChange {
     }
 }
 
-                    }
-                    Write-Log "Log file rotated. Archived as $archivePath" -Level "INFO"
-
-                    $archiveFiles = Get-ChildItem -Path $LogDirectory -Filter "LLEndpointAdvisor.log.*.archive" | Sort-Object CreationTime
-                    $maxArchives = 3
-                    if ($archiveFiles.Count -gt $maxArchives) {
-                        $filesToDelete = $archiveFiles | Select-Object -First ($archiveFiles.Count - $maxArchives)
-                        foreach ($file in $filesToDelete) {
-                            try {
-                                Invoke-WithRetry -Action {
-                                    Remove-Item -Path $file.FullName -Force -ErrorAction Stop
-                                }
-                                Write-Log "Deleted old archive: $($file.FullName)" -Level "INFO"
-                            }
-                            catch {
-                                Write-Log "Failed to delete old archive $($file.FullName) - $($_.Exception.Message)" -Level "ERROR"
-                            }
-                        }
-                    }
-                }
-                catch {
-                    Write-Log "Failed to rotate log file - $($_.Exception.Message)" -Level "ERROR"
-                }
-            }
-        }
-    }
-    catch {
-        Write-Log "Error checking log file size for rotation - $($_.Exception.Message)" -Level "ERROR"
-    }
-    finally {
-        $global:IsRotatingLog = $false
-    }
-}
 
 function Handle-Error {
     param(
@@ -1199,12 +1198,12 @@ Main-UpdateCycle
                 $config.LastSeenUpdateState = $global:CurrentUpdateState
                 Save-Configuration -Config $config
                 Update-TrayIcon
-            })
-        }
         if ($global:AccountInfoExpander) {
             $global:AccountInfoExpander.Add_Expanded({
                 if ($global:AccountInfoAlertIcon) { $global:AccountInfoAlertIcon.Visibility = "Hidden" }
                 Update-TrayIcon
+            })
+        }
             })
         }
         
@@ -1249,9 +1248,6 @@ if ($global:DriverUpdateButton) {
                 Write-Log "User closed driver progress panel." -Level "INFO"
                 $window.Dispatcher.Invoke({
                     $global:DriverProgressPanel.Visibility = "Collapsed"
-                })
-            })
-        }
         # Add AD button handlers
         if ($global:ADChangePasswordButton) {
             $global:ADChangePasswordButton.Add_Click({ Start-PasswordChange })
@@ -1263,7 +1259,10 @@ if ($global:DriverUpdateButton) {
                 Update-ADAccountStatus
                 Write-Log "User initiated AD status refresh." -Level "INFO"
             })
-            Write-Log "AD Refresh button handler registered." -Level "INFO"
+            Write-Log "AD Refresh button handler registered." -Level "INFO"  
+        }
+                })
+            })
         }
         if ($global:ClearAlertsButton) {
 			$global:ClearAlertsButton.Add_Click({
