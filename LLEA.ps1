@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.1 (Enhanced styling) (Fixed multiple instance issues)
+# Version: 6.3.0 (Added balloon tip notifications, blinking tray icon, config migration)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.2.2"
+$ScriptVersion = "6.3.0"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -619,10 +619,22 @@ function Update-ADAccountStatus {
                 $statusLines += "[red]**Password expires in $days days!**[/red] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
                 $showPasswordButton = $true
                 $alertLevel = "Critical"
+                
+                # Show critical password expiration notification
+                Show-AlertNotification -Title "Password Expiring Soon!" `
+                    -Message "Your password expires in $days days. Change it now to avoid being locked out." `
+                    -TimeoutMs 10000 `
+                    -Icon ([System.Windows.Forms.ToolTipIcon]::Error)
             } elseif ($days -le 14) {
                 $statusLines += "[yellow]**Password expires in $days days**[/yellow] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
                 $showPasswordButton = $true
                 if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
+                
+                # Show warning password expiration notification  
+                Show-AlertNotification -Title "Password Expiration Reminder" `
+                    -Message "Your password expires in $days days." `
+                    -TimeoutMs 8000 `
+                    -Icon ([System.Windows.Forms.ToolTipIcon]::Warning)
             } else {
                 $statusLines += "Password expires in $days days ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
             }
@@ -691,6 +703,28 @@ function Start-PasswordChange {
     }
 }
 
+function Show-AlertNotification {
+    param(
+        [string]$Title = "Endpoint Advisor Alert",
+        [string]$Message,
+        [int]$TimeoutMs = 5000,
+        [System.Windows.Forms.ToolTipIcon]$Icon = [System.Windows.Forms.ToolTipIcon]::Warning
+    )
+    
+    if ($global:TrayIcon) {
+        # Show balloon tip (works even in overflow area)
+        $global:TrayIcon.ShowBalloonTip($TimeoutMs, $Title, $Message, $Icon)
+        Write-Log "Balloon notification shown: $Title - $Message" -Level "INFO"
+        
+        # Start blinking the tray icon
+        if ($config.BlinkingEnabled -and -not $global:BlinkingTimer.IsEnabled) {
+            $global:BlinkingTimer.Start()
+            Write-Log "Started tray icon blinking for alert notification" -Level "INFO"
+        }
+    }
+}
+
+
 
 function Handle-Error {
     param(
@@ -752,7 +786,7 @@ function Get-DefaultConfig {
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
-        BlinkingEnabled       = $false
+        BlinkingEnabled       = $true
         CachePath             = Join-Path $ScriptDir "ContentData.cache.json"
         HasRunBefore          = $false
     }
@@ -776,6 +810,9 @@ function Load-Configuration {
             Write-Log "Failed to load or merge existing config file. Reverting to full defaults. - $($_.Exception.Message)" -Level "WARNING"
         }
     }
+    
+    # Migrate config if upgrading from older version
+    $finalConfig = Migrate-Configuration -Config $finalConfig
     try {
         $finalConfig | ConvertTo-Json -Depth 100 | Out-File $Path -Force
         Write-Log "Configuration file validated and saved." -Level "INFO"
@@ -784,6 +821,44 @@ function Load-Configuration {
         Write-Log "Could not save the updated configuration to $Path - $($_.Exception.Message)" -Level "ERROR"
     }
     return $finalConfig
+}
+
+function Migrate-Configuration {
+    param([hashtable]$Config)
+    
+    $currentVersion = $ScriptVersion
+    $configVersion = if ($Config.Version) { $Config.Version } else { "0.0.0" }
+    
+    Write-Log "Config version: $configVersion, Script version: $currentVersion" -Level "INFO"
+    
+    # Version 6.3.0+ adds notification features
+    if ([version]$configVersion -lt [version]"6.3.0") {
+        Write-Log "Migrating config from $configVersion to $currentVersion..." -Level "INFO"
+        
+        # Force BlinkingEnabled to true for notification feature
+        $Config.BlinkingEnabled = $true
+        Write-Log "  - BlinkingEnabled set to true (notification feature)" -Level "INFO"
+        
+        # Clear baselines to avoid false alerts on first run with new version
+        # This ensures first run after migration behaves like true first run
+        if ($Config.SectionStates) {
+            $Config.SectionStates = @{}
+            Write-Log "  - Section baselines cleared (will re-baseline on next check)" -Level "INFO"
+        }
+        $Config.AnnouncementsLastState = "{}"
+        $Config.SupportLastState = "{}"
+        Write-Log "  - Legacy baseline states cleared" -Level "INFO"
+        
+        # Update version
+        $Config.Version = $currentVersion
+        Write-Log "  - Config version updated to $currentVersion" -Level "INFO"
+        
+        Write-Log "Config migration completed successfully" -Level "INFO"
+    } else {
+        Write-Log "Config is current version, no migration needed" -Level "INFO"
+    }
+    
+    return $Config
 }
 
 function Save-Configuration {
@@ -2463,6 +2538,11 @@ function Update-Announcements {
             if ($shouldAlert) {
                 if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
                 if ($global:ClearAlertsDot)        { $global:ClearAlertsDot.Visibility        = "Visible" }
+                
+                # Show balloon notification
+                Show-AlertNotification -Title "New Announcement" `
+                    -Message "A new announcement has been posted. Click the tray icon to view." `
+                    -TimeoutMs 8000
             }
             if ($global:AnnouncementsTitle)   { $global:AnnouncementsTitle.Text = $title }
             if ($global:AnnouncementsText)    {
@@ -2584,6 +2664,11 @@ function Update-Support {
             if ($shouldAlert) {
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Visible" }
                 if ($global:ClearAlertsDot)   { $global:ClearAlertsDot.Visibility   = "Visible" }
+                
+                # Show balloon notification
+                Show-AlertNotification -Title "Support Update" `
+                    -Message "Support information has been updated. Click the tray icon to view." `
+                    -TimeoutMs 8000
             }
             if ($global:SupportText) {
                 $txt = if ($newSupportObject.Text) { [string]$newSupportObject.Text } else { '' }
@@ -2775,7 +2860,7 @@ try {
         
         $timeout = 10000 # 10 seconds in milliseconds
         $title = "Endpoint Advisor is Running"
-        $text = "The notification icon is active in your system tray. You may need to drag it from the overflow area (^) to the main taskbar."
+        $text = "The notification icon is active in your system tray. It may be in the overflow area (^). To keep it always visible, drag the icon to the main taskbar - Windows will remember your preference."
         $icon = [System.Windows.Forms.ToolTipIcon]::Info
 
         $global:TrayIcon.ShowBalloonTip($timeout, $title, $text, $icon)
