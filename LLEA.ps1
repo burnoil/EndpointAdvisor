@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.3 (Fixed notification threading, added patching notifications)
+# Version: 6.3.4 (Fixed blinking timer threading, cleaned up finally block)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.3.3"
+$ScriptVersion = "6.3.4"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -2882,22 +2882,8 @@ catch {
 finally {
     Write-Log '--- Lincoln Laboratory Endpoint Advisor Script Exiting ---'
     if ($global:DispatcherTimer) { $global:DispatcherTimer.Stop() }
+    if ($global:BlinkingTimer) { $global:BlinkingTimer.Stop() }
     if ($global:TrayIcon) { $global:TrayIcon.Dispose() }
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
-
-    try {
-        foreach ($run in $runs) {
-            $TargetTextBlock.Inlines.Add($run)
-            Write-Log ("Added run to TextBlock: {0} (FontWeight: {1}, FontStyle: {2}, Foreground: {3})" -f $run.Text,$run.FontWeight,$run.FontStyle,$run.Foreground) -Level "INFO"
-        }
-        Write-Log ("Successfully parsed Markdown for text: {0}" -f $Text) -Level "INFO"
-    }
-    catch {
-        Write-Log ("Failed to parse Markdown for text: {0} - {1}" -f $Text, $_.Exception.Message) -Level "ERROR"
-        if ($TargetTextBlock -and $TargetTextBlock.Inlines) {
-            $TargetTextBlock.Inlines.Clear()
-            $TargetTextBlock.Inlines.Add((New-Object System.Windows.Documents.Run(($Text -as [string]))))
-        }
-    }
 }
