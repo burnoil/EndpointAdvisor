@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.0 (Added balloon tip notifications, blinking tray icon, config migration)
+# Version: 6.3.2 (Support section collapsed by default)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.3.0"
+$ScriptVersion = "6.3.2"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -574,8 +574,8 @@ function Update-ADAccountStatus {
                 if ($global:ADChangePasswordButton) {
                     $global:ADChangePasswordButton.Visibility = "Collapsed"
                 }
-                if ($global:AccountInfoAlertIcon) {
-                    $global:AccountInfoAlertIcon.Visibility = "Collapsed"
+                if ($global:SupportAlertIcon) {
+                    $global:SupportAlertIcon.Visibility = "Collapsed"
                 }
             })
             return
@@ -654,16 +654,16 @@ function Update-ADAccountStatus {
             }
             
             # Update alert icon - show on expander header when collapsed
-            if ($global:AccountInfoAlertIcon -and (-not $global:AccountInfoExpander.IsExpanded)) {
+            if ($global:SupportAlertIcon -and (-not $global:SupportExpander.IsExpanded)) {
                 switch ($alertLevel) {
                     "Critical" { 
-                        $global:AccountInfoAlertIcon.Visibility = "Visible"
+                        $global:SupportAlertIcon.Visibility = "Visible"
                     }
                     "Warning" { 
-                        $global:AccountInfoAlertIcon.Visibility = "Visible"
+                        $global:SupportAlertIcon.Visibility = "Visible"
                     }
                     default { 
-                        $global:AccountInfoAlertIcon.Visibility = "Collapsed"
+                        $global:SupportAlertIcon.Visibility = "Collapsed"
                     }
                 }
             }
@@ -1106,7 +1106,7 @@ $xamlString = @"
         </StackPanel>
       </Border>
     </Expander>
-    <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
+    <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
       <Expander.Header>
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="Support" VerticalAlignment="Center"/>
@@ -1119,20 +1119,10 @@ $xamlString = @"
           <TextBlock x:Name="SupportDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
           <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
           <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
-        </StackPanel>
-      </Border>
-    </Expander>
-    
-    <!-- Account Info Section -->
-    <Expander x:Name="AccountInfoExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
-      <Expander.Header>
-        <StackPanel Orientation="Horizontal">
-          <TextBlock Text="Account Info" VerticalAlignment="Center"/>
-          <Ellipse x:Name="AccountInfoAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="#DC3545" Visibility="Hidden"/>
-        </StackPanel>
-      </Expander.Header>
-      <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
-        <StackPanel>
+          
+          <!-- Account Information Sub-section -->
+          <Separator Margin="0,10,0,10"/>
+          <TextBlock Text="Account Information" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
@@ -1202,7 +1192,7 @@ try {
     "DriverProgressStatus", "DriverProgressBar", "DriverProgressCloseButton"  # ADD THIS LINE
     "DriverUpdateStatusText", "DriverUpdateLastRunText", "DriverUpdateButton", "DriverProgressPanel", 
     "DriverProgressStatus", "DriverProgressBar", "DriverProgressCloseButton",
-    "AccountInfoExpander", "AccountInfoAlertIcon", "ADStatusText", "ADChangePasswordButton", "ADRefreshButton"  # AD monitoring elements
+    "ADStatusText", "ADChangePasswordButton", "ADRefreshButton"  # AD monitoring elements
 )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -1257,7 +1247,7 @@ Main-UpdateCycle
             })
         }
         if ($global:SupportExpander) {
-            $global:SupportExpander.IsExpanded = $true
+            # SupportExpander starts collapsed by default
             $global:SupportExpander.Add_Expanded({ 
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
                 # Save the state when user views it
@@ -1273,12 +1263,6 @@ Main-UpdateCycle
                 $config.LastSeenUpdateState = $global:CurrentUpdateState
                 Save-Configuration -Config $config
                 Update-TrayIcon
-        if ($global:AccountInfoExpander) {
-            $global:AccountInfoExpander.Add_Expanded({
-                if ($global:AccountInfoAlertIcon) { $global:AccountInfoAlertIcon.Visibility = "Hidden" }
-                Update-TrayIcon
-            })
-        }
             })
         }
         
