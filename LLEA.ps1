@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.2.2 (Fixed multiple instance issues)
+# Version: 6.3.3 (Fixed notification threading, added patching notifications)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.2.2"
+$ScriptVersion = "6.3.3"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -323,6 +323,12 @@ $global:CachedCertificateStatus = $null
 # Global counter for failed fetch attempts
 $global:FailedFetchAttempts = 0
 
+
+# Global variables for AD account monitoring
+$global:ADAccountStatus = $null
+$global:LastADCheck = $null
+$global:ADCheckInterval = 3600  # Check AD status every hour
+
 # ============================================================
 # A) Advanced Logging & Error Handling
 # ============================================================
@@ -432,6 +438,296 @@ function Rotate-LogFile {
     }
 }
 
+# ============================================================
+# AD Account Monitoring Functions  
+# ============================================================
+
+function Get-ADAccountStatus {
+    try {
+        # Get current user's domain and username
+        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+        $userPrincipalName = $currentUser.Name
+        
+        # Split domain\username
+        $domainUser = $userPrincipalName -split '\\'
+        if ($domainUser.Count -ne 2) {
+            return @{ Success = $false; Error = "Unable to determine domain user" }
+        }
+        
+        $domain = $domainUser[0]
+        $username = $domainUser[1]
+        
+        Write-Log "Checking AD status for: $domain\$username" -Level "INFO"
+        
+        # Use ADSI to query AD (works without AD PowerShell module)
+        $searcher = New-Object System.DirectoryServices.DirectorySearcher
+        $searcher.Filter = "(&(objectClass=user)(samAccountName=$username))"
+        $searcher.PropertiesToLoad.AddRange(@(
+            "accountExpires",
+            "pwdLastSet",
+            "msDS-UserPasswordExpiryTimeComputed",
+            "userAccountControl"
+        ))
+        
+        $result = $searcher.FindOne()
+        if (-not $result) {
+            return @{ Success = $false; Error = "User not found in AD" }
+        }
+        
+        # Get account expiration
+        $accountExpires = $null
+        $accountExpiresValue = $result.Properties["accountExpires"][0]
+        if ($accountExpiresValue -and $accountExpiresValue -ne 0 -and $accountExpiresValue -ne 9223372036854775807) {
+            $accountExpires = [DateTime]::FromFileTime($accountExpiresValue)
+        }
+        
+        # Get password expiration
+        $passwordExpires = $null
+        if ($result.Properties.Contains("msDS-UserPasswordExpiryTimeComputed")) {
+            $pwdExpiryValue = $result.Properties["msDS-UserPasswordExpiryTimeComputed"][0]
+            if ($pwdExpiryValue -and $pwdExpiryValue -ne 0 -and $pwdExpiryValue -ne 9223372036854775807) {
+                $passwordExpires = [DateTime]::FromFileTime($pwdExpiryValue)
+            }
+        }
+        
+        # Alternative method if computed attribute is not available
+        if (-not $passwordExpires) {
+            $pwdLastSetValue = $result.Properties["pwdLastSet"][0]
+            if ($pwdLastSetValue -and $pwdLastSetValue -ne 0) {
+                $pwdLastSet = [DateTime]::FromFileTime($pwdLastSetValue)
+                
+                # Get domain password policy (default 90 days if can't retrieve)
+                $maxPasswordAge = 90
+                try {
+                    $domainRoot = [ADSI]""
+                    $domainSearcher = New-Object System.DirectoryServices.DirectorySearcher($domainRoot)
+                    $domainSearcher.Filter = "(objectClass=domainDNS)"
+                    $domainSearcher.PropertiesToLoad.Add("maxPwdAge")
+                    $domainResult = $domainSearcher.FindOne()
+                    
+                    if ($domainResult -and $domainResult.Properties["maxPwdAge"]) {
+                        $maxPwdAge = $domainResult.Properties["maxPwdAge"][0]
+                        # Convert from 100-nanosecond intervals to days
+                        $maxPasswordAge = [Math]::Abs($maxPwdAge) / 864000000000
+                    }
+                } catch {
+                    Write-Log "Could not retrieve domain password policy, using default 90 days" -Level "WARNING"
+                }
+                
+                $passwordExpires = $pwdLastSet.AddDays($maxPasswordAge)
+            }
+        }
+        
+        # Check User Account Control flags for "password never expires"
+        if ($result.Properties["userAccountControl"]) {
+            $uac = $result.Properties["userAccountControl"][0]
+            if ($uac -band 0x10000) {
+                $passwordExpires = $null
+            }
+        }
+        
+        # Calculate days until expiration
+        $now = Get-Date
+        $accountDaysLeft = if ($accountExpires) { ($accountExpires - $now).Days } else { $null }
+        $passwordDaysLeft = if ($passwordExpires) { ($passwordExpires - $now).Days } else { $null }
+        
+        return @{
+            Success = $true
+            Username = "$domain\$username"
+            AccountExpires = $accountExpires
+            AccountDaysLeft = $accountDaysLeft
+            PasswordExpires = $passwordExpires
+            PasswordDaysLeft = $passwordDaysLeft
+        }
+        
+    } catch {
+        Write-Log "Error checking AD status: $_" -Level "ERROR"
+        return @{ Success = $false; Error = $_.Exception.Message }
+    }
+}
+
+function Update-ADAccountStatus {
+    try {
+        # Check if it's time to refresh (every hour)
+        $shouldCheck = $false
+        if (-not $global:LastADCheck) {
+            $shouldCheck = $true
+        } else {
+            $timeSinceLastCheck = ((Get-Date) - $global:LastADCheck).TotalSeconds
+            if ($timeSinceLastCheck -ge $global:ADCheckInterval) {
+                $shouldCheck = $true
+            }
+        }
+        
+        if ($shouldCheck) {
+            $global:ADAccountStatus = Get-ADAccountStatus
+            $global:LastADCheck = Get-Date
+            Write-Log "AD account status refreshed" -Level "INFO"
+        }
+        
+        if (-not $global:ADAccountStatus -or -not $global:ADAccountStatus.Success) {
+            $window.Dispatcher.Invoke({
+                if ($global:ADStatusText) {
+                    $global:ADStatusText.Text = "AD Status: Unable to retrieve"
+                    $global:ADStatusText.Foreground = [System.Windows.Media.Brushes]::Gray
+                }
+                if ($global:ADChangePasswordButton) {
+                    $global:ADChangePasswordButton.Visibility = "Collapsed"
+                }
+                if ($global:SupportAlertIcon) {
+                    $global:SupportAlertIcon.Visibility = "Collapsed"
+                }
+            })
+            return
+        }
+        
+        # Build status text
+        $statusLines = @()
+        $showPasswordButton = $false
+        $alertLevel = "Normal"
+        
+        # Start with username
+        $statusLines += "**User:** $($global:ADAccountStatus.Username)"
+        
+        # Account expiration
+        if ($global:ADAccountStatus.AccountExpires) {
+            $days = $global:ADAccountStatus.AccountDaysLeft
+            if ($days -le 0) {
+                $statusLines += "[red]**Account EXPIRED**[/red]"
+                $alertLevel = "Critical"
+            } elseif ($days -le 7) {
+                $statusLines += "[red]**Account expires in $days days**[/red] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
+                $alertLevel = "Critical"
+            } elseif ($days -le 30) {
+                $statusLines += "[yellow]Account expires in $days days[/yellow] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
+                if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
+            } else {
+                $statusLines += "Account expires in $days days ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
+            }
+        } else {
+            $statusLines += "Account: No expiration set"
+        }
+        
+        # Password expiration
+        if ($global:ADAccountStatus.PasswordExpires) {
+            $days = $global:ADAccountStatus.PasswordDaysLeft
+            if ($days -le 0) {
+                $statusLines += "[red]**PASSWORD EXPIRED - Change Required**[/red]"
+                $showPasswordButton = $true
+                $alertLevel = "Critical"
+            } elseif ($days -le 7) {
+                $statusLines += "[red]**Password expires in $days days!**[/red] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
+                $showPasswordButton = $true
+                $alertLevel = "Critical"
+                
+                # Show critical password expiration notification
+                Show-AlertNotification -Title "Password Expiring Soon!" `
+                    -Message "Your password expires in $days days. Change it now to avoid being locked out." `
+                    -TimeoutMs 10000 `
+                    -Icon ([System.Windows.Forms.ToolTipIcon]::Error)
+            } elseif ($days -le 14) {
+                $statusLines += "[yellow]**Password expires in $days days**[/yellow] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
+                $showPasswordButton = $true
+                if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
+                
+                # Show warning password expiration notification  
+                Show-AlertNotification -Title "Password Expiration Reminder" `
+                    -Message "Your password expires in $days days." `
+                    -TimeoutMs 8000 `
+                    -Icon ([System.Windows.Forms.ToolTipIcon]::Warning)
+            } else {
+                $statusLines += "Password expires in $days days ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
+            }
+        } else {
+            $statusLines += "Password: No expiration set"
+        }
+        
+        $statusText = $statusLines -join "`n"
+        
+        # Update UI
+        $window.Dispatcher.Invoke({
+            if ($global:ADStatusText) {
+                Convert-MarkdownToTextBlock -Text $statusText -TargetTextBlock $global:ADStatusText
+            }
+            if ($global:ADChangePasswordButton) {
+                $global:ADChangePasswordButton.Visibility = if ($showPasswordButton) { "Visible" } else { "Collapsed" }
+            }
+            
+            # Update alert icon - show on expander header when collapsed
+            if ($global:SupportAlertIcon -and (-not $global:SupportExpander.IsExpanded)) {
+                switch ($alertLevel) {
+                    "Critical" { 
+                        $global:SupportAlertIcon.Visibility = "Visible"
+                    }
+                    "Warning" { 
+                        $global:SupportAlertIcon.Visibility = "Visible"
+                    }
+                    default { 
+                        $global:SupportAlertIcon.Visibility = "Collapsed"
+                    }
+                }
+            }
+        })
+        
+        # Update tray icon tooltip if critical
+        if ($global:ADAccountStatus.Success -and $global:TrayIcon) {
+            if ($global:ADAccountStatus.PasswordDaysLeft -ne $null -and $global:ADAccountStatus.PasswordDaysLeft -le 7) {
+                $global:TrayIcon.Text = "LLEA - Password expires in $($global:ADAccountStatus.PasswordDaysLeft) days!"
+            } elseif ($global:ADAccountStatus.AccountDaysLeft -ne $null -and $global:ADAccountStatus.AccountDaysLeft -le 7) {
+                $global:TrayIcon.Text = "LLEA - Account expires in $($global:ADAccountStatus.AccountDaysLeft) days!"
+            }
+        }
+        
+    } catch {
+        Write-Log "Error updating AD status display: $_" -Level "ERROR"
+    }
+}
+
+function Start-PasswordChange {
+    try {
+        Write-Log "User initiated password change" -Level "INFO"
+        # Launch Windows Security settings
+        Start-Process "ms-settings:signinoptions-password"
+    } catch {
+        # Fallback to control panel
+        try {
+            Start-Process "control.exe" "/name Microsoft.UserAccounts"
+        } catch {
+            [System.Windows.MessageBox]::Show(
+                "Unable to launch password change dialog.`n`nPlease press Ctrl+Alt+Delete and select 'Change a password'.",
+                "Change Password",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+        }
+    }
+}
+
+function Show-AlertNotification {
+    param(
+        [string]$Title = "Endpoint Advisor Alert",
+        [string]$Message,
+        [int]$TimeoutMs = 5000,
+        [System.Windows.Forms.ToolTipIcon]$Icon = [System.Windows.Forms.ToolTipIcon]::Warning
+    )
+    
+    if ($global:TrayIcon) {
+        # Show balloon tip (works even in overflow area)
+        $global:TrayIcon.ShowBalloonTip($TimeoutMs, $Title, $Message, $Icon)
+        Write-Log "Balloon notification shown: $Title - $Message" -Level "INFO"
+        
+        # Start blinking the tray icon - must be on UI thread for DispatcherTimer
+        if ($config.BlinkingEnabled -and $global:BlinkingTimer -and -not $global:BlinkingTimer.IsEnabled) {
+            $window.Dispatcher.Invoke({
+                $global:BlinkingTimer.Start()
+            })
+            Write-Log "Started tray icon blinking for alert notification" -Level "INFO"
+        }
+    }
+}
+
+
+
 function Handle-Error {
     param(
         [string]$Message,
@@ -479,7 +775,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -492,7 +788,7 @@ function Get-DefaultConfig {
         Version               = $ScriptVersion
         BigFixSSA_Path        = "C:\Program Files (x86)\BigFix Enterprise\BigFix Self Service Application\BigFixSSA.exe"
         YubiKeyManager_Path   = "C:\Program Files\Yubico\Yubikey Manager\ykman.exe"
-        BlinkingEnabled       = $false
+        BlinkingEnabled       = $true
         CachePath             = Join-Path $ScriptDir "ContentData.cache.json"
         HasRunBefore          = $false
     }
@@ -516,6 +812,9 @@ function Load-Configuration {
             Write-Log "Failed to load or merge existing config file. Reverting to full defaults. - $($_.Exception.Message)" -Level "WARNING"
         }
     }
+    
+    # Migrate config if upgrading from older version
+    $finalConfig = Migrate-Configuration -Config $finalConfig
     try {
         $finalConfig | ConvertTo-Json -Depth 100 | Out-File $Path -Force
         Write-Log "Configuration file validated and saved." -Level "INFO"
@@ -524,6 +823,44 @@ function Load-Configuration {
         Write-Log "Could not save the updated configuration to $Path - $($_.Exception.Message)" -Level "ERROR"
     }
     return $finalConfig
+}
+
+function Migrate-Configuration {
+    param([hashtable]$Config)
+    
+    $currentVersion = $ScriptVersion
+    $configVersion = if ($Config.Version) { $Config.Version } else { "0.0.0" }
+    
+    Write-Log "Config version: $configVersion, Script version: $currentVersion" -Level "INFO"
+    
+    # Version 6.3.0+ adds notification features
+    if ([version]$configVersion -lt [version]"6.3.0") {
+        Write-Log "Migrating config from $configVersion to $currentVersion..." -Level "INFO"
+        
+        # Force BlinkingEnabled to true for notification feature
+        $Config.BlinkingEnabled = $true
+        Write-Log "  - BlinkingEnabled set to true (notification feature)" -Level "INFO"
+        
+        # Clear baselines to avoid false alerts on first run with new version
+        # This ensures first run after migration behaves like true first run
+        if ($Config.SectionStates) {
+            $Config.SectionStates = @{}
+            Write-Log "  - Section baselines cleared (will re-baseline on next check)" -Level "INFO"
+        }
+        $Config.AnnouncementsLastState = "{}"
+        $Config.SupportLastState = "{}"
+        Write-Log "  - Legacy baseline states cleared" -Level "INFO"
+        
+        # Update version
+        $Config.Version = $currentVersion
+        Write-Log "  - Config version updated to $currentVersion" -Level "INFO"
+        
+        Write-Log "Config migration completed successfully" -Level "INFO"
+    } else {
+        Write-Log "Config is current version, no migration needed" -Level "INFO"
+    }
+    
+    return $Config
 }
 
 function Save-Configuration {
@@ -620,9 +957,9 @@ $xamlString = @"
     WindowStartupLocation="Manual" 
     SizeToContent="Manual"
     MinWidth="350" MinHeight="500"
-    MaxWidth="450" MaxHeight="600"
+    MaxWidth="400" MaxHeight="550"
     ResizeMode="CanResizeWithGrip" ShowInTaskbar="False" Visibility="Hidden" Topmost="True"
-    Background="#f0f0f0">
+    Background="#F5F5F5">
   <Window.Resources>
     <Style TargetType="Expander">
       <Setter Property="Template">
@@ -648,7 +985,7 @@ $xamlString = @"
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                       </Grid.ColumnDefinitions>
-                      <Path x:Name="Arrow" Grid.Column="0" Data="M 0 0 L 8 8 L 0 16 Z" Fill="#0055A4" Stroke="#D3D3D3" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0">
+                      <Path x:Name="Arrow" Grid.Column="0" Data="M 0 8 L 8 0 L 16 8 Z" Fill="#2B579A" Stroke="#D3D3D3" StrokeThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Path.RenderTransform>
                           <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
                         </Path.RenderTransform>
@@ -680,7 +1017,7 @@ $xamlString = @"
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <Border Grid.Row="0" Background="#0078D7" Padding="5" CornerRadius="3" Margin="0,0,0,5">
+    <Border Grid.Row="0" Background="#2B579A" Padding="5" CornerRadius="3" Margin="0,0,0,5">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
         <Image x:Name="HeaderIcon" Width="20" Height="20" Margin="0,0,5,0"/>
         <TextBlock Text="Lincoln Laboratory Endpoint Advisor" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
@@ -692,10 +1029,10 @@ $xamlString = @"
       <Expander.Header>
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="Announcements" VerticalAlignment="Center"/>
-          <Ellipse x:Name="AnnouncementsAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+          <Ellipse x:Name="AnnouncementsAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="#DC3545" Visibility="Hidden"/>
         </StackPanel>
       </Expander.Header>
-      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+      <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
         <StackPanel>
           <TextBlock x:Name="AnnouncementsText" FontSize="11" TextWrapping="Wrap"/>
           <TextBlock x:Name="AnnouncementsDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
@@ -709,10 +1046,10 @@ $xamlString = @"
       <Expander.Header>
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="Patching and Updates" VerticalAlignment="Center"/>
-          <Ellipse x:Name="PatchingAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+          <Ellipse x:Name="PatchingAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="#DC3545" Visibility="Hidden"/>
         </StackPanel>
       </Expander.Header>
-      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+      <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
         <StackPanel>
           <TextBlock x:Name="PatchingDescriptionText" FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"/>
           
@@ -757,7 +1094,7 @@ $xamlString = @"
             <Button x:Name="DriverUpdateButton" Grid.Column="1" Content="Install Drivers" Margin="10,0,0,0" Padding="5,1" VerticalAlignment="Center" Visibility="Collapsed" ToolTip="Install driver updates via Windows Update"/>
           </Grid>
 
-          <Border x:Name="DriverProgressPanel" BorderBrush="#0078D7" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
+          <Border x:Name="DriverProgressPanel" BorderBrush="#2B579A" BorderThickness="2" Background="#F0F8FF" Padding="10" CornerRadius="3" Margin="0,10,0,0" Visibility="Collapsed">
             <StackPanel>
               <Grid>
                 <TextBlock Text="Driver Update Progress" FontSize="11" FontWeight="Bold" HorizontalAlignment="Left" VerticalAlignment="Center"/>
@@ -771,19 +1108,44 @@ $xamlString = @"
         </StackPanel>
       </Border>
     </Expander>
-    <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="True" Margin="0,2,0,2">
+    <Expander x:Name="SupportExpander" FontSize="12" IsExpanded="False" Margin="0,2,0,2">
       <Expander.Header>
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="Support" VerticalAlignment="Center"/>
-          <Ellipse x:Name="SupportAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="Red" Visibility="Hidden"/>
+          <Ellipse x:Name="SupportAlertIcon" Width="10" Height="10" Margin="5,0,0,0" Fill="#DC3545" Visibility="Hidden"/>
         </StackPanel>
       </Expander.Header>
-      <Border BorderBrush="#00008B" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
+      <Border BorderBrush="#CCCCCC" BorderThickness="1" Padding="5" CornerRadius="3" Background="White" Margin="2">
         <StackPanel>
           <TextBlock x:Name="SupportText" FontSize="11" TextWrapping="Wrap"/>
           <TextBlock x:Name="SupportDetailsText" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
           <StackPanel x:Name="SupportLinksPanel" Orientation="Vertical" Margin="0,5,0,0"/>
           <TextBlock x:Name="SupportSourceText" FontSize="9" Foreground="Gray" Margin="0,5,0,0"/>
+          
+          <!-- Account Information Sub-section -->
+          <Separator Margin="0,10,0,10"/>
+          <TextBlock Text="Account Information" FontSize="11" FontWeight="Bold" Margin="0,0,0,5"/>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <StackPanel Grid.Column="0">
+              <TextBlock x:Name="ADStatusText" FontSize="11" TextWrapping="Wrap" Text="Checking AD status..." Foreground="Gray"/>
+            </StackPanel>
+            
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="10,0,0,0">
+              <Button x:Name="ADChangePasswordButton" Content="Change Password" 
+                     Background="#FF5722" Foreground="White" FontWeight="Bold"
+                     Padding="8,3" Cursor="Hand" Visibility="Collapsed" FontSize="11"
+                     ToolTip="Click to change your password"/>
+              <Button x:Name="ADRefreshButton" Content="Refresh" 
+                     Background="#2196F3" Foreground="White" FontWeight="Bold"
+                     Padding="8,3" Cursor="Hand" FontSize="11" Margin="5,0,0,0"
+                     ToolTip="Refresh AD account information"/>
+            </StackPanel>
+          </Grid>
         </StackPanel>
       </Border>
     </Expander>
@@ -798,7 +1160,7 @@ $xamlString = @"
         </Grid.ColumnDefinitions>
         <TextBlock x:Name="FooterText" Grid.Column="0" Text="(C) 2025 Lincoln Laboratory" FontSize="10" Foreground="Gray" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         <StackPanel x:Name="ClearAlertsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Ellipse x:Name="ClearAlertsDot" Width="10" Height="10" Fill="Red" Margin="0,0,5,0" Visibility="Collapsed"/>
+            <Ellipse x:Name="ClearAlertsDot" Width="10" Height="10" Fill="#DC3545" Margin="0,0,5,0" Visibility="Collapsed"/>
             <Button x:Name="ClearAlertsButton" Content="Clear Alerts" FontSize="10" Padding="5,1" Background="#B0C4DE" ToolTip="Click to clear all new announcement and support alerts (red dots) from the UI."/>
         </StackPanel>
     </Grid>
@@ -830,6 +1192,9 @@ try {
     "PatchingAlertIcon", "AppendedAnnouncementsPanel",
     "DriverUpdateStatusText", "DriverUpdateLastRunText", "DriverUpdateButton", "DriverProgressPanel", 
     "DriverProgressStatus", "DriverProgressBar", "DriverProgressCloseButton"  # ADD THIS LINE
+    "DriverUpdateStatusText", "DriverUpdateLastRunText", "DriverUpdateButton", "DriverProgressPanel", 
+    "DriverProgressStatus", "DriverProgressBar", "DriverProgressCloseButton",
+    "ADStatusText", "ADChangePasswordButton", "ADRefreshButton"  # AD monitoring elements
 )
     foreach ($elementName in $uiElements) {
         $value = $window.FindName($elementName)
@@ -884,7 +1249,7 @@ Main-UpdateCycle
             })
         }
         if ($global:SupportExpander) {
-            $global:SupportExpander.IsExpanded = $true
+            # SupportExpander starts collapsed by default
             $global:SupportExpander.Add_Expanded({ 
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Hidden" }
                 # Save the state when user views it
@@ -944,6 +1309,19 @@ if ($global:DriverUpdateButton) {
                 Write-Log "User closed driver progress panel." -Level "INFO"
                 $window.Dispatcher.Invoke({
                     $global:DriverProgressPanel.Visibility = "Collapsed"
+        # Add AD button handlers
+        if ($global:ADChangePasswordButton) {
+            $global:ADChangePasswordButton.Add_Click({ Start-PasswordChange })
+            Write-Log "AD Change Password button handler registered." -Level "INFO"
+        }
+        if ($global:ADRefreshButton) {
+            $global:ADRefreshButton.Add_Click({ 
+                $global:LastADCheck = $null
+                Update-ADAccountStatus
+                Write-Log "User initiated AD status refresh." -Level "INFO"
+            })
+            Write-Log "AD Refresh button handler registered." -Level "INFO"  
+        }
                 })
             })
         }
@@ -1848,7 +2226,15 @@ function Update-PatchingAndSystem {
             $global:PatchingAlertIcon.Visibility = if ($global:UpdatesPending) { "Visible" } else { "Collapsed" }
         }
     })
+    
+    # Show notification for pending updates
+    if ($global:UpdatesPending) {
+        Show-AlertNotification -Title "Updates Available" `
+            -Message "Software updates are available for installation. Click the tray icon to view." `
+            -TimeoutMs 8000
+    }
 	Update-DriverUpdateStatus
+	Update-ADAccountStatus  # Check AD account status
 }
 
 function Convert-MarkdownToTextBlock {
@@ -2145,6 +2531,7 @@ function Update-Announcements {
             if ($shouldAlert) {
                 if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
                 if ($global:ClearAlertsDot)        { $global:ClearAlertsDot.Visibility        = "Visible" }
+                
             }
             if ($global:AnnouncementsTitle)   { $global:AnnouncementsTitle.Text = $title }
             if ($global:AnnouncementsText)    {
@@ -2184,7 +2571,7 @@ function Update-Announcements {
                             $titleBlock.Text = $appendedItem.Title
                             $titleBlock.FontWeight = "Bold"
                             $titleBlock.FontSize = 11
-                            $titleBlock.Foreground = "#00008B"
+                            $titleBlock.Foreground = "#CCCCCC"
                             $global:AppendedAnnouncementsPanel.Children.Add($titleBlock)
                         }
                         
@@ -2230,6 +2617,13 @@ function Update-Announcements {
             Write-Log ("Announcements render failed: {0}" -f $_) -Level "ERROR"
         }
     })
+    
+    # Show notification outside of dispatcher (fixes threading issues)
+    if ($shouldAlert) {
+        Show-AlertNotification -Title "New Announcement" `
+            -Message "A new announcement has been posted. Click the tray icon to view." `
+            -TimeoutMs 8000
+    }
     Save-SectionBaseline -SectionKey "Announcements" -NewStateJson $newJsonState
 }
 
@@ -2286,6 +2680,13 @@ function Update-Support {
             Write-Log ("Support render failed: {0}" -f $_) -Level "ERROR"
         }
     })
+    
+    # Show notification outside of dispatcher (fixes threading issues)
+    if ($shouldAlert) {
+        Show-AlertNotification -Title "Support Update" `
+            -Message "Support information has been updated. Click the tray icon to view." `
+            -TimeoutMs 8000
+    }
     Save-SectionBaseline -SectionKey "Support" -NewStateJson $newJsonState
 }
 
@@ -2366,6 +2767,7 @@ function Initialize-TrayIcon {
         $ContextMenuStrip.Items.AddRange(@(
             (New-Object System.Windows.Forms.ToolStripMenuItem("Show Dashboard", $null, { Toggle-WindowVisibility })),
             (New-Object System.Windows.Forms.ToolStripMenuItem("Refresh Now", $null, { Main-UpdateCycle -ForceCertificateCheck $true })),
+            (New-Object System.Windows.Forms.ToolStripMenuItem("Check AD Status", $null, { $global:LastADCheck = $null; Update-ADAccountStatus; Toggle-WindowVisibility })),
             $intervalSubMenu,
             (New-Object System.Windows.Forms.ToolStripMenuItem("Exit", $null, { $window.Dispatcher.InvokeShutdown() }))
         ))
@@ -2456,7 +2858,7 @@ try {
         
         $timeout = 10000 # 10 seconds in milliseconds
         $title = "Endpoint Advisor is Running"
-        $text = "The notification icon is active in your system tray. You may need to drag it from the overflow area (^) to the main taskbar."
+        $text = "The notification icon is active in your system tray. It may be in the overflow area (^). To keep it always visible, drag the icon to the main taskbar - Windows will remember your preference."
         $icon = [System.Windows.Forms.ToolTipIcon]::Info
 
         $global:TrayIcon.ShowBalloonTip($timeout, $title, $text, $icon)
@@ -2499,74 +2901,3 @@ finally {
         }
     }
 }
-
-# SIG # Begin signature block
-# MIIMjgYJKoZIhvcNAQcCoIIMfzCCDHsCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
-# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUMUkWcgefyeBiolj7G3daDhdl
-# uK2gggnvMIIEwDCCA6igAwIBAgIBEzANBgkqhkiG9w0BAQsFADBWMQswCQYDVQQG
-# EwJVUzEfMB0GA1UEChMWTUlUIExpbmNvbG4gTGFib3JhdG9yeTEMMAoGA1UECxMD
-# UEtJMRgwFgYDVQQDEw9NSVRMTCBSb290IENBLTIwHhcNMTkwNzA4MTExMDAwWhcN
-# MjkwNzA4MTExMDAwWjBRMQswCQYDVQQGEwJVUzEfMB0GA1UECgwWTUlUIExpbmNv
-# bG4gTGFib3JhdG9yeTEMMAoGA1UECwwDUEtJMRMwEQYDVQQDDApNSVRMTCBDQS02
-# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj2T0hoZXOA+UPr8SD/Re
-# gKGDHDfz+8i1bm+cGV9V2Zxs1XxYrCBbnTB79AtuYR29HIf6HfsUrsqJH6gQtptF
-# tux8QrWqx25iOE4tg2yeSVmrc/ZB4fRfufKi0idq2IA13kJgYQ8xCLpIiBEm8be7
-# Lzlz9mGT0UVgRe3I5Jku935a7pOB2qHHH6OGWSs9AOPiJdo4oSWUbL5H3H5MmZCI
-# 8T3Rj7dobmrRYOsUADI5kkqvOf7o1j09X7X2q4Q+ez4JHgGTLTxjvox7QEDYglZM
-# Mh9qB2SGpvhCkKoZ3/05bT1oCt2Pb4iR7MlETNryi/mzZuOjf2gaYpuWweYVh2Ny
-# 3wIDAQABo4IBnDCCAZgwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUk5BH
-# A0LBTbQzHtRCl5+h4Ctwv4gwHwYDVR0jBBgwFoAU/8nJZUxTgPGpDDwhroIqx+74
-# MvswDgYDVR0PAQH/BAQDAgGGMGcGCCsGAQUFBwEBBFswWTAuBggrBgEFBQcwAoYi
-# aHR0cDovL2NybC5sbC5taXQuZWR1L2dldHRvL0xMUkNBMjAnBggrBgEFBQcwAYYb
-# aHR0cDovL29jc3AubGwubWl0LmVkdS9vY3NwMDQGA1UdHwQtMCswKaAnoCWGI2h0
-# dHA6Ly9jcmwubGwubWl0LmVkdS9nZXRjcmwvTExSQ0EyMIGSBgNVHSAEgYowgYcw
-# DQYLKoZIhvcSAgEDAQYwDQYLKoZIhvcSAgEDAQgwDQYLKoZIhvcSAgEDAQcwDQYL
-# KoZIhvcSAgEDAQkwDQYLKoZIhvcSAgEDAQowDQYLKoZIhvcSAgEDAQswDQYLKoZI
-# hvcSAgEDAQ4wDQYLKoZIhvcSAgEDAQ8wDQYLKoZIhvcSAgEDARAwDQYJKoZIhvcN
-# AQELBQADggEBALnwy+yzh/2SvpwC8q8EKdDQW8LxWnDM56DcHm5zgfi0WfEsQi8w
-# xcV2Vb2eCNs6j0NofdgsSP7k9DJ6LmDs+dfZEmD23+r9zlMhI6QQcwlvq+cgTrOI
-# oUcZd83oyTHr0ig5IFy1r9FpnG00/P5MV+zxmTbTDXJjC8VgxqWl2IhnPk8zr0Fc
-# JK0BoYHtv7NHeC4WbNHQZCQf9UMSDALcVR23YZemWizmEK2Mclhjv0E+s7mLZn0A
-# K03zCQSvwQrjt+2YzS7J8MxWlRA5cNj1bNbnTtIuEUPpLSYgsN8Q+Ks9ffk9D7yU
-# t8No/ntuf6R38t/33c0LTCSJ9AIgjz7hUHMwggUnMIIED6ADAgECAhMwAAW/Xff+
-# 6WMO1wIRAAAABb9dMA0GCSqGSIb3DQEBCwUAMFExCzAJBgNVBAYTAlVTMR8wHQYD
-# VQQKDBZNSVQgTGluY29sbiBMYWJvcmF0b3J5MQwwCgYDVQQLDANQS0kxEzARBgNV
-# BAMMCk1JVExMIENBLTYwHhcNMjQxMDI4MTgxMjU1WhcNMjcxMDI4MTgxMjU1WjBg
-# MQswCQYDVQQGEwJVUzEfMB0GA1UEChMWTUlUIExpbmNvbG4gTGFib3JhdG9yeTEO
-# MAwGA1UECxMFT3RoZXIxIDAeBgNVBAMTF0lTRCBEZXNrdG9wIEVuZ2luZWVyaW5n
-# MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0BQ5+bMtDvgRT7pCIgHp
-# b0iuWsrGHTAKWvKo3T6uk/5r/Kp7VtqJFvcuwLqu0jm+As1kypxloyme0GAKCZcm
-# nvyEtRIS5Vxn0FpPO1/y1Bm1JOZ30O7xoy3kimp/16jSmROMeCSdm9qPEmG60M5Y
-# L12k7DOaU6/v+5MSZLQiDl20lf34u+Qt8SYNe/L4oA4kdsN3YMXuM6MVbbh6CJzb
-# wBT3ceZNwRmkkqQOEQtA0Zr0n2UmoijuraIxU5DC+pISBJIcF3RbfFQNQMivR0lq
-# rzQZDrKej/3D9FouGiBl8xZyVtJE0cNum6OE8b7nABtYwKP4jvz3ttxtIWVhoC/v
-# WQIDAQABo4IB5zCCAeMwPQYJKwYBBAGCNxUHBDAwLgYmKwYBBAGCNxUIg4PlHYfs
-# p2aGrYcVg+rwRYW2oR8dhuHfGoHsg1wCAWQCAQQwFgYDVR0lAQH/BAwwCgYIKwYB
-# BQUHAwMwDgYDVR0PAQH/BAQDAgeAMBgGA1UdIAQRMA8wDQYLKoZIhvcSAgEDAQYw
-# HQYDVR0OBBYEFLlL4q2UwnJN7ZTZ9W2D+7Y9a+tdMIGCBgNVHREEezB5pFswWTEY
-# MBYGA1UEAwwPQW50aG9ueS5NYXNzYXJvMQ8wDQYDVQQLDAZQZW9wbGUxHzAdBgNV
-# BAoMFk1JVCBMaW5jb2xuIExhYm9yYXRvcnkxCzAJBgNVBAYTAlVTgRpBbnRob255
-# Lk1hc3Nhcm9AbGwubWl0LmVkdTAfBgNVHSMEGDAWgBSTkEcDQsFNtDMe1EKXn6Hg
-# K3C/iDAzBgNVHR8ELDAqMCigJqAkhiJodHRwOi8vY3JsLmxsLm1pdC5lZHUvZ2V0
-# Y3JsL2xsY2E2MGYGCCsGAQUFBwEBBFowWDAtBggrBgEFBQcwAoYhaHR0cDovL2Ny
-# bC5sbC5taXQuZWR1L2dldHRvL2xsY2E2MCcGCCsGAQUFBzABhhtodHRwOi8vb2Nz
-# cC5sbC5taXQuZWR1L29jc3AwDQYJKoZIhvcNAQELBQADggEBAFqyP/3MhIsDF2Qu
-# ThdPiYz24768PIl64Tiaz8PjjxPnKTiayoOfnCG40wsZh+wlWvZZP5R/6FZab6ZC
-# nkrI9IObUZdJeiN4UEypO1v5L6J1iXGq4Zc3QpkJUmjCIIYU0IPG9BPo0SX7mBiz
-# DFafAGHReYkovs6vq035+4I6tsOQBpl+JfFPIT37Kpy+PlKz/OXzhVmQOa87mC1b
-# YADxWAwwDJd1Mm1GFbXUHHBPkdusW+POqR7qh5WQf0dJpRTsMG/MzIqWiUZxDzkD
-# lsqyRl4Y9nN9ii92PGpJF59AZAuEHDX0fqP6yeyMWYZGKpy7XqhQidW7nPxeqHl+
-# EQW6EH0xggIJMIICBQIBATBoMFExCzAJBgNVBAYTAlVTMR8wHQYDVQQKDBZNSVQg
-# TGluY29sbiBMYWJvcmF0b3J5MQwwCgYDVQQLDANQS0kxEzARBgNVBAMMCk1JVExM
-# IENBLTYCEzAABb9d9/7pYw7XAhEAAAAFv10wCQYFKw4DAhoFAKB4MBgGCisGAQQB
-# gjcCAQwxCjAIoAKAAKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYK
-# KwYBBAGCNwIBCzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFBUB0zMJ
-# 9oEqw287gWRBuijOymAxMA0GCSqGSIb3DQEBAQUABIIBAFqBWna0sxv84jxjMv52
-# MpM2DjJ6ZNTTsrWujXOz4VadtTn/uN+QJoMvPqhnhTcCmNWn6qCSaXC7daYyJDNP
-# /qXnPqxcYox0Im1XFZXjv0fdm6ZssPtTzrTBY6lJRXJyvSTki1WYeCDupL8HRJT+
-# nS60fxI11CJtp7rFheGboXRjMTyy/x/eQF39FG2sDDnXo5sxFT/WI5Pwi1iRAJPl
-# YqrYWLfl6uVp2ZRx9r+/3A4T4sLP0j+Q0o1dzM9frkC3C2NFwd2Cmpmq9C+0N1dM
-# Qy00Msz9ISzZqlwX9g2rAFJKBZhvCbYNziWAVqxQsbvp6yOYUgi5FNOJ1CUqf35M
-# llc=
-# SIG # End signature block
