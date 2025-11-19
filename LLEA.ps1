@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.2 (Support section collapsed by default)
+# Version: 6.3.3 (Fixed notification threading, added patching notifications)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.3.2"
+$ScriptVersion = "6.3.3"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -1964,6 +1964,13 @@ function Update-DriverUpdateStatus {
             }
         })
         
+        # Show notification for overdue driver updates
+        if ($showDriverButton) {
+            Show-AlertNotification -Title "Driver Updates Needed" `
+                -Message "Windows driver updates are overdue. Click the tray icon to view." `
+                -TimeoutMs 8000
+        }
+        
         Write-Log "Driver update status checked: $driverLastRun, Button visible: $showDriverButton" -Level "INFO"
         
     } catch {
@@ -2224,6 +2231,13 @@ function Update-PatchingAndSystem {
             $global:PatchingAlertIcon.Visibility = if ($global:UpdatesPending) { "Visible" } else { "Collapsed" }
         }
     })
+    
+    # Show notification for pending updates
+    if ($global:UpdatesPending) {
+        Show-AlertNotification -Title "Updates Available" `
+            -Message "Software updates are available for installation. Click the tray icon to view." `
+            -TimeoutMs 8000
+    }
 	Update-DriverUpdateStatus
 	Update-ADAccountStatus  # Check AD account status
 }
@@ -2523,10 +2537,6 @@ function Update-Announcements {
                 if ($global:AnnouncementsAlertIcon) { $global:AnnouncementsAlertIcon.Visibility = "Visible" }
                 if ($global:ClearAlertsDot)        { $global:ClearAlertsDot.Visibility        = "Visible" }
                 
-                # Show balloon notification
-                Show-AlertNotification -Title "New Announcement" `
-                    -Message "A new announcement has been posted. Click the tray icon to view." `
-                    -TimeoutMs 8000
             }
             if ($global:AnnouncementsTitle)   { $global:AnnouncementsTitle.Text = $title }
             if ($global:AnnouncementsText)    {
@@ -2612,6 +2622,13 @@ function Update-Announcements {
             Write-Log ("Announcements render failed: {0}" -f $_) -Level "ERROR"
         }
     })
+    
+    # Show notification outside of dispatcher (fixes threading issues)
+    if ($shouldAlert) {
+        Show-AlertNotification -Title "New Announcement" `
+            -Message "A new announcement has been posted. Click the tray icon to view." `
+            -TimeoutMs 8000
+    }
     Save-SectionBaseline -SectionKey "Announcements" -NewStateJson $newJsonState
 }
 
@@ -2648,11 +2665,6 @@ function Update-Support {
             if ($shouldAlert) {
                 if ($global:SupportAlertIcon) { $global:SupportAlertIcon.Visibility = "Visible" }
                 if ($global:ClearAlertsDot)   { $global:ClearAlertsDot.Visibility   = "Visible" }
-                
-                # Show balloon notification
-                Show-AlertNotification -Title "Support Update" `
-                    -Message "Support information has been updated. Click the tray icon to view." `
-                    -TimeoutMs 8000
             }
             if ($global:SupportText) {
                 $txt = if ($newSupportObject.Text) { [string]$newSupportObject.Text } else { '' }
@@ -2673,6 +2685,13 @@ function Update-Support {
             Write-Log ("Support render failed: {0}" -f $_) -Level "ERROR"
         }
     })
+    
+    # Show notification outside of dispatcher (fixes threading issues)
+    if ($shouldAlert) {
+        Show-AlertNotification -Title "Support Update" `
+            -Message "Support information has been updated. Click the tray icon to view." `
+            -TimeoutMs 8000
+    }
     Save-SectionBaseline -SectionKey "Support" -NewStateJson $newJsonState
 }
 
