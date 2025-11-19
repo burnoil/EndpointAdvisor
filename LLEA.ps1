@@ -1964,13 +1964,6 @@ function Update-DriverUpdateStatus {
             }
         })
         
-        # Show notification for overdue driver updates
-        if ($showDriverButton) {
-            Show-AlertNotification -Title "Driver Updates Needed" `
-                -Message "Windows driver updates are overdue. Click the tray icon to view." `
-                -TimeoutMs 8000
-        }
-        
         Write-Log "Driver update status checked: $driverLastRun, Button visible: $showDriverButton" -Level "INFO"
         
     } catch {
