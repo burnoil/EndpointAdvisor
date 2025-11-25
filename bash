@@ -26,15 +26,15 @@
 
     # Sanity checks so we fail clearly if paths are wrong
     if (-not (Test-Path -Path $officeExe)) {
-        Write-Log -Message "M365 setup.exe not found at '$officeExe'." -Severity 3
+        Write-ADTLogEntry -Message "M365 setup.exe not found at '$officeExe'."
         throw "M365 setup.exe not found at '$officeExe'."
     }
     if (-not (Test-Path -Path $configXmlPath)) {
-        Write-Log -Message "M365 configuration.xml not found at '$configXmlPath'." -Severity 3
+        Write-ADTLogEntry -Message "M365 configuration.xml not found at '$configXmlPath'."
         throw "M365 configuration.xml not found at '$configXmlPath'."
     }
 
-    Write-Log -Message "Starting Microsoft 365 Apps setup: '$officeExe /configure `"$configXmlPath`"'." 
+    Write-ADTLogEntry -Message "Starting Microsoft 365 Apps setup: '$officeExe /configure `"$configXmlPath`"'." 
 
     # Run Office Deployment Tool with a safety timeout (60 minutes)
     $officeResult = Start-ADTProcess `
@@ -48,7 +48,7 @@
         -ExitOnProcessFailure:$false `
         -PassThru
 
-    Write-Log -Message "M365 setup.exe completed (or timed out). ExitCode = [$($officeResult.ExitCode)], TimedOut = [$($officeResult.TimedOut)]."
+    Write-ADTLogEntry -Message "M365 setup.exe completed (or timed out). ExitCode = [$($officeResult.ExitCode)], TimedOut = [$($officeResult.TimedOut)]."
 
     # --- Post-install detection: wait for ClickToRun to show M365 is actually there ---
     $ctrConfigKey = 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration'
@@ -64,30 +64,30 @@
             $ctrProps = Get-ItemProperty -Path $ctrConfigKey -ErrorAction Stop
 
             if ($ctrProps.VersionToReport) {
-                Write-Log -Message "M365 installation detected. VersionToReport = [$($ctrProps.VersionToReport)]."
+                Write-ADTLogEntry -Message "M365 installation detected. VersionToReport = [$($ctrProps.VersionToReport)]."
                 $installDetected = $true
                 break
             }
             else {
-                Write-Log -Message "ClickToRun key present but VersionToReport empty; waiting..." -Severity 2
+                Write-ADTLogEntry -Message "ClickToRun key present but VersionToReport empty; waiting..."
             }
         }
         catch {
-            Write-Log -Message "ClickToRun config key not present yet; waiting..." -Severity 2
+            Write-ADTLogEntry -Message "ClickToRun config key not present yet; waiting..."
         }
 
         Start-Sleep -Seconds $pollInterval
         $pollCount++
-        Write-Log -Message "Waiting for M365 detection... ($pollCount/$maxPolls)"
+        Write-ADTLogEntry -Message "Waiting for M365 detection... ($pollCount/$maxPolls)"
     }
 
     if (-not $installDetected) {
-        Write-Log -Message "Timed out waiting for Microsoft 365 Apps to complete installation." -Severity 3
+        Write-ADTLogEntry -Message "Timed out waiting for Microsoft 365 Apps to complete installation."
         throw "Microsoft 365 Apps installation did not complete within the expected time."
     }
 
     if ($officeResult.TimedOut) {
-        Write-Log -Message "Note: setup.exe hit the timeout, but M365 detection passed. Proceeding." -Severity 2
+        Write-ADTLogEntry -Message "Note: setup.exe hit the timeout, but M365 detection passed. Proceeding."
     }
 
     ##================================================
