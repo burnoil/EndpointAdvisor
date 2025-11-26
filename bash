@@ -1,1 +1,1 @@
-Start-ADTProcess -FilePath 'powershell.exe' -ArgumentList "'-NoLogo -NoProfile '"$dirfiles\BlackHoleDiskCleaner.ps1'" -LocalRun -Silent -SkipRecycleBin -SkipBrowserCache"
+Start-ADTProcess -FilePath "$PSHOME\powershell.exe" -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$dirFiles\BlackHoleDiskCleaner.ps1`" -LocalRun -Silent -SkipRecycleBin -SkipBrowserCache"
