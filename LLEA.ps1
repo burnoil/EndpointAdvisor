@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.4 (Fixed blinking timer threading, cleaned up finally block)
+# Version: 6.3.6 (Fixed password alert repetition, Change Password button, improved warning text readability)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.3.4"
+$ScriptVersion = "6.3.6"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -599,7 +599,7 @@ function Update-ADAccountStatus {
                 $statusLines += "[red]**Account expires in $days days**[/red] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
                 $alertLevel = "Critical"
             } elseif ($days -le 30) {
-                $statusLines += "[yellow]Account expires in $days days[/yellow] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
+                $statusLines += "[DarkOrange]Account expires in $days days[/DarkOrange] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
                 if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
             } else {
                 $statusLines += "Account expires in $days days ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
@@ -615,26 +615,49 @@ function Update-ADAccountStatus {
                 $statusLines += "[red]**PASSWORD EXPIRED - Change Required**[/red]"
                 $showPasswordButton = $true
                 $alertLevel = "Critical"
+                
+                # Show alert only once per day for expired password
+                $today = (Get-Date).Date.ToString('yyyy-MM-dd')
+                if ($config.LastPasswordAlert -ne "expired-$today") {
+                    Show-AlertNotification -Title "Password Expired!" `
+                        -Message "Your password has expired. You must change it immediately to avoid being locked out." `
+                        -TimeoutMs 15000 `
+                        -Icon ([System.Windows.Forms.ToolTipIcon]::Error)
+                    $config.LastPasswordAlert = "expired-$today"
+                    Save-Configuration -Config $config
+                }
             } elseif ($days -le 7) {
                 $statusLines += "[red]**Password expires in $days days!**[/red] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
                 $showPasswordButton = $true
                 $alertLevel = "Critical"
                 
-                # Show critical password expiration notification
-                Show-AlertNotification -Title "Password Expiring Soon!" `
-                    -Message "Your password expires in $days days. Change it now to avoid being locked out." `
-                    -TimeoutMs 10000 `
-                    -Icon ([System.Windows.Forms.ToolTipIcon]::Error)
+                # Show critical password expiration notification only once per day per status
+                $today = (Get-Date).Date.ToString('yyyy-MM-dd')
+                $alertKey = "critical-$days-$today"
+                if ($config.LastPasswordAlert -ne $alertKey) {
+                    Show-AlertNotification -Title "Password Expiring Soon!" `
+                        -Message "Your password expires in $days days. Change it now to avoid being locked out." `
+                        -TimeoutMs 10000 `
+                        -Icon ([System.Windows.Forms.ToolTipIcon]::Error)
+                    $config.LastPasswordAlert = $alertKey
+                    Save-Configuration -Config $config
+                }
             } elseif ($days -le 14) {
-                $statusLines += "[yellow]**Password expires in $days days**[/yellow] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
+                $statusLines += "[DarkOrange]**Password expires in $days days**[/DarkOrange] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
                 $showPasswordButton = $true
                 if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
                 
-                # Show warning password expiration notification  
-                Show-AlertNotification -Title "Password Expiration Reminder" `
-                    -Message "Your password expires in $days days." `
-                    -TimeoutMs 8000 `
-                    -Icon ([System.Windows.Forms.ToolTipIcon]::Warning)
+                # Show warning password expiration notification only once per day per status
+                $today = (Get-Date).Date.ToString('yyyy-MM-dd')
+                $alertKey = "warning-$days-$today"
+                if ($config.LastPasswordAlert -ne $alertKey) {
+                    Show-AlertNotification -Title "Password Expiration Reminder" `
+                        -Message "Your password expires in $days days." `
+                        -TimeoutMs 8000 `
+                        -Icon ([System.Windows.Forms.ToolTipIcon]::Warning)
+                    $config.LastPasswordAlert = $alertKey
+                    Save-Configuration -Config $config
+                }
             } else {
                 $statusLines += "Password expires in $days days ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
             }
@@ -686,20 +709,27 @@ function Update-ADAccountStatus {
 function Start-PasswordChange {
     try {
         Write-Log "User initiated password change" -Level "INFO"
-        # Launch Windows Security settings
-        Start-Process "ms-settings:signinoptions-password"
+        
+        # For domain-joined machines, use the secure credential management
+        # This works for both domain and local accounts
+        Start-Process "rundll32.exe" "keymgr.dll,KRShowKeyMgr" -Wait:$false
+        
+        Write-Log "Launched Windows credential manager for password change" -Level "INFO"
     } catch {
-        # Fallback to control panel
-        try {
-            Start-Process "control.exe" "/name Microsoft.UserAccounts"
-        } catch {
-            [System.Windows.MessageBox]::Show(
-                "Unable to launch password change dialog.`n`nPlease press Ctrl+Alt+Delete and select 'Change a password'.",
-                "Change Password",
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Information
-            )
-        }
+        Write-Log "Error launching credential manager: $($_.Exception.Message)" -Level "ERROR"
+        
+        # Show helpful message to user
+        $result = [System.Windows.MessageBox]::Show(
+            "To change your password on a domain-joined computer:`n`n" +
+            "1. Press Ctrl+Alt+Delete`n" +
+            "2. Select 'Change a password'`n" +
+            "3. Follow the prompts`n`n" +
+            "Your password must meet the domain complexity requirements.`n`n" +
+            "Click OK to continue.",
+            "Change Password Instructions",
+            [System.Windows.MessageBoxButton]::OK,
+            [System.Windows.MessageBoxImage]::Information
+        )
     }
 }
 
@@ -775,7 +805,7 @@ function Get-DefaultConfig {
         RefreshInterval       = 900
         LogRotationSizeMB     = 2
         DefaultLogLevel       = "INFO"
-        ContentDataUrl        = "https://raw.llcad-github.llan.ll.mit.edu/EndpointEngineering/EndpointAdvisor/refs/heads/main/ContentData.json"
+        ContentDataUrl        = "https://raw.githubusercontent.com/burnoil/EndpointAdvisor/refs/heads/main/ContentData.json"
         CertificateCheckInterval = 86400
         YubiKeyAlertDays      = 14
         IconPaths             = @{
@@ -2887,4 +2917,3 @@ finally {
     if ($global:MainIcon) { $global:MainIcon.Dispose() }
     if ($global:WarningIcon) { $global:WarningIcon.Dispose() }
 }
-
