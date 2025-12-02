@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.6 (Fixed password alert repetition, Change Password button, improved warning text readability)
+# Version: 6.3.6 (Fixed password alert repetition, Change Password button, added orange color support for better warning text readability)
 
 
 function Test-IsJson {
@@ -599,7 +599,7 @@ function Update-ADAccountStatus {
                 $statusLines += "[red]**Account expires in $days days**[/red] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
                 $alertLevel = "Critical"
             } elseif ($days -le 30) {
-                $statusLines += "[DarkOrange]Account expires in $days days[/DarkOrange] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
+                $statusLines += "[orange]Account expires in $days days[/orange] ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
                 if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
             } else {
                 $statusLines += "Account expires in $days days ($($global:ADAccountStatus.AccountExpires.ToString('MM/dd/yyyy')))"
@@ -643,7 +643,7 @@ function Update-ADAccountStatus {
                     Save-Configuration -Config $config
                 }
             } elseif ($days -le 14) {
-                $statusLines += "[DarkOrange]**Password expires in $days days**[/DarkOrange] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
+                $statusLines += "[orange]**Password expires in $days days**[/orange] ($($global:ADAccountStatus.PasswordExpires.ToString('MM/dd/yyyy')))"
                 $showPasswordButton = $true
                 if ($alertLevel -ne "Critical") { $alertLevel = "Warning" }
                 
@@ -2285,7 +2285,7 @@ function Convert-MarkdownToTextBlock {
 
         $TargetTextBlock.Inlines.Clear()
         
-        $regexColor = "\[(green|red|yellow|blue)\](.*?)\[/\1\]"
+        $regexColor = "\[(green|red|yellow|blue|orange)\](.*?)\[/\1\]"
         $regexBold = "\*\*(.*?)\*\*"
         $regexItalic = "\*(.*?)\*"
         $regexUnderline = "__(.*?)__"
