@@ -1,5 +1,5 @@
 # ===== LLEA CORE HELPERS (added) =====
-# Version: 6.3.6 (Fixed password alert repetition, Change Password button, added orange color support for better warning text readability)
+# Version: 6.3.7 (Fixed password alert repetition, Change Password button handler registration and functionality, added orange color support)
 
 
 function Test-IsJson {
@@ -158,7 +158,7 @@ if ($MyInvocation.MyCommand.Path) {
 }
 
 # Define version
-$ScriptVersion = "6.3.6"
+$ScriptVersion = "6.3.7"
 
 # --- START OF ENHANCED SINGLE-INSTANCE CHECK ---
 # Uses multiple methods to prevent duplicate instances:
@@ -710,23 +710,71 @@ function Start-PasswordChange {
     try {
         Write-Log "User initiated password change" -Level "INFO"
         
-        # For domain-joined machines, use the secure credential management
-        # This works for both domain and local accounts
-        Start-Process "rundll32.exe" "keymgr.dll,KRShowKeyMgr" -Wait:$false
+        # For domain environments, the most reliable method is to direct users to the Ctrl+Alt+Delete screen
+        # We'll show a helpful dialog that guides them through the process
         
-        Write-Log "Launched Windows credential manager for password change" -Level "INFO"
-    } catch {
-        Write-Log "Error launching credential manager: $($_.Exception.Message)" -Level "ERROR"
+        $message = @"
+To change your MIT Lincoln Laboratory domain password:
+
+1. Press Ctrl + Alt + Delete on your keyboard
+
+2. Click "Change a password"
+
+3. Enter your current password
+
+4. Enter and confirm your new password
+   (Must meet domain complexity requirements)
+
+5. Click OK or press Enter
+
+Your new password will be active immediately.
+
+Would you like to see the password requirements?
+"@
         
-        # Show helpful message to user
         $result = [System.Windows.MessageBox]::Show(
-            "To change your password on a domain-joined computer:`n`n" +
-            "1. Press Ctrl+Alt+Delete`n" +
-            "2. Select 'Change a password'`n" +
-            "3. Follow the prompts`n`n" +
-            "Your password must meet the domain complexity requirements.`n`n" +
-            "Click OK to continue.",
-            "Change Password Instructions",
+            $message,
+            "Change Your Password",
+            [System.Windows.MessageBoxButton]::YesNo,
+            [System.Windows.MessageBoxImage]::Information
+        )
+        
+        if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+            # Show password requirements
+            $requirements = @"
+MIT Lincoln Laboratory Password Requirements:
+
+✓ Minimum 12 characters
+✓ Must include uppercase letters (A-Z)
+✓ Must include lowercase letters (a-z)  
+✓ Must include numbers (0-9)
+✓ Must include special characters (!@#$%^&*)
+✓ Cannot contain your username
+✓ Cannot be one of your last 24 passwords
+✓ Expires every 90 days
+
+Need help? Contact the IT Service Desk:
+Phone: (781) 981-HELP (4357)
+Email: servicedesk@ll.mit.edu
+"@
+            
+            [System.Windows.MessageBox]::Show(
+                $requirements,
+                "Password Requirements",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+        }
+        
+        Write-Log "Password change instructions displayed to user" -Level "INFO"
+        
+    } catch {
+        Write-Log "Error showing password change instructions: $($_.Exception.Message)" -Level "ERROR"
+        
+        # Fallback message
+        [System.Windows.MessageBox]::Show(
+            "Press Ctrl+Alt+Delete and select 'Change a password' to change your password.",
+            "Change Password",
             [System.Windows.MessageBoxButton]::OK,
             [System.Windows.MessageBoxImage]::Information
         )
@@ -1339,6 +1387,10 @@ if ($global:DriverUpdateButton) {
                 Write-Log "User closed driver progress panel." -Level "INFO"
                 $window.Dispatcher.Invoke({
                     $global:DriverProgressPanel.Visibility = "Collapsed"
+                })
+            })
+        }
+        
         # Add AD button handlers
         if ($global:ADChangePasswordButton) {
             $global:ADChangePasswordButton.Add_Click({ Start-PasswordChange })
@@ -1351,9 +1403,6 @@ if ($global:DriverUpdateButton) {
                 Write-Log "User initiated AD status refresh." -Level "INFO"
             })
             Write-Log "AD Refresh button handler registered." -Level "INFO"  
-        }
-                })
-            })
         }
         if ($global:ClearAlertsButton) {
 			$global:ClearAlertsButton.Add_Click({
