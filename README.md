@@ -72,7 +72,7 @@ EndPoint Advisor is ideal for enterprise environments with thousands of Windows 
 
 - **OS**: Windows 10/11.
 - **PowerShell**: Version 5.1 (Windows PowerShell) for `System.Windows.Forms` and WPF.
-- **Dependencies**: Icon files (`LL_LOGO.ico`, `LL_LOGO_MSG.ico`), optional `EndPoint Advisor.config.json`, and `ykman.exe` for YubiKey checks.
+- **Dependencies**: Icon files (`EA_LOGO.ico`, `EA_LOGO_MSG.ico`), optional `EndPoint Advisor.config.json`, and `ykman.exe` for YubiKey checks.
 - **Deployment**: BigFix or similar for mass deployment to a program data directory.
 
 ---
