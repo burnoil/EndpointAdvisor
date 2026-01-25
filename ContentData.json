@@ -14,7 +14,7 @@
           "Links": [
             {
               "Name": "FAQ",
-              "Url": "https://kb.ll.mit.edu/ea-faq"
+              "Url": "https://kb.some.company.com/ea-faq"
             }
           ]
         },
@@ -74,7 +74,7 @@
           "AppendToDefault": false,
           "Title": "LLEA Pilot Program (Windows)",
           "Text": "You are currently enrolled in the LLEA Pilot group.",
-          "Details": "Feedback is encouraged. Submit issues to endpointengineering@ll.mit.edu.",
+          "Details": "Feedback is encouraged. Submit issues to endpointengineering@some.company.com.",
           "Condition": {
             "Type": "Registry",
             "Path": "HKLM:\\SOFTWARE\\MITLL\\Targeting",
@@ -89,7 +89,7 @@
           "AppendToDefault": false,
           "Title": "LLEA Pilot Program (macOS)",
           "Text": "You are currently enrolled in the LLEA Pilot group.",
-          "Details": "Feedback is encouraged. Submit issues to endpointengineering@ll.mit.edu.",
+          "Details": "Feedback is encouraged. Submit issues to endpointengineering@some.company.com.",
           "Condition": {
             "Type": "Plist",
             "Path": "/Library/LL/Targeting/Enrollment.plist",
@@ -105,15 +105,15 @@
         "id": "support-win-001",
         "Platform": "Windows",
         "Text": "Contact the ISD Support Center (Windows).",
-        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM to 5 PM ET",
+        "Details": "- Phone: 781-981-XXXX\n- Email: support@some.company.com\n- Hours: 8 AM to 5 PM ET",
         "Links": [
           {
             "Name": "Windows Knowledge Base",
-            "Url": "https://kb.ll.mit.edu/windows"
+            "Url": "https://kb.some.company.com/windows"
           },
           {
             "Name": "Self-Service Portal",
-            "Url": "https://intra.ll.mit.edu/selfservice"
+            "Url": "https://intra.some.company.com/selfservice"
           }
         ],
         "updatedAt": "2025-11-06T17:20:00Z"
@@ -122,15 +122,15 @@
         "id": "support-mac-001",
         "Platform": "Mac",
         "Text": "Contact the ISD Support Center (macOS).",
-        "Details": "- Phone: 781-981-XXXX\n- Email: support@ll.mit.edu\n- Hours: 8 AM – 5 PM ET",
+        "Details": "- Phone: 781-981-XXXX\n- Email: support@some.company.com\n- Hours: 8 AM – 5 PM ET",
         "Links": [
           {
             "Name": "macOS Knowledge Base",
-            "Url": "https://kb.ll.mit.edu/mac"
+            "Url": "https://kb.some.company.com/mac"
           },
           {
             "Name": "Self-Service (Mac)",
-            "Url": "https://intra.ll.mit.edu/selfservice-mac"
+            "Url": "https://intra.some.company.com/selfservice-mac"
           }
         ],
         "updatedAt": "2025-11-06T17:20:00Z"
@@ -139,7 +139,7 @@
         "id": "support-all-001",
         "Platform": "All",
         "Text": "General ISD support is available to all users.",
-        "Details": "- Status updates: https://status.ll.mit.edu\n- Support email: support@ll.mit.edu"
+        "Details": "- Status updates: https://status.some.company.com\n- Support email: support@some.company.com"
       }
     ]
   }
