@@ -1,5 +1,6 @@
 # Endpoint Advisor - Application Overview
 
+<img width="333" height="539" alt="image" src="https://github.com/user-attachments/assets/e9b94b7b-b1b0-4d60-a818-66d43bf305d2" />
 
 
 ## Purpose
